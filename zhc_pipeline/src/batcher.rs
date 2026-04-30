@@ -605,7 +605,7 @@ mod test {
 
     #[test]
     fn test_batch_scheduler() {
-        let ir = pipeline(&add(CiphertextSpec::new(16, 2, 2)).into_ir());
+        let ir = pipeline(&add(CiphertextSpec::new(16, 2, 2)).optimize_ir());
         assert_display_is!(
             ir.format().show_types(false),
             r#"
@@ -736,7 +736,7 @@ mod test {
     fn correctness() {
         let check = |b: Builder| {
             let spec = *b.spec();
-            let iop_ir = b.into_ir();
+            let iop_ir = b.optimize_ir();
             let hpu_ir = pipeline(&iop_ir);
             check_iop_hpu_equivalence(&iop_ir, &hpu_ir, spec, 100);
         };

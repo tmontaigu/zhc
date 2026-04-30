@@ -14,7 +14,7 @@
 //! let doubled: Vec<_> = blocks.iter().map(|b| builder.block_add(b, b)).collect();
 //! let output = builder.ciphertext_join(&doubled, None);
 //! builder.ciphertext_output(&output);
-//! let ir = builder.into_ir();
+//! let ir = builder.optimize_ir();
 //! ```
 
 use crate::{
@@ -39,7 +39,7 @@ use zhc_ir::{
 };
 use zhc_langs::ioplang::{
     IopInstructionSet, IopLang, IopTypeSystem, IopValue, Lut1Def, Lut2Def, eliminate_aliases,
-    skip_store_load,
+    skip_redundant_stores, skip_store_load,
 };
 use zhc_utils::{
     Dumpable, SafeAs, Store,
@@ -135,7 +135,7 @@ impl InnerBuilder {
 /// A [`Builder`] accumulates IR instructions through its methods, using interior mutability
 /// so that all operations take `&self`. The typical lifecycle is: create a builder, declare
 /// inputs, emit block-level or vector-level operations, declare outputs, and finally call
-/// [`into_ir`](Self::into_ir) to obtain the optimized IR.
+/// [`optimize_ir`](Self::optimize_ir) to obtain the optimized IR.
 ///
 /// Every builder is parameterized by a single [`CiphertextBlockSpec`] that defines the
 /// message/carry bit layout shared by all ciphertext blocks in the circuit. This spec is
@@ -171,7 +171,7 @@ impl InnerBuilder {
 /// // ... operate on blocks ...
 /// let output = builder.ciphertext_join(&blocks, None);
 /// builder.ciphertext_output(&output);
-/// let ir = builder.into_ir();
+/// let ir = builder.optimize_ir();
 /// ```
 #[derive(Clone)]
 pub struct Builder {
@@ -217,27 +217,11 @@ impl Builder {
         }
     }
 
-    /// Consumes the builder and returns the optimized IR graph.
-    ///
-    /// Finalizes the circuit by running optimization passes — alias elimination, dead-code
-    /// elimination, and common subexpression elimination — then returns the resulting IR.
-    /// This is typically the last step after declaring all inputs, emitting operations, and
-    /// declaring outputs.
-    ///
-    /// # Examples
-    ///
-    /// ```rust,no_run
-    /// # use zhc_builder::*;
-    /// let builder = Builder::new(CiphertextBlockSpec(2, 2));
-    /// let input = builder.ciphertext_input(8);
-    /// // ... build circuit ...
-    /// builder.ciphertext_output(&input);
-    /// let ir = builder.into_ir();
-    /// ```
-    pub fn into_ir(self) -> IR<IopLang> {
-        let mut ir = Rc::try_unwrap(self.inner).unwrap().into_inner().ir;
+    pub fn optimize_ir(&self) -> IR<IopLang> {
+        let mut ir = self.ir().clone();
         eliminate_aliases(&mut ir);
         skip_store_load(&mut ir);
+        skip_redundant_stores(&mut ir);
         eliminate_dead_code(&mut ir);
         eliminate_common_subexpressions(&mut ir);
         ir
@@ -258,7 +242,7 @@ impl Builder {
 
     /// Borrows the current (unoptimized) IR graph.
     ///
-    /// Unlike [`into_ir`](Self::into_ir), this does not consume the builder and does not
+    /// Unlike [`optimize_ir`](Self::optimize_ir), this does not consume the builder and does not
     /// apply any optimization passes. Useful for debugging and inspection mid-construction.
     pub fn ir(&self) -> Ref<'_, IR<IopLang>> {
         Ref::map(self.inner(), |inner| &inner.ir)
@@ -628,7 +612,21 @@ impl Builder {
             svec![],
             self.current_hierarchy(),
         );
+        let (_, zero) = self.inner_mut().insert_op(
+            IopInstructionSet::LetCiphertextBlock { value: 0 },
+            svec![],
+            self.current_hierarchy(),
+        );
         let mut acc = acc[0];
+        for index in 0..spec.block_count() {
+            let index = index.sas::<u8>();
+            let (_, ret) = self.inner_mut().insert_op(
+                IopInstructionSet::StoreCtBlock { index },
+                svec![zero[0], acc],
+                self.current_hierarchy(),
+            );
+            acc = ret[0];
+        }
         for (index, block) in blocks.iter().enumerate() {
             let index = index.sas::<u8>();
             let (_, ret) = self.inner_mut().insert_op(

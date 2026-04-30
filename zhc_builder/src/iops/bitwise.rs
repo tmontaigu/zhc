@@ -20,7 +20,7 @@ use crate::builder::{Builder, Ciphertext};
 /// # use zhc_builder::{CiphertextSpec, bitwise_and};
 /// # let spec = CiphertextSpec::new(16, 2, 2);
 /// let builder = bitwise_and(spec);
-/// let ir = builder.into_ir();
+/// let ir = builder.optimize_ir();
 /// ```
 pub fn bitwise_and(spec: CiphertextSpec) -> Builder {
     let builder = Builder::new(spec.block_spec());
@@ -48,7 +48,7 @@ pub fn bitwise_and(spec: CiphertextSpec) -> Builder {
 /// # use zhc_builder::{CiphertextSpec, bitwise_or};
 /// # let spec = CiphertextSpec::new(16, 2, 2);
 /// let builder = bitwise_or(spec);
-/// let ir = builder.into_ir();
+/// let ir = builder.optimize_ir();
 /// ```
 pub fn bitwise_or(spec: CiphertextSpec) -> Builder {
     let builder = Builder::new(spec.block_spec());
@@ -76,7 +76,7 @@ pub fn bitwise_or(spec: CiphertextSpec) -> Builder {
 /// # use zhc_builder::{CiphertextSpec, bitwise_xor};
 /// # let spec = CiphertextSpec::new(16, 2, 2);
 /// let builder = bitwise_xor(spec);
-/// let ir = builder.into_ir();
+/// let ir = builder.optimize_ir();
 /// ```
 pub fn bitwise_xor(spec: CiphertextSpec) -> Builder {
     let builder = Builder::new(spec.block_spec());
@@ -149,7 +149,7 @@ mod test {
     #[test]
     fn test_bw_and() {
         let spec = CiphertextSpec::new(64, 2, 2);
-        let ir = bitwise_and(spec).into_ir();
+        let ir = bitwise_and(spec).optimize_ir();
         assert_display_is!(
             ir.format().with_walker(zhc_ir::PrintWalker::Linear),
             r#"
@@ -284,39 +284,39 @@ mod test {
                 %128 = pack_ct<4>(%33, %65);
                 %129 = pbs<Protect, Lut1("BwAnd")>(%128);
                 %130 = decl_ct<64>();
-                %131 = store_ct_block<0>(%67, %130);
-                %132 = store_ct_block<1>(%69, %131);
-                %133 = store_ct_block<2>(%71, %132);
-                %134 = store_ct_block<3>(%73, %133);
-                %135 = store_ct_block<4>(%75, %134);
-                %136 = store_ct_block<5>(%77, %135);
-                %137 = store_ct_block<6>(%79, %136);
-                %138 = store_ct_block<7>(%81, %137);
-                %139 = store_ct_block<8>(%83, %138);
-                %140 = store_ct_block<9>(%85, %139);
-                %141 = store_ct_block<10>(%87, %140);
-                %142 = store_ct_block<11>(%89, %141);
-                %143 = store_ct_block<12>(%91, %142);
-                %144 = store_ct_block<13>(%93, %143);
-                %145 = store_ct_block<14>(%95, %144);
-                %146 = store_ct_block<15>(%97, %145);
-                %147 = store_ct_block<16>(%99, %146);
-                %148 = store_ct_block<17>(%101, %147);
-                %149 = store_ct_block<18>(%103, %148);
-                %150 = store_ct_block<19>(%105, %149);
-                %151 = store_ct_block<20>(%107, %150);
-                %152 = store_ct_block<21>(%109, %151);
-                %153 = store_ct_block<22>(%111, %152);
-                %154 = store_ct_block<23>(%113, %153);
-                %155 = store_ct_block<24>(%115, %154);
-                %156 = store_ct_block<25>(%117, %155);
-                %157 = store_ct_block<26>(%119, %156);
-                %158 = store_ct_block<27>(%121, %157);
-                %159 = store_ct_block<28>(%123, %158);
-                %160 = store_ct_block<29>(%125, %159);
-                %161 = store_ct_block<30>(%127, %160);
-                %162 = store_ct_block<31>(%129, %161);
-                output<0>(%162);
+                %164 = store_ct_block<0>(%67, %130);
+                %165 = store_ct_block<1>(%69, %164);
+                %166 = store_ct_block<2>(%71, %165);
+                %167 = store_ct_block<3>(%73, %166);
+                %168 = store_ct_block<4>(%75, %167);
+                %169 = store_ct_block<5>(%77, %168);
+                %170 = store_ct_block<6>(%79, %169);
+                %171 = store_ct_block<7>(%81, %170);
+                %172 = store_ct_block<8>(%83, %171);
+                %173 = store_ct_block<9>(%85, %172);
+                %174 = store_ct_block<10>(%87, %173);
+                %175 = store_ct_block<11>(%89, %174);
+                %176 = store_ct_block<12>(%91, %175);
+                %177 = store_ct_block<13>(%93, %176);
+                %178 = store_ct_block<14>(%95, %177);
+                %179 = store_ct_block<15>(%97, %178);
+                %180 = store_ct_block<16>(%99, %179);
+                %181 = store_ct_block<17>(%101, %180);
+                %182 = store_ct_block<18>(%103, %181);
+                %183 = store_ct_block<19>(%105, %182);
+                %184 = store_ct_block<20>(%107, %183);
+                %185 = store_ct_block<21>(%109, %184);
+                %186 = store_ct_block<22>(%111, %185);
+                %187 = store_ct_block<23>(%113, %186);
+                %188 = store_ct_block<24>(%115, %187);
+                %189 = store_ct_block<25>(%117, %188);
+                %190 = store_ct_block<26>(%119, %189);
+                %191 = store_ct_block<27>(%121, %190);
+                %192 = store_ct_block<28>(%123, %191);
+                %193 = store_ct_block<29>(%125, %192);
+                %194 = store_ct_block<30>(%127, %193);
+                %195 = store_ct_block<31>(%129, %194);
+                output<0>(%195);
             "#
         );
     }

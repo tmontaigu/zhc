@@ -28,7 +28,7 @@ use crate::{
 /// # use zhc_builder::{CiphertextSpec, count_0};
 /// # let spec = CiphertextSpec::new(16, 2, 2);
 /// let builder = count_0(spec);
-/// let ir = builder.into_ir();
+/// let ir = builder.optimize_ir();
 /// ```
 pub fn count_0(spec: CiphertextSpec) -> Builder {
     let builder = Builder::new(spec.block_spec());
@@ -55,7 +55,7 @@ pub fn count_0(spec: CiphertextSpec) -> Builder {
 /// # use zhc_builder::{CiphertextSpec, count_1};
 /// # let spec = CiphertextSpec::new(16, 2, 2);
 /// let builder = count_1(spec);
-/// let ir = builder.into_ir();
+/// let ir = builder.optimize_ir();
 /// ```
 pub fn count_1(spec: CiphertextSpec) -> Builder {
     let builder = Builder::new(spec.block_spec());
@@ -105,7 +105,7 @@ impl Builder {
             let output_size: u16 = n_bits_to_encode(inp.spec().int_size());
             let n_blocks = output_size.div_ceil(self.spec().message_size().sas()).sas();
             self.comment("output")
-                .ciphertext_join(&res[..n_blocks], Some(output_size))
+                .ciphertext_join(&res[..n_blocks], Some(inp.spec().int_size()))
         })
     }
 
@@ -231,7 +231,7 @@ mod test {
     #[test]
     fn test_count0() {
         let spec = CiphertextSpec::new(18, 2, 2);
-        let ir = count_0(spec).into_ir();
+        let ir = count_0(spec).optimize_ir();
         assert_display_is!(
             ir.format()
                 .with_walker(zhc_ir::PrintWalker::Linear)
@@ -286,11 +286,18 @@ mod test {
                 // count_reduce_recursive / regular Column 1   | %58, %59 = pbs2<Protect, Lut2("ManyCarryMsg")>(%57);
                 // count_reduce_recursive / regular Column 2   | %60 = add_ct(%59, %56);
                 // count_reduce_recursive / regular Column 2   | %61, %62 = pbs2<Protect, Lut2("ManyCarryMsg")>(%60);
-                // iop_count / output                          | %67 = decl_ct<5>();
-                // iop_count / output                          | %68 = store_ct_block<0>(%51, %67);
-                // iop_count / output                          | %69 = store_ct_block<1>(%58, %68);
-                // iop_count / output                          | %70 = store_ct_block<2>(%61, %69);
-                                                               | output<0>(%70);
+                // iop_count / output                          | %67 = decl_ct<18>();
+                // iop_count / output                          | %68 = let_ct_block<0>();
+                // iop_count / output                          | %72 = store_ct_block<3>(%68, %67);
+                // iop_count / output                          | %73 = store_ct_block<4>(%68, %72);
+                // iop_count / output                          | %74 = store_ct_block<5>(%68, %73);
+                // iop_count / output                          | %75 = store_ct_block<6>(%68, %74);
+                // iop_count / output                          | %76 = store_ct_block<7>(%68, %75);
+                // iop_count / output                          | %77 = store_ct_block<8>(%68, %76);
+                // iop_count / output                          | %78 = store_ct_block<0>(%51, %77);
+                // iop_count / output                          | %79 = store_ct_block<1>(%58, %78);
+                // iop_count / output                          | %80 = store_ct_block<2>(%61, %79);
+                                                               | output<0>(%80);
             "#
         );
     }
@@ -303,11 +310,10 @@ mod test {
             };
             let res =
                 inp.as_storage().count_zeros() - (u128::BITS - inp.spec().int_size().sas::<u32>());
-            let output_size: u16 = n_bits_to_encode(inp.spec().int_size());
             Some(vec![IopValue::Ciphertext(
                 inp.spec()
                     .block_spec()
-                    .ciphertext_spec(output_size)
+                    .ciphertext_spec(inp.spec().int_size())
                     .from_int(res.sas()),
             )])
         }
@@ -324,11 +330,10 @@ mod test {
                 unreachable!()
             };
             let res = inp.as_storage().count_ones();
-            let output_size: u16 = n_bits_to_encode(inp.spec().int_size());
             Some(vec![IopValue::Ciphertext(
                 inp.spec()
                     .block_spec()
-                    .ciphertext_spec(output_size)
+                    .ciphertext_spec(inp.spec().int_size())
                     .from_int(res.sas()),
             )])
         }

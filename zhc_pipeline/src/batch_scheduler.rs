@@ -333,19 +333,20 @@ mod test {
 
     #[test]
     fn test_scheduler() {
-        let ir = pipeline(&count_0(CiphertextSpec::new(16, 2, 2)).into_ir());
+        let ir = pipeline(&count_0(CiphertextSpec::new(16, 2, 2)).optimize_ir());
         assert_display_is!(
             ir.format(),
             r#"
-                %0 = src_ld<0.7_tsrc>();
-                %1 = src_ld<0.6_tsrc>();
-                %2 = src_ld<0.5_tsrc>();
-                %3 = src_ld<0.4_tsrc>();
-                %4 = src_ld<0.3_tsrc>();
-                %5 = src_ld<0.2_tsrc>();
-                %6 = src_ld<0.1_tsrc>();
-                %7 = src_ld<0.0_tsrc>();
-                %8, %9, %10, %11, %12, %13, %14, %15, %16, %17, %18, %19, %20, %21, %22, %23 = batch {
+                %0 = cst_ct<0_imm>();
+                %1 = src_ld<0.7_tsrc>();
+                %2 = src_ld<0.6_tsrc>();
+                %3 = src_ld<0.5_tsrc>();
+                %4 = src_ld<0.4_tsrc>();
+                %5 = src_ld<0.3_tsrc>();
+                %6 = src_ld<0.2_tsrc>();
+                %7 = src_ld<0.1_tsrc>();
+                %8 = src_ld<0.0_tsrc>();
+                %9, %10, %11, %12, %13, %14, %15, %16, %17, %18, %19, %20, %21, %22, %23, %24 = batch {
                     %a0 = batch_arg<0, CtRegister>();
                     %a1 = batch_arg<1, CtRegister>();
                     %a2 = batch_arg<2, CtRegister>();
@@ -378,21 +379,26 @@ mod test {
                     batch_ret<13, CtRegister>(%a21);
                     batch_ret<14, CtRegister>(%a22);
                     batch_ret<15, CtRegister>(%a23);
-                }(%7, %6, %5, %4, %3, %2, %1, %0);
-                %24 = add_ct(%22, %23);
-                %25 = add_ct(%15, %16);
-                %26 = add_ct(%25, %17);
+                }(%8, %7, %6, %5, %4, %3, %2, %1);
+                dst_st<0.7_tdst>(%0);
+                dst_st<0.6_tdst>(%0);
+                dst_st<0.5_tdst>(%0);
+                dst_st<0.4_tdst>(%0);
+                dst_st<0.3_tdst>(%0);
+                %25 = add_ct(%23, %24);
+                %26 = add_ct(%16, %17);
                 %27 = add_ct(%26, %18);
                 %28 = add_ct(%27, %19);
                 %29 = add_ct(%28, %20);
                 %30 = add_ct(%29, %21);
-                %31 = add_ct(%8, %9);
-                %32 = add_ct(%31, %10);
+                %31 = add_ct(%30, %22);
+                %32 = add_ct(%9, %10);
                 %33 = add_ct(%32, %11);
                 %34 = add_ct(%33, %12);
                 %35 = add_ct(%34, %13);
                 %36 = add_ct(%35, %14);
-                %37, %38, %39, %40, %41, %42 = batch {
+                %37 = add_ct(%36, %15);
+                %38, %39, %40, %41, %42, %43 = batch {
                     %a0 = batch_arg<0, CtRegister>();
                     %a1 = batch_arg<1, CtRegister>();
                     %a2 = batch_arg<2, CtRegister>();
@@ -405,12 +411,12 @@ mod test {
                     batch_ret<3, CtRegister>(%a6);
                     batch_ret<4, CtRegister>(%a7);
                     batch_ret<5, CtRegister>(%a8);
-                }(%36, %30, %24);
-                %43 = add_ct(%38, %40);
-                %44 = add_ct(%43, %42);
-                %45 = add_ct(%37, %39);
-                %46 = add_ct(%45, %41);
-                %47, %48, %49, %50 = batch {
+                }(%37, %31, %25);
+                %44 = add_ct(%39, %41);
+                %45 = add_ct(%44, %43);
+                %46 = add_ct(%38, %40);
+                %47 = add_ct(%46, %42);
+                %48, %49, %50, %51 = batch {
                     %a0 = batch_arg<0, CtRegister>();
                     %a1 = batch_arg<1, CtRegister>();
                     %a2 = pbs<Lut@3>(%a0);
@@ -420,24 +426,24 @@ mod test {
                     batch_ret<1, CtRegister>(%a2);
                     batch_ret<2, CtRegister>(%a3);
                     batch_ret<3, CtRegister>(%a4);
-                }(%46, %44);
-                dst_st<0.0_tdst>(%47);
-                %51 = add_ct(%48, %49);
-                %52, %53 = batch {
+                }(%47, %45);
+                dst_st<0.0_tdst>(%48);
+                %52 = add_ct(%49, %50);
+                %53, %54 = batch {
                     %a0 = batch_arg<0, CtRegister>();
                     %a1, %a2 = pbs_2f<Lut@26>(%a0);
                     batch_ret<0, CtRegister>(%a1);
                     batch_ret<1, CtRegister>(%a2);
-                }(%51);
-                dst_st<0.1_tdst>(%52);
-                %54 = add_ct(%53, %50);
-                %55, %56 = batch {
+                }(%52);
+                dst_st<0.1_tdst>(%53);
+                %55 = add_ct(%54, %51);
+                %56, %57 = batch {
                     %a0 = batch_arg<0, CtRegister>();
                     %a1, %a2 = pbs_2f<Lut@26>(%a0);
                     batch_ret<0, CtRegister>(%a1);
                     batch_ret<1, CtRegister>(%a2);
-                }(%54);
-                dst_st<0.2_tdst>(%55);
+                }(%55);
+                dst_st<0.2_tdst>(%56);
             "#
         )
     }
@@ -447,7 +453,7 @@ mod test {
         use zhc_builder::*;
         let check = |b: Builder| {
             let spec = *b.spec();
-            let iop_ir = b.into_ir();
+            let iop_ir = b.optimize_ir();
             let hpu_ir = pipeline(&iop_ir);
             check_iop_hpu_equivalence(&iop_ir, &hpu_ir, spec, 100);
         };

@@ -706,7 +706,7 @@ impl<D: Dialect> IR<D> {
         };
         for opref in self.walk_ops_topological().rev() {
             let (opann, valanns) = f(ann_ir.get_op(opref.id));
-            assert_eq!(valanns.len(), opref.get_return_valids().len());
+            assert_eq!(valanns.len(), opref.get_return_arity());
             assert!(matches!(
                 ann_ir
                     .op_annotations

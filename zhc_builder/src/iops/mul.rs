@@ -20,7 +20,7 @@ use zhc_utils::SafeAs;
 /// # use zhc_builder::{CiphertextSpec, mul_lsb};
 /// # let spec = CiphertextSpec::new(16, 2, 2);
 /// let builder = mul_lsb(spec);
-/// let ir = builder.into_ir();
+/// let ir = builder.optimize_ir();
 /// ```
 pub fn mul_lsb(spec: CiphertextSpec) -> Builder {
     let builder = Builder::new(spec.block_spec());
@@ -57,7 +57,7 @@ pub fn mul_lsb(spec: CiphertextSpec) -> Builder {
 /// # use zhc_builder::{CiphertextSpec, overflow_mul_lsb};
 /// # let spec = CiphertextSpec::new(16, 2, 2);
 /// let builder = overflow_mul_lsb(spec);
-/// let ir = builder.into_ir();
+/// let ir = builder.optimize_ir();
 /// ```
 pub fn overflow_mul_lsb(spec: CiphertextSpec) -> Builder {
     let builder = Builder::new(spec.block_spec());
@@ -278,7 +278,7 @@ mod test {
     #[test]
     fn test_mul_lsb() {
         let spec = CiphertextSpec::new(8, 2, 2);
-        let ir = mul_lsb(spec).into_ir();
+        let ir = mul_lsb(spec).optimize_ir();
         assert_display_is!(
             ir.format()
                 .with_walker(zhc_ir::PrintWalker::Linear)
@@ -344,11 +344,11 @@ mod test {
                 // reduction_3   | %74 = add_ct(%63, %73);
                 // reduction_3   | %76 = pbs<Protect, Lut1("MsgOnly")>(%74);
                                  | %91 = decl_ct<8>();
-                                 | %92 = store_ct_block<0>(%11, %91);
-                                 | %93 = store_ct_block<1>(%55, %92);
-                                 | %94 = store_ct_block<2>(%64, %93);
-                                 | %95 = store_ct_block<3>(%76, %94);
-                                 | output<0>(%95);
+                                 | %97 = store_ct_block<0>(%11, %91);
+                                 | %98 = store_ct_block<1>(%55, %97);
+                                 | %99 = store_ct_block<2>(%64, %98);
+                                 | %100 = store_ct_block<3>(%76, %99);
+                                 | output<0>(%100);
             "#
         );
     }

@@ -127,7 +127,7 @@ mod test {
 
     #[test]
     fn test_latency_add_ir() {
-        let lat = pipeline(&add(CiphertextSpec::new(16, 2, 2)).into_ir());
+        let lat = pipeline(&add(CiphertextSpec::new(16, 2, 2)).optimize_ir());
         assert_display_is!(
             format!("{}us", lat.as_ts(MHz(400).period())),
             r#"
@@ -138,7 +138,7 @@ mod test {
 
     #[test]
     fn test_latency_cmp_ir() {
-        let lat = pipeline(&cmp_gt(CiphertextSpec::new(128, 2, 2)).into_ir());
+        let lat = pipeline(&cmp_gt(CiphertextSpec::new(128, 2, 2)).optimize_ir());
         assert_display_is!(
             format!("{}us", lat.as_ts(MHz(400).period())),
             r#"
@@ -149,18 +149,18 @@ mod test {
 
     #[test]
     fn test_latency_count0() {
-        let lat = pipeline(&count_0(CiphertextSpec::new(128, 2, 2)).into_ir());
+        let lat = pipeline(&count_0(CiphertextSpec::new(128, 2, 2)).optimize_ir());
         assert_display_is!(
             format!("{}us", lat.as_ts(MHz(400).period())),
             r#"
-                10185.0175us
+                10185.7075us
             "#
         );
     }
 
     #[test]
     fn test_latency_mul_lsb_ir() {
-        let lat = pipeline(&mul_lsb(CiphertextSpec::new(64, 2, 2)).into_ir());
+        let lat = pipeline(&mul_lsb(CiphertextSpec::new(64, 2, 2)).optimize_ir());
         assert_display_is!(
             format!("{}us", lat.as_ts(MHz(400).period())),
             r#"
@@ -171,7 +171,7 @@ mod test {
 
     #[test]
     fn test_latency_overflow_mul_lsb_ir() {
-        let lat = pipeline(&overflow_mul_lsb(CiphertextSpec::new(64, 2, 2)).into_ir());
+        let lat = pipeline(&overflow_mul_lsb(CiphertextSpec::new(64, 2, 2)).optimize_ir());
         assert_display_is!(
             format!("{}us", lat.as_ts(MHz(400).period())),
             r#"
@@ -182,7 +182,7 @@ mod test {
 
     #[test]
     fn test_latency_overflow_lead_0() {
-        let lat = pipeline(&lead0(CiphertextSpec::new(64, 2, 2)).into_ir());
+        let lat = pipeline(&lead0(CiphertextSpec::new(64, 2, 2)).optimize_ir());
         assert_display_is!(
             format!("{}us", lat.as_ts(MHz(400).period())),
             r#"

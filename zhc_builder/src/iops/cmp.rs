@@ -20,7 +20,7 @@ use zhc_utils::iter::{CollectInSmallVec, MultiZip};
 /// # use zhc_builder::{CiphertextSpec, cmp_gt};
 /// # let spec = CiphertextSpec::new(16, 2, 2);
 /// let builder = cmp_gt(spec);
-/// let ir = builder.into_ir();
+/// let ir = builder.optimize_ir();
 /// ```
 pub fn cmp_gt(spec: CiphertextSpec) -> Builder {
     let builder = Builder::new(spec.block_spec());
@@ -49,7 +49,7 @@ pub fn cmp_gt(spec: CiphertextSpec) -> Builder {
 /// # use zhc_builder::{CiphertextSpec, cmp_gte};
 /// # let spec = CiphertextSpec::new(16, 2, 2);
 /// let builder = cmp_gte(spec);
-/// let ir = builder.into_ir();
+/// let ir = builder.optimize_ir();
 /// ```
 pub fn cmp_gte(spec: CiphertextSpec) -> Builder {
     let builder = Builder::new(spec.block_spec());
@@ -77,7 +77,7 @@ pub fn cmp_gte(spec: CiphertextSpec) -> Builder {
 /// # use zhc_builder::{CiphertextSpec, cmp_lt};
 /// # let spec = CiphertextSpec::new(16, 2, 2);
 /// let builder = cmp_lt(spec);
-/// let ir = builder.into_ir();
+/// let ir = builder.optimize_ir();
 /// ```
 pub fn cmp_lt(spec: CiphertextSpec) -> Builder {
     let builder = Builder::new(spec.block_spec());
@@ -106,7 +106,7 @@ pub fn cmp_lt(spec: CiphertextSpec) -> Builder {
 /// # use zhc_builder::{CiphertextSpec, cmp_lte};
 /// # let spec = CiphertextSpec::new(16, 2, 2);
 /// let builder = cmp_lte(spec);
-/// let ir = builder.into_ir();
+/// let ir = builder.optimize_ir();
 /// ```
 pub fn cmp_lte(spec: CiphertextSpec) -> Builder {
     let builder = Builder::new(spec.block_spec());
@@ -134,7 +134,7 @@ pub fn cmp_lte(spec: CiphertextSpec) -> Builder {
 /// # use zhc_builder::{CiphertextSpec, cmp_eq};
 /// # let spec = CiphertextSpec::new(16, 2, 2);
 /// let builder = cmp_eq(spec);
-/// let ir = builder.into_ir();
+/// let ir = builder.optimize_ir();
 /// ```
 pub fn cmp_eq(spec: CiphertextSpec) -> Builder {
     let builder = Builder::new(spec.block_spec());
@@ -162,7 +162,7 @@ pub fn cmp_eq(spec: CiphertextSpec) -> Builder {
 /// # use zhc_builder::{CiphertextSpec, cmp_neq};
 /// # let spec = CiphertextSpec::new(16, 2, 2);
 /// let builder = cmp_neq(spec);
-/// let ir = builder.into_ir();
+/// let ir = builder.optimize_ir();
 /// ```
 pub fn cmp_neq(spec: CiphertextSpec) -> Builder {
     let builder = Builder::new(spec.block_spec());
@@ -302,7 +302,7 @@ mod test {
         let spec = CiphertextSpec::new(16, 2, 2);
         let ir = cmp_eq(spec);
         assert_display_is!(
-            ir.into_ir()
+            ir.optimize_ir()
                 .format()
                 .show_comments(false)
                 .show_types(false)
@@ -363,8 +363,8 @@ mod test {
                 %54 = pack_ct<4>(%53, %52);
                 %55 = pbs<Protect, Lut1("CmpEqMrg")>(%54);
                 %56 = decl_ct<2>();
-                %57 = store_ct_block<0>(%55, %56);
-                output<0>(%57);
+                %59 = store_ct_block<0>(%55, %56);
+                output<0>(%59);
             "#
         );
     }

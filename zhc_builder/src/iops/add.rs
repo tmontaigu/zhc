@@ -26,7 +26,7 @@ use crate::{
 /// # use zhc_builder::{CiphertextSpec, add};
 /// # let spec = CiphertextSpec::new(16, 2, 2);
 /// let builder = add(spec);
-/// let ir = builder.into_ir();
+/// let ir = builder.optimize_ir();
 /// ```
 pub fn add(spec: CiphertextSpec) -> Builder {
     let builder = Builder::new(spec.block_spec());
@@ -269,21 +269,9 @@ mod test {
     use zhc_utils::assert_display_is;
 
     #[test]
-    fn test_add_kfdsaj() {
-        let spec = CiphertextSpec::new(18, 2, 2);
-        let ir = add(spec);
-        ir.eval()
-            .with_inputs([
-                IopValue::Ciphertext(spec.from_int(55)),
-                IopValue::Ciphertext(spec.from_int(104)),
-            ])
-            .draw("test.html");
-    }
-
-    #[test]
     fn test_add() {
         let spec = CiphertextSpec::new(18, 2, 2);
-        let ir = add(spec).into_ir();
+        let ir = add(spec).optimize_ir();
         assert_display_is!(
             ir.format()
                 .with_walker(zhc_ir::PrintWalker::Linear)
@@ -365,16 +353,16 @@ mod test {
                 // Cleanup                         | %155 = pbs<Protect, Lut1("MsgOnly")>(%139);
                 // Cleanup                         | %156 = pbs<Protect, Lut1("MsgOnly")>(%140);
                 // Join                            | %164 = decl_ct<18>();
-                // Join                            | %165 = store_ct_block<0>(%148, %164);
-                // Join                            | %166 = store_ct_block<1>(%149, %165);
-                // Join                            | %167 = store_ct_block<2>(%150, %166);
-                // Join                            | %168 = store_ct_block<3>(%151, %167);
-                // Join                            | %169 = store_ct_block<4>(%152, %168);
-                // Join                            | %170 = store_ct_block<5>(%153, %169);
-                // Join                            | %171 = store_ct_block<6>(%154, %170);
-                // Join                            | %172 = store_ct_block<7>(%155, %171);
-                // Join                            | %173 = store_ct_block<8>(%156, %172);
-                                                   | output<0>(%173);
+                // Join                            | %175 = store_ct_block<0>(%148, %164);
+                // Join                            | %176 = store_ct_block<1>(%149, %175);
+                // Join                            | %177 = store_ct_block<2>(%150, %176);
+                // Join                            | %178 = store_ct_block<3>(%151, %177);
+                // Join                            | %179 = store_ct_block<4>(%152, %178);
+                // Join                            | %180 = store_ct_block<5>(%153, %179);
+                // Join                            | %181 = store_ct_block<6>(%154, %180);
+                // Join                            | %182 = store_ct_block<7>(%155, %181);
+                // Join                            | %183 = store_ct_block<8>(%156, %182);
+                                                   | output<0>(%183);
             "#
         );
     }

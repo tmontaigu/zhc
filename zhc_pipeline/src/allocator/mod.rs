@@ -48,7 +48,7 @@ mod test {
 
     #[test]
     fn test_allocate_add_ir() {
-        let ir = pipeline(&add(CiphertextSpec::new(16, 2, 2)).into_ir());
+        let ir = pipeline(&add(CiphertextSpec::new(16, 2, 2)).optimize_ir());
         assert_display_is!(
             ir.format(),
             r#"
@@ -127,7 +127,7 @@ mod test {
 
     #[test]
     fn test_allocate_cmp_ir() {
-        let ir = pipeline(&cmp_gt(CiphertextSpec::new(16, 2, 2)).into_ir());
+        let ir = pipeline(&cmp_gt(CiphertextSpec::new(16, 2, 2)).optimize_ir());
         assert_display_is!(
             ir.format().with_walker(PrintWalker::Linear),
             r#"
@@ -192,7 +192,7 @@ mod test {
         let config = HpuConfig::from(PhysicalConfig::gaussian_64b());
         let check = |b: Builder| {
             let spec = *b.spec();
-            let iop_ir = b.into_ir();
+            let iop_ir = b.optimize_ir();
             let dop_ir = pipeline(&iop_ir);
             check_iop_dop_equivalence(&iop_ir, &dop_ir, spec, config.regf_size, 100);
         };

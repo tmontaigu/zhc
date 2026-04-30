@@ -578,8 +578,8 @@ pub fn lower_iop_to_hpu(ir: &IR<IopLang>) -> IR<HpuLang> {
 #[cfg(test)]
 mod test {
     use zhc_builder::{
-        Builder, CiphertextSpec, add, bitwise_and, bitwise_or, bitwise_xor, cmp_gt, if_then_else,
-        if_then_zero, mul_lsb,
+        Builder, CiphertextSpec, add, bitwise_and, bitwise_or, bitwise_xor, cmp_gt, count_0,
+        count_1, if_then_else, if_then_zero, mul_lsb,
     };
     use zhc_ir::IR;
     use zhc_langs::{hpulang::HpuLang, ioplang::IopLang};
@@ -593,7 +593,7 @@ mod test {
 
     #[test]
     fn test_translate_add_ir() {
-        let ir = pipeline(&add(CiphertextSpec::new(16, 2, 2)).into_ir());
+        let ir = pipeline(&add(CiphertextSpec::new(16, 2, 2)).optimize_ir());
         assert_display_is!(
             ir.format(),
             r#"
@@ -671,7 +671,7 @@ mod test {
 
     #[test]
     fn test_translate_cmp_ir() {
-        let ir = pipeline(&cmp_gt(CiphertextSpec::new(16, 2, 2)).into_ir());
+        let ir = pipeline(&cmp_gt(CiphertextSpec::new(16, 2, 2)).optimize_ir());
         assert_display_is!(
             ir.format(),
             r#"
@@ -734,7 +734,7 @@ mod test {
     fn correctness() {
         let check = |b: Builder| {
             let spec = *b.spec();
-            let iop_ir = b.into_ir();
+            let iop_ir = b.optimize_ir();
             let hpu_ir = pipeline(&iop_ir);
             check_iop_hpu_equivalence(&iop_ir, &hpu_ir, spec, 100);
         };
@@ -747,6 +747,10 @@ mod test {
             check(if_then_else(spec));
             check(if_then_zero(spec));
             check(mul_lsb(spec));
+            if spec.int_size().is_multiple_of(2) {
+                check(count_0(spec));
+                check(count_1(spec));
+            }
         }
     }
 }

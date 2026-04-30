@@ -26,7 +26,7 @@ use crate::{Ciphertext, builder::Builder};
 /// # use zhc_builder::{CiphertextSpec, if_then_else};
 /// # let spec = CiphertextSpec::new(16, 2, 2);
 /// let builder = if_then_else(spec);
-/// let ir = builder.into_ir();
+/// let ir = builder.optimize_ir();
 /// ```
 pub fn if_then_else(spec: CiphertextSpec) -> Builder {
     let builder = Builder::new(spec.block_spec());
@@ -95,7 +95,7 @@ mod test {
     #[test]
     fn test_if_then_else() {
         let spec = CiphertextSpec::new(16, 2, 2);
-        let ir = if_then_else(spec).into_ir();
+        let ir = if_then_else(spec).optimize_ir();
         assert_display_is!(
             ir.format(),
             r#"
@@ -160,15 +160,15 @@ mod test {
                 %58 = pbs<Protect, Lut1("IfTrueZeroed")>(%57);
                 %59 = add_ct(%56, %58);
                 %60 = decl_ct<16>();
-                %61 = store_ct_block<0>(%24, %60);
-                %62 = store_ct_block<1>(%29, %61);
-                %63 = store_ct_block<2>(%34, %62);
-                %64 = store_ct_block<3>(%39, %63);
-                %65 = store_ct_block<4>(%44, %64);
-                %66 = store_ct_block<5>(%49, %65);
-                %67 = store_ct_block<6>(%54, %66);
-                %68 = store_ct_block<7>(%59, %67);
-                output<0>(%68);
+                %70 = store_ct_block<0>(%24, %60);
+                %71 = store_ct_block<1>(%29, %70);
+                %72 = store_ct_block<2>(%34, %71);
+                %73 = store_ct_block<3>(%39, %72);
+                %74 = store_ct_block<4>(%44, %73);
+                %75 = store_ct_block<5>(%49, %74);
+                %76 = store_ct_block<6>(%54, %75);
+                %77 = store_ct_block<7>(%59, %76);
+                output<0>(%77);
             "#
         );
     }

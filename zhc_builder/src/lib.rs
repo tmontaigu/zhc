@@ -86,7 +86,7 @@
 //! builder.ciphertext_output(&result);
 //!
 //! // 5. Finalize — this runs dead-code elimination and CSE.
-//! let ir = builder.into_ir();
+//! let ir = builder.optimize_ir();
 //! ```
 
 const NU: usize = 5;

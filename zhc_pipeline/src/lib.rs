@@ -11,12 +11,9 @@ use std::path::Path;
 use allocator::allocate_registers;
 use zhc_builder::Builder;
 use zhc_ir::IR;
-use zhc_ir::cse::eliminate_common_subexpressions;
-use zhc_ir::dce::eliminate_dead_code;
 use zhc_langs::doplang::DopLang;
 use zhc_langs::hpulang::get_batch_statistics;
 use zhc_langs::ioplang::IopLang;
-use zhc_langs::ioplang::eliminate_aliases;
 use zhc_sim::MHz;
 use zhc_sim::hpu::HpuConfig;
 
@@ -38,10 +35,7 @@ pub mod translation_table;
 /// Runs the full compilation pipeline and simulates execution to collect timing
 /// and batching statistics. Uses default HPU configuration.
 pub fn compute_hpu_metrics(builder: &Builder) -> hpu_metrics::HpuMetrics {
-    let mut ir = builder.ir().to_owned();
-    eliminate_aliases(&mut ir);
-    eliminate_dead_code(&mut ir);
-    eliminate_common_subexpressions(&mut ir);
+    let ir = builder.optimize_ir();
     let unscheduled = translation::lower_iop_to_hpu(&ir);
     let batched = batcher::batch(&unscheduled, &HpuConfig::default());
     let scheduled = batch_scheduler::schedule(&batched, &HpuConfig::default());
@@ -56,10 +50,7 @@ pub fn compute_gpu_metrics(
     builder: &Builder,
     optimal_batch_size: usize,
 ) -> gpu_metrics::GpuMetrics {
-    let mut ir = builder.ir().to_owned();
-    eliminate_aliases(&mut ir);
-    eliminate_dead_code(&mut ir);
-    eliminate_common_subexpressions(&mut ir);
+    let ir = builder.optimize_ir();
     let unscheduled = translation::lower_iop_to_hpu(&ir);
     let mut config = HpuConfig::default();
     config.pbs_min_batch_size = optimal_batch_size;
@@ -77,10 +68,7 @@ pub fn compute_gpu_metrics(
 /// Analyzes the optimized IOP-level IR to compute PBS count, critical path length,
 /// and slack distribution.
 pub fn compute_pbs_metrics(builder: &Builder) -> pbs_metrics::PbsMetrics {
-    let mut ir = builder.ir().to_owned();
-    eliminate_aliases(&mut ir);
-    eliminate_dead_code(&mut ir);
-    eliminate_common_subexpressions(&mut ir);
+    let ir = builder.optimize_ir();
     pbs_metrics::compute_pbs_metrics(&ir)
 }
 
@@ -90,7 +78,7 @@ pub fn compute_pbs_metrics(builder: &Builder) -> pbs_metrics::PbsMetrics {
 /// generates an execution trace showing how operations execute on the HPU.
 /// The trace is written to the specified path and can be opened in perfetto.
 pub fn trace_execution(builder: &Builder, config: HpuConfig, path: impl AsRef<Path>) {
-    let ir = builder.ir().to_owned();
+    let ir = builder.optimize_ir();
     let allocated = regular_pipeline(ir, &config);
     tracing::trace_execution(&allocated, &config, path);
 }
@@ -101,7 +89,7 @@ pub fn trace_execution(builder: &Builder, config: HpuConfig, path: impl AsRef<Pa
 /// execution time in seconds based on the HPU configuration and clock frequency.
 /// Returns the latency as a floating-point number of micro-seconds.
 pub fn compute_latency(builder: &Builder, config: HpuConfig, freq: MHz) -> f64 {
-    let ir = builder.ir().to_owned();
+    let ir = builder.optimize_ir();
     let allocated = regular_pipeline(ir, &config);
     latency::compute_latency(&allocated, &config)
         .0
@@ -112,10 +100,7 @@ pub fn draw_slack(builder: &Builder, path: impl AsRef<Path>) {
     draw_slack::draw_slack(builder, path);
 }
 
-fn regular_pipeline(mut ir: IR<IopLang>, config: &HpuConfig) -> IR<DopLang> {
-    eliminate_aliases(&mut ir);
-    eliminate_dead_code(&mut ir);
-    eliminate_common_subexpressions(&mut ir);
+fn regular_pipeline(ir: IR<IopLang>, config: &HpuConfig) -> IR<DopLang> {
     let unscheduled = translation::lower_iop_to_hpu(&ir);
     let batched = batcher::batch(&unscheduled, config);
     let scheduled = batch_scheduler::schedule(&batched, config);

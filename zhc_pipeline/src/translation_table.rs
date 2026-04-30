@@ -539,7 +539,7 @@ mod test {
 
     #[test]
     fn test_hex_add_ir() {
-        let hex = pipeline(&add(CiphertextSpec::new(16, 2, 2)).into_ir());
+        let hex = pipeline(&add(CiphertextSpec::new(16, 2, 2)).optimize_ir());
         assert_display_is!(
             format_binary_vec(&hex),
             r#"
@@ -618,7 +618,7 @@ mod test {
 
     #[test]
     fn test_hex_cmp_ir() {
-        let hex = pipeline(&cmp_gt(CiphertextSpec::new(16, 2, 2)).into_ir());
+        let hex = pipeline(&cmp_gt(CiphertextSpec::new(16, 2, 2)).optimize_ir());
         assert_display_is!(
             format_binary_vec(&hex),
             r#"

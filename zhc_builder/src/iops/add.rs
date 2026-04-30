@@ -46,11 +46,11 @@ pub fn add(spec: CiphertextSpec) -> Builder {
 /// The returned [`Builder`] declares two ciphertext inputs and one ciphertext
 /// output representing the wrapping sum of the operands. Internally the
 /// addition uses [`Builder::iop_add_kogge_stone`] for carry propagation.
-pub fn add_kogge_stone(spec: CiphertextSpec) -> Builder {
+pub fn add_kogge_stone(spec: CiphertextSpec, par_w: usize) -> Builder {
     let builder = Builder::new(spec.block_spec());
     let src_a = builder.ciphertext_input(spec.int_size());
     let src_b = builder.ciphertext_input(spec.int_size());
-    let res = builder.iop_add_kogge_stone(&src_a, &src_b);
+    let res = builder.iop_add_kogge_stone(&src_a, &src_b, par_w);
     builder.ciphertext_output(res);
     builder
 }
@@ -286,6 +286,7 @@ impl Builder {
 
 /// A single entry in the Kogge tree, holding both the raw accumulated value
 /// and a reduced (fresh) PG-encoded version.
+#[derive(Copy, Clone, Debug)]
 struct KoggeEntry {
     /// Raw accumulated MAC value (may span multiple PG positions).
     block: CiphertextBlock,
@@ -309,17 +310,13 @@ struct KoggeTree<'a> {
 }
 
 impl<'a> KoggeTree<'a> {
-    fn new(builder: &'a Builder, inputs: Vec<CiphertextBlock>) -> Self {
+    fn new(builder: &'a Builder, inputs: Vec<KoggeEntry>) -> Self {
         let total_width = builder.spec().data_size() as usize;
         let mut cache = HashMap::new();
         for (i, block) in inputs.into_iter().enumerate() {
             cache.insert(
                 (i, i),
-                KoggeEntry {
-                    fresh: block,
-                    block,
-                    cpos: 1,
-                },
+                block,
             );
         }
         KoggeTree {
@@ -365,25 +362,22 @@ impl<'a> KoggeTree<'a> {
             self.total_width);
 
         // Choose which values to combine and the resulting cpos / shift.
-        let (lsb_val, msb_val, cpos, log_shift) = if cpos_trial > self.total_width {
+        let (lsb_val, msb_val, cpos, msb_shift) = if cpos_trial > self.total_width {
             if msb.cpos + 1 > self.total_width {
                 // Both sides must be reduced.
-                (&lsb.fresh, &msb.fresh, 2usize, 1usize)
+                (&lsb.fresh, &msb.fresh, 2usize, 2u8)
             } else {
                 // Only lsb side needs reduction.
-                (&lsb.fresh, &msb.block, msb.cpos + 1, 1usize)
+                (&lsb.fresh, &msb.block, msb.cpos + 1, 2u8)
             }
         } else {
             // Raw values fit without reduction.
-            (&lsb.block, &msb.block, cpos_trial, lsb.cpos)
+            (&lsb.block, &msb.block, cpos_trial, 1 << lsb.cpos)
         };
 
         // MAC: lsb_val + (2^log_shift) * msb_val — implemented via doubling.
-        let mut shifted = *msb_val;
-        for _ in 0..log_shift {
-            shifted = self.builder.block_temper_add(&shifted, &shifted);
-        }
-        let mac = self.builder.block_temper_add(lsb_val, &shifted);
+        let mac =  self.builder.block_mac(msb_val, lsb_val, msb_shift);
+        println!("PGDebug: insert_subtree mac {mac:?} cpos {cpos:?}");
 
         // Reduce via PBS based on cpos.
         let fresh = match cpos {
@@ -402,6 +396,7 @@ impl<'a> KoggeTree<'a> {
             ),
         };
 
+        println!("PGDebug: insert_subtree cache insert [{start:?}..{end:?}] mac {mac:?} cpos {cpos:?} fresh {fresh:?}");
         self.cache.insert(
             (start, end),
             KoggeEntry {
@@ -414,18 +409,20 @@ impl<'a> KoggeTree<'a> {
 
     /// Returns the prefix entry for the range `[start, end]`.
     fn get_prefix(&mut self, start: usize, end: usize) -> &KoggeEntry {
+        println!("PGDebug: get_prefix range {start:?}..{end:?}");
         self.insert_subtree(start, end);
+        println!("PGDebug: insert subtree done range {start:?}..{end:?}");
         &self.cache[&(start, end)]
     }
 }
 
 impl Builder {
     /// Adds two encrypted integers using Kogge-Stone carry propagation.
-    pub fn iop_add_kogge_stone(&self, lhs: &Ciphertext, rhs: &Ciphertext) -> Ciphertext {
+    pub fn iop_add_kogge_stone(&self, lhs: &Ciphertext, rhs: &Ciphertext, par_w: usize) -> Ciphertext {
         let lhs_blocks = self.ciphertext_split(lhs);
         let rhs_blocks = self.ciphertext_split(rhs);
         let output_blocks =
-            self.iop_add_kogge_stone_raw(lhs_blocks, rhs_blocks, None, 1, true);
+            self.iop_add_kogge_stone_raw(lhs_blocks, rhs_blocks, None, par_w, false);
         self.comment("Join").ciphertext_join(output_blocks, None)
     }
 
@@ -446,9 +443,14 @@ impl Builder {
         );
 
         // Convert cin to PG encoding (or zero if absent).
-        let mut cin_pg = match cin {
+        let cin_pg = match cin {
             Some(c) => self.block_lookup(c, Lut1Def::Ripple2GenProp),
             None => self.block_let_ciphertext(0),
+        };
+        let mut cin_pg_kogge_entry = KoggeEntry {
+            block: cin_pg,
+            cpos : 1,
+            fresh: cin_pg,
         };
 
         let n = sums.len();
@@ -461,11 +463,13 @@ impl Builder {
             let chunk = &sums[pos..end];
 
             self.push_comment(format!("Kogge chunk [{pos}..{end})"));
-            let (chunk_result, carry_out) = self.kogge_propagate_carry(chunk, &cin_pg);
+            println!("PGDebug kogge_propagate_carry pos {pos:?} end {end:?} {chunk:?}");
+            let (chunk_result, carry_out) = self.kogge_propagate_carry(chunk, &cin_pg_kogge_entry);
             self.pop_comment();
 
             result.extend(chunk_result);
-            cin_pg = carry_out;
+            println!("PGDebug kogge_propagate_carry pos {pos:?} end {end:?} {result:?} {carry_out:?}");
+            cin_pg_kogge_entry = carry_out.clone();
             pos = end;
         }
 
@@ -486,25 +490,34 @@ impl Builder {
     fn kogge_propagate_carry(
         &self,
         sums: &[CiphertextBlock],
-        cin_pg: &CiphertextBlock,
-    ) -> (Vec<CiphertextBlock>, CiphertextBlock) {
+        cin_pg: &KoggeEntry,
+    ) -> (Vec<CiphertextBlock>, KoggeEntry) {
         let n = sums.len();
+        println!("PGDebug: kogge_propagate_carry {cin_pg:?}");
 
         // Split each sum into (PG, msg) via ManyGenProp.
-        let mut pgs = Vec::with_capacity(n);
+        let mut carry_vec = Vec::with_capacity(n+1);
         let mut msgs = Vec::with_capacity(n);
         for (i, sum) in sums.iter().enumerate() {
             let (pg, msg) = self
                 .comment(format!("GenProp {i}"))
                 .block_lookup2(sum, Lut2Def::ManyGenProp);
-            pgs.push(pg);
+            let pg_ke = KoggeEntry {
+                block: pg,
+                cpos: 1,
+                fresh: pg,
+            };
+            carry_vec.push(pg_ke);
             msgs.push(msg);
         }
 
         // Build carry chain: [cin_pg, pg_0, pg_1, ..., pg_{n-1}]
-        let mut carry_vec = Vec::with_capacity(n + 1);
-        carry_vec.push(*cin_pg);
-        carry_vec.extend(pgs);
+        // TODO: this carry_vec shoud be a vector KoggeEntry
+        // cpos of cin_pg is lost
+        //let mut carry_vec = Vec::with_capacity(n + 1);
+        carry_vec.insert(0, cin_pg.clone());
+        println!("carry_vec len {:?} content {:?}", carry_vec.len(), carry_vec);
+        //carry_vec.extend(pgs);
 
         // Build Kogge carry_tree.
         let mut carry_tree = KoggeTree::new(self, carry_vec);
@@ -520,9 +533,9 @@ impl Builder {
         }
 
         // Carry-out is the prefix over the full chain.
-        let cout = carry_tree.get_prefix(0, n).fresh;
+        let cout = carry_tree.get_prefix(0, n);
 
-        (output, cout)
+        (output, *cout)
     }
 }
 
@@ -653,7 +666,7 @@ mod test {
             Some(vec![IopValue::Ciphertext(lhs.add(*rhs))])
         }
         for size in (2..128).step_by(2) {
-            add_kogge_stone(CiphertextSpec::new(size, 2, 2)).test_random(100, semantic);
+            add_kogge_stone(CiphertextSpec::new(size, 2, 2), 12).test_random(100, semantic);
         }
     }
 
@@ -681,11 +694,31 @@ mod test {
     }
 
     #[test]
-fn pg_test_ks() {
+    fn pg_test_ks8() {
         let spec = CiphertextSpec::new(8, 2, 2);
-        let bd = add_kogge_stone(spec);
+        let bd = add_kogge_stone(spec, 1);
     bd.eval().with_inputs([
-            IopValue::Ciphertext(spec.from_int(0x3)),
+            IopValue::Ciphertext(spec.from_int(0xFF)),
+            IopValue::Ciphertext(spec.from_int(0x1)),
+        ]).dump_and_wait();
+    }
+
+    #[test]
+    fn pg_test_ks16() {
+        let spec = CiphertextSpec::new(16, 2, 2);
+        let bd = add_kogge_stone(spec, 7);
+    bd.eval().with_inputs([
+            IopValue::Ciphertext(spec.from_int(0xFFFF)),
+            IopValue::Ciphertext(spec.from_int(0x1)),
+        ]).dump_and_wait();
+    }
+
+    #[test]
+    fn pg_test_ks64() {
+        let spec = CiphertextSpec::new(64, 2, 2);
+        let bd = add_kogge_stone(spec, 12);
+    bd.eval().with_inputs([
+            IopValue::Ciphertext(spec.from_int(0xFFFFFFFFFFFF)),
             IopValue::Ciphertext(spec.from_int(0x1)),
         ]).dump_and_wait();
     }

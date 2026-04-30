@@ -1,7 +1,8 @@
 use std::fmt::Debug;
 use zhc_crypto::integer_semantics::{
-    CiphertextBlockSpec, EmulatedCiphertext, EmulatedCiphertextBlock, EmulatedPlaintext,
-    EmulatedPlaintextBlock, EmulatedPlaintextBlockStorage,
+    CiphertextBlockSpec, EmulatedCiphertext, EmulatedCiphertextBlock,
+    EmulatedCiphertextBlockStorage, EmulatedPlaintext, EmulatedPlaintextBlock,
+    EmulatedPlaintextBlockStorage,
 };
 use zhc_ir::interpretation::{Interpretable, Interpretation, InterpretsTo};
 use zhc_utils::small::SmallVec;
@@ -238,11 +239,6 @@ impl Interpretable<IopValue> for super::IopInstructionSet {
                 svec![IopValue::CiphertextBlock(left.protect_sub(right))]
             }
             PackCt { mul } => {
-                assert_eq!(
-                    (*mul).sas::<EmulatedPlaintextBlockStorage>(),
-                    (2.sas::<EmulatedPlaintextBlockStorage>())
-                        .pow(context.spec.message_size().sas::<u32>())
-                );
                 let (IopValue::CiphertextBlock(left), IopValue::CiphertextBlock(right)) =
                     (arguments[0].clone(), arguments[1].clone())
                 else {
@@ -251,10 +247,10 @@ impl Interpretable<IopValue> for super::IopInstructionSet {
                         arguments
                     )
                 };
-                svec![IopValue::CiphertextBlock(
-                    left.protect_shl(context.spec.message_size())
-                        .protect_add(right)
-                )]
+                let mul_val = (*mul).sas::<EmulatedCiphertextBlockStorage>();
+                let result =
+                    left.raw_complete_bits() * mul_val + right.raw_complete_bits();
+                svec![IopValue::CiphertextBlock(context.spec.from_complete(result))]
             }
             AddPt => {
                 let (IopValue::CiphertextBlock(left), IopValue::PlaintextBlock(right)) =

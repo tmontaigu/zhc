@@ -1075,6 +1075,56 @@ impl Builder {
         self.block_lookup(&packed, def)
     }
 
+    /// Computes `src_a * mul + src_b` (multiply-accumulate) on two ciphertext blocks.
+    ///
+    /// This is a generalization of [`block_pack`](Self::block_pack) that accepts an
+    /// arbitrary immediate multiplier instead of the fixed `2^message_size`. The caller
+    /// is responsible for ensuring the result does not overflow the block's complete
+    /// capacity (padding + carry + message bits).
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # use zhc_builder::*;
+    /// let builder = Builder::new(CiphertextBlockSpec(2, 2));
+    /// let ct = builder.ciphertext_input(4);
+    /// let blocks = builder.ciphertext_split(&ct);
+    /// // Compute blocks[0] * 3 + blocks[1]
+    /// let mac = builder.block_mac(&blocks[0], &blocks[1], 3);
+    /// ```
+    pub fn block_mac(
+        &self,
+        src_a: impl AsRef<CiphertextBlock>,
+        src_b: impl AsRef<CiphertextBlock>,
+        mul: u8,
+    ) -> CiphertextBlock {
+        let (src_a, src_b) = (src_a.as_ref(), src_b.as_ref());
+        let (_node, ret) = self.inner_mut().insert_op(
+            IopInstructionSet::PackCt { mul },
+            svec![src_a.valid, src_b.valid],
+            self.current_hierarchy(),
+        );
+        CiphertextBlock {
+            valid: ret[0],
+            spec: self.spec,
+        }
+    }
+
+    /// Computes `src_a * mul + src_b` and applies a single-output PBS lookup.
+    ///
+    /// Equivalent to calling [`block_mac`](Self::block_mac) followed by
+    /// [`block_lookup`](Self::block_lookup).
+    pub fn block_mac_then_lookup(
+        &self,
+        src_a: impl AsRef<CiphertextBlock>,
+        src_b: impl AsRef<CiphertextBlock>,
+        mul: u8,
+        def: Lut1Def,
+    ) -> CiphertextBlock {
+        let mac = self.block_mac(src_a, src_b, mul);
+        self.block_lookup(&mac, def)
+    }
+
     /// Applies a single-output programmable bootstrapping (PBS) lookup to a block.
     ///
     /// The `lut` defines the function computed by the bootstrapping. The input block's

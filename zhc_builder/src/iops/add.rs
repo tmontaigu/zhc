@@ -35,7 +35,15 @@ pub fn add(spec: CiphertextSpec) -> Builder {
     let builder = Builder::new(spec.block_spec());
     let src_a = builder.ciphertext_input(spec.int_size());
     let src_b = builder.ciphertext_input(spec.int_size());
-    let res = builder.iop_add_hillis_steele(&src_a, &src_b);
+    //let res = builder.iop_add_hillis_steele(&src_a, &src_b);
+    let par_w = match spec.int_size() {
+        8  => 1,
+        16 => 7,
+        32 => 12,
+        64 => 12,
+        _  => 1,
+    };
+    let res = builder.iop_add_kogge_stone(&src_a, &src_b, par_w);
     builder.ciphertext_output(res);
     builder
 }

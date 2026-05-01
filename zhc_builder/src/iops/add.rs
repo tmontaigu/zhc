@@ -35,15 +35,17 @@ pub fn add(spec: CiphertextSpec) -> Builder {
     let builder = Builder::new(spec.block_spec());
     let src_a = builder.ciphertext_input(spec.int_size());
     let src_b = builder.ciphertext_input(spec.int_size());
-    //let res = builder.iop_add_hillis_steele(&src_a, &src_b);
     let par_w = match spec.int_size() {
-        8  => 1,
-        16 => 7,
-        32 => 12,
-        64 => 12,
+        8..16   => 1,
+        16..24  => 7,
+        24..256 => 12,
         _  => 1,
     };
-    let res = builder.iop_add_kogge_stone(&src_a, &src_b, par_w);
+    let res = match spec.int_size() {
+        0..8   => builder.iop_ripple_carry_add(&src_a, &src_b, None),
+        8..256 => builder.iop_add_kogge_stone(&src_a, &src_b, None, par_w),
+        _ => todo!(),
+    };
     builder.ciphertext_output(res);
     builder
 }
@@ -58,12 +60,34 @@ pub fn add_kogge_stone(spec: CiphertextSpec, par_w: usize) -> Builder {
     let builder = Builder::new(spec.block_spec());
     let src_a = builder.ciphertext_input(spec.int_size());
     let src_b = builder.ciphertext_input(spec.int_size());
-    let res = builder.iop_add_kogge_stone(&src_a, &src_b, par_w);
+    let res = builder.iop_add_kogge_stone(&src_a, &src_b, None, par_w);
     builder.ciphertext_output(res);
     builder
 }
 
 impl Builder {
+    pub fn iop_ripple_carry_add(&self, lhs: &Ciphertext, rhs: &Ciphertext, cin: Option<&CiphertextBlock>) -> Ciphertext {
+        let lhs_blocks = self.ciphertext_split(lhs);
+        let rhs_blocks = self.ciphertext_split(rhs);
+
+        let mut carry = cin
+            .cloned()
+            .unwrap_or_else(|| self.block_let_ciphertext(0));
+        let mut output_blocks = Vec::new();
+        for i in 0..lhs_blocks.iter().len() {
+            self.push_comment(format!("{i}-th"));
+            let raw_sum = self.block_add(lhs_blocks[i], rhs_blocks[i]);
+            let sum = self.block_add(raw_sum, carry);
+            let message = self.block_lookup(sum, Lut1Def::MsgOnly);
+            carry = self.block_lookup(sum, Lut1Def::CarryInMsg);
+            output_blocks.push(message);
+            self.pop_comment();
+        }
+
+        self.comment("Join").ciphertext_join(output_blocks, None)
+    }
+
+
     pub fn iop_add_hillis_steele(&self, lhs: &Ciphertext, rhs: &Ciphertext) -> Ciphertext {
         let lhs_blocks = self.ciphertext_split(lhs);
         let rhs_blocks = self.ciphertext_split(rhs);
@@ -426,11 +450,11 @@ impl<'a> KoggeTree<'a> {
 
 impl Builder {
     /// Adds two encrypted integers using Kogge-Stone carry propagation.
-    pub fn iop_add_kogge_stone(&self, lhs: &Ciphertext, rhs: &Ciphertext, par_w: usize) -> Ciphertext {
+    pub fn iop_add_kogge_stone(&self, lhs: &Ciphertext, rhs: &Ciphertext, cin: Option<&CiphertextBlock>, par_w: usize) -> Ciphertext {
         let lhs_blocks = self.ciphertext_split(lhs);
         let rhs_blocks = self.ciphertext_split(rhs);
         let output_blocks =
-            self.iop_add_kogge_stone_raw(lhs_blocks, rhs_blocks, None, par_w, false);
+            self.iop_add_kogge_stone_raw(lhs_blocks, rhs_blocks, cin, par_w, false);
         self.comment("Join").ciphertext_join(output_blocks, None)
     }
 
@@ -520,12 +544,7 @@ impl Builder {
         }
 
         // Build carry chain: [cin_pg, pg_0, pg_1, ..., pg_{n-1}]
-        // TODO: this carry_vec shoud be a vector KoggeEntry
-        // cpos of cin_pg is lost
-        //let mut carry_vec = Vec::with_capacity(n + 1);
         carry_vec.insert(0, cin_pg.clone());
-        println!("carry_vec len {:?} content {:?}", carry_vec.len(), carry_vec);
-        //carry_vec.extend(pgs);
 
         // Build Kogge carry_tree.
         let mut carry_tree = KoggeTree::new(self, carry_vec);
@@ -563,97 +582,106 @@ mod test {
                 .show_comments(true)
                 .show_types(false),
             r#"
-                                                   | %0 = input_ciphertext<0, 18>();
-                                                   | %1 = input_ciphertext<1, 18>();
-                                                   | %2 = extract_ct_block<0>(%0);
-                                                   | %3 = extract_ct_block<1>(%0);
-                                                   | %4 = extract_ct_block<2>(%0);
-                                                   | %5 = extract_ct_block<3>(%0);
-                                                   | %6 = extract_ct_block<4>(%0);
-                                                   | %7 = extract_ct_block<5>(%0);
-                                                   | %8 = extract_ct_block<6>(%0);
-                                                   | %9 = extract_ct_block<7>(%0);
-                                                   | %10 = extract_ct_block<8>(%0);
-                                                   | %11 = extract_ct_block<0>(%1);
-                                                   | %12 = extract_ct_block<1>(%1);
-                                                   | %13 = extract_ct_block<2>(%1);
-                                                   | %14 = extract_ct_block<3>(%1);
-                                                   | %15 = extract_ct_block<4>(%1);
-                                                   | %16 = extract_ct_block<5>(%1);
-                                                   | %17 = extract_ct_block<6>(%1);
-                                                   | %18 = extract_ct_block<7>(%1);
-                                                   | %19 = extract_ct_block<8>(%1);
-                // Raw sum                         | %20 = add_ct(%2, %11);
-                // Raw sum                         | %21 = add_ct(%3, %12);
-                // Raw sum                         | %22 = add_ct(%4, %13);
-                // Raw sum                         | %23 = add_ct(%5, %14);
-                // Raw sum                         | %24 = add_ct(%6, %15);
-                // Raw sum                         | %25 = add_ct(%7, %16);
-                // Raw sum                         | %26 = add_ct(%8, %17);
-                // Raw sum                         | %27 = add_ct(%9, %18);
-                // Raw sum                         | %28 = add_ct(%10, %19);
-                // Block States / G0-B0            | %30, %31 = pbs2<Protect, Lut2("ManyCarryMsg")>(%20);
-                // Block States / G0-B1            | %32 = pbs<Protect, Lut1("ExtractPropGroup0")>(%21);
-                // Block States / G0-B2            | %33 = pbs<Protect, Lut1("ExtractPropGroup1")>(%22);
-                // Block States / G0-B3            | %34 = pbs<Protect, Lut1("ExtractPropGroup2")>(%23);
-                // Block States / GN-B0            | %35 = pbs<Protect, Lut1("ExtractPropGroup0")>(%24);
-                // Block States / GN-B1            | %36 = pbs<Protect, Lut1("ExtractPropGroup1")>(%25);
-                // Block States / GN-B2            | %37 = pbs<Protect, Lut1("ExtractPropGroup2")>(%26);
-                // Block States / GN-B3            | %38 = pbs<AllowOutputPadding, Lut1("ExtractPropGroup3")>(%27);
-                // Group states                    | %47 = add_ct(%31, %32);
-                // Group states                    | %48 = add_ct(%47, %33);
-                // Group states                    | %49 = temper_add_ct(%48, %34);
-                // Group states                    | %50 = pbs<Protect, Lut1("SolvePropGroupFinal2")>(%49);
-                // Group states                    | %55 = add_ct(%35, %36);
-                // Group states                    | %56 = add_ct(%55, %37);
-                // Group states                    | %57 = temper_add_ct(%56, %38);
-                // Group states                    | %58 = pbs<AllowBothPadding, Lut1("ReduceCarryPad")>(%57);
-                // Group states                    | %59 = let_pt_block<1>();
-                // Group states                    | %60 = wrapping_add_pt(%58, %59);
-                // Group carries / HS 0-th stage   | %85 = pack_ct<4>(%60, %50);
-                // Group carries / HS 0-th stage   | %86 = pbs<Protect, Lut1("SolvePropCarry")>(%85);
-                // Final resolution                | %95 = pbs<Protect, Lut1("SolvePropGroupFinal0")>(%47);
-                // Final resolution                | %96 = pbs<Protect, Lut1("SolvePropGroupFinal1")>(%48);
-                // Final resolution                | %101 = add_ct(%35, %50);
-                // Final resolution                | %102 = pbs<Protect, Lut1("SolvePropGroupFinal0")>(%101);
-                // Final resolution                | %103 = add_ct(%55, %50);
-                // Final resolution                | %104 = pbs<Protect, Lut1("SolvePropGroupFinal1")>(%103);
-                // Final resolution                | %105 = add_ct(%56, %50);
-                // Final resolution                | %106 = pbs<Protect, Lut1("SolvePropGroupFinal2")>(%105);
-                // Carry propagation               | %133 = add_ct(%21, %31);
-                // Carry propagation               | %134 = add_ct(%22, %95);
-                // Carry propagation               | %135 = add_ct(%23, %96);
-                // Carry propagation               | %136 = add_ct(%24, %50);
-                // Carry propagation               | %137 = add_ct(%25, %102);
-                // Carry propagation               | %138 = add_ct(%26, %104);
-                // Carry propagation               | %139 = add_ct(%27, %106);
-                // Carry propagation               | %140 = add_ct(%28, %86);
-                // Cleanup                         | %148 = pbs<Protect, Lut1("MsgOnly")>(%30);
-                // Cleanup                         | %149 = pbs<Protect, Lut1("MsgOnly")>(%133);
-                // Cleanup                         | %150 = pbs<Protect, Lut1("MsgOnly")>(%134);
-                // Cleanup                         | %151 = pbs<Protect, Lut1("MsgOnly")>(%135);
-                // Cleanup                         | %152 = pbs<Protect, Lut1("MsgOnly")>(%136);
-                // Cleanup                         | %153 = pbs<Protect, Lut1("MsgOnly")>(%137);
-                // Cleanup                         | %154 = pbs<Protect, Lut1("MsgOnly")>(%138);
-                // Cleanup                         | %155 = pbs<Protect, Lut1("MsgOnly")>(%139);
-                // Cleanup                         | %156 = pbs<Protect, Lut1("MsgOnly")>(%140);
-                // Join                            | %164 = decl_ct<18>();
-                // Join                            | %175 = store_ct_block<0>(%148, %164);
-                // Join                            | %176 = store_ct_block<1>(%149, %175);
-                // Join                            | %177 = store_ct_block<2>(%150, %176);
-                // Join                            | %178 = store_ct_block<3>(%151, %177);
-                // Join                            | %179 = store_ct_block<4>(%152, %178);
-                // Join                            | %180 = store_ct_block<5>(%153, %179);
-                // Join                            | %181 = store_ct_block<6>(%154, %180);
-                // Join                            | %182 = store_ct_block<7>(%155, %181);
-                // Join                            | %183 = store_ct_block<8>(%156, %182);
-                                                   | output<0>(%183);
+                                                    | %0 = input_ciphertext<0, 18>();
+                                                    | %1 = input_ciphertext<1, 18>();
+                                                    | %2 = extract_ct_block<0>(%0);
+                                                    | %3 = extract_ct_block<1>(%0);
+                                                    | %4 = extract_ct_block<2>(%0);
+                                                    | %5 = extract_ct_block<3>(%0);
+                                                    | %6 = extract_ct_block<4>(%0);
+                                                    | %7 = extract_ct_block<5>(%0);
+                                                    | %8 = extract_ct_block<6>(%0);
+                                                    | %9 = extract_ct_block<7>(%0);
+                                                    | %10 = extract_ct_block<8>(%0);
+                                                    | %11 = extract_ct_block<0>(%1);
+                                                    | %12 = extract_ct_block<1>(%1);
+                                                    | %13 = extract_ct_block<2>(%1);
+                                                    | %14 = extract_ct_block<3>(%1);
+                                                    | %15 = extract_ct_block<4>(%1);
+                                                    | %16 = extract_ct_block<5>(%1);
+                                                    | %17 = extract_ct_block<6>(%1);
+                                                    | %18 = extract_ct_block<7>(%1);
+                                                    | %19 = extract_ct_block<8>(%1);
+                // Raw sum                          | %20 = add_ct(%2, %11);
+                // Raw sum                          | %21 = add_ct(%3, %12);
+                // Raw sum                          | %22 = add_ct(%4, %13);
+                // Raw sum                          | %23 = add_ct(%5, %14);
+                // Raw sum                          | %24 = add_ct(%6, %15);
+                // Raw sum                          | %25 = add_ct(%7, %16);
+                // Raw sum                          | %26 = add_ct(%8, %17);
+                // Raw sum                          | %27 = add_ct(%9, %18);
+                // Raw sum                          | %28 = add_ct(%10, %19);
+                                                    | %29 = let_ct_block<0>();
+                // Kogge chunk [0..7) / GenProp 0   | %30, %31 = pbs2<Protect, Lut2("ManyGenProp")>(%20);
+                // Kogge chunk [0..7) / GenProp 1   | %32, %33 = pbs2<Protect, Lut2("ManyGenProp")>(%21);
+                // Kogge chunk [0..7) / GenProp 2   | %34, %35 = pbs2<Protect, Lut2("ManyGenProp")>(%22);
+                // Kogge chunk [0..7) / GenProp 3   | %36, %37 = pbs2<Protect, Lut2("ManyGenProp")>(%23);
+                // Kogge chunk [0..7) / GenProp 4   | %38, %39 = pbs2<Protect, Lut2("ManyGenProp")>(%24);
+                // Kogge chunk [0..7) / GenProp 5   | %40, %41 = pbs2<Protect, Lut2("ManyGenProp")>(%25);
+                // Kogge chunk [0..7) / GenProp 6   | %42, %43 = pbs2<Protect, Lut2("ManyGenProp")>(%26);
+                // Kogge chunk [0..7)               | %44 = pack_ct<4>(%29, %31);
+                // Kogge chunk [0..7)               | %45 = pbs<Protect, Lut1("GenPropAdd")>(%44);
+                // Kogge chunk [0..7)               | %46 = pack_ct<2>(%30, %29);
+                // Kogge chunk [0..7)               | %47 = pbs<Protect, Lut1("ReduceCarry2")>(%46);
+                // Kogge chunk [0..7)               | %48 = pack_ct<4>(%47, %33);
+                // Kogge chunk [0..7)               | %49 = pbs<Protect, Lut1("GenPropAdd")>(%48);
+                // Kogge chunk [0..7)               | %50 = pack_ct<4>(%32, %46);
+                // Kogge chunk [0..7)               | %51 = pbs<Protect, Lut1("ReduceCarry3")>(%50);
+                // Kogge chunk [0..7)               | %52 = pack_ct<4>(%51, %35);
+                // Kogge chunk [0..7)               | %53 = pbs<Protect, Lut1("GenPropAdd")>(%52);
+                // Kogge chunk [0..7)               | %54 = pack_ct<2>(%34, %32);
+                // Kogge chunk [0..7)               | %56 = pack_ct<4>(%54, %46);
+                // Kogge chunk [0..7)               | %57 = pbs<AllowBothPadding, Lut1("ReduceCarryPad")>(%56);
+                // Kogge chunk [0..7)               | %58 = let_pt_block<1>();
+                // Kogge chunk [0..7)               | %59 = wrapping_add_pt(%57, %58);
+                // Kogge chunk [0..7)               | %60 = pack_ct<4>(%59, %37);
+                // Kogge chunk [0..7)               | %61 = pbs<Protect, Lut1("GenPropAdd")>(%60);
+                // Kogge chunk [0..7)               | %62 = pack_ct<2>(%36, %59);
+                // Kogge chunk [0..7)               | %63 = pbs<Protect, Lut1("ReduceCarry2")>(%62);
+                // Kogge chunk [0..7)               | %64 = pack_ct<4>(%63, %39);
+                // Kogge chunk [0..7)               | %65 = pbs<Protect, Lut1("GenPropAdd")>(%64);
+                // Kogge chunk [0..7)               | %66 = pack_ct<2>(%38, %36);
+                // Kogge chunk [0..7)               | %68 = pack_ct<2>(%66, %59);
+                // Kogge chunk [0..7)               | %69 = pbs<Protect, Lut1("ReduceCarry3")>(%68);
+                // Kogge chunk [0..7)               | %70 = pack_ct<4>(%69, %41);
+                // Kogge chunk [0..7)               | %71 = pbs<Protect, Lut1("GenPropAdd")>(%70);
+                // Kogge chunk [0..7)               | %72 = pack_ct<4>(%40, %66);
+                // Kogge chunk [0..7)               | %74 = pack_ct<2>(%72, %59);
+                // Kogge chunk [0..7)               | %75 = pbs<AllowBothPadding, Lut1("ReduceCarryPad")>(%74);
+                // Kogge chunk [0..7)               | %77 = wrapping_add_pt(%75, %58);
+                // Kogge chunk [0..7)               | %78 = pack_ct<4>(%77, %43);
+                // Kogge chunk [0..7)               | %79 = pbs<Protect, Lut1("GenPropAdd")>(%78);
+                // Kogge chunk [0..7)               | %80 = pack_ct<2>(%42, %40);
+                // Kogge chunk [0..7)               | %82 = pack_ct<4>(%80, %66);
+                // Kogge chunk [0..7)               | %83 = pbs<AllowBothPadding, Lut1("ReduceCarryPad")>(%82);
+                // Kogge chunk [0..7)               | %85 = wrapping_add_pt(%83, %58);
+                // Kogge chunk [0..7)               | %86 = pack_ct<2>(%85, %59);
+                // Kogge chunk [0..7)               | %87 = pbs<Protect, Lut1("ReduceCarry2")>(%86);
+                // Kogge chunk [7..9) / GenProp 0   | %88, %89 = pbs2<Protect, Lut2("ManyGenProp")>(%27);
+                // Kogge chunk [7..9) / GenProp 1   | %90, %91 = pbs2<Protect, Lut2("ManyGenProp")>(%28);
+                // Kogge chunk [7..9)               | %92 = pack_ct<4>(%87, %89);
+                // Kogge chunk [7..9)               | %93 = pbs<Protect, Lut1("GenPropAdd")>(%92);
+                // Kogge chunk [7..9)               | %94 = pack_ct<4>(%88, %86);
+                // Kogge chunk [7..9)               | %95 = pbs<Protect, Lut1("ReduceCarry3")>(%94);
+                // Kogge chunk [7..9)               | %96 = pack_ct<4>(%95, %91);
+                // Kogge chunk [7..9)               | %97 = pbs<Protect, Lut1("GenPropAdd")>(%96);
+                // Join                             | %102 = decl_ct<18>();
+                // Join                             | %113 = store_ct_block<0>(%45, %102);
+                // Join                             | %114 = store_ct_block<1>(%49, %113);
+                // Join                             | %115 = store_ct_block<2>(%53, %114);
+                // Join                             | %116 = store_ct_block<3>(%61, %115);
+                // Join                             | %117 = store_ct_block<4>(%65, %116);
+                // Join                             | %118 = store_ct_block<5>(%71, %117);
+                // Join                             | %119 = store_ct_block<6>(%79, %118);
+                // Join                             | %120 = store_ct_block<7>(%93, %119);
+                // Join                             | %121 = store_ct_block<8>(%97, %120);
+                                                    | output<0>(%121);
             "#
         );
     }
 
     #[test]
-    fn correctness() {
+    fn correctness_add() {
         fn semantic(inp: &[IopValue]) -> Option<Vec<IopValue>> {
             let [IopValue::Ciphertext(lhs), IopValue::Ciphertext(rhs)] = inp else {
                 unreachable!()
@@ -661,7 +689,7 @@ mod test {
             Some(vec![IopValue::Ciphertext(lhs.add(*rhs))])
         }
         for size in (2..128).step_by(2) {
-            add(CiphertextSpec::new(size, 2, 2)).test_random(100, semantic);
+            add(CiphertextSpec::new(size, 2, 2)).test_random(1000, semantic);
         }
     }
 
@@ -702,10 +730,20 @@ mod test {
     }
 
     #[test]
+    fn pg_test_ks4() {
+        let spec = CiphertextSpec::new(4, 2, 2);
+        let bd = add(spec);
+        bd.eval().with_inputs([
+            IopValue::Ciphertext(spec.from_int(0xE)),
+            IopValue::Ciphertext(spec.from_int(0x1)),
+        ]).dump_and_wait();
+    }
+
+    #[test]
     fn pg_test_ks8() {
         let spec = CiphertextSpec::new(8, 2, 2);
         let bd = add_kogge_stone(spec, 1);
-    bd.eval().with_inputs([
+        bd.eval().with_inputs([
             IopValue::Ciphertext(spec.from_int(0xFF)),
             IopValue::Ciphertext(spec.from_int(0x1)),
         ]).dump_and_wait();
@@ -715,7 +753,7 @@ mod test {
     fn pg_test_ks16() {
         let spec = CiphertextSpec::new(16, 2, 2);
         let bd = add_kogge_stone(spec, 7);
-    bd.eval().with_inputs([
+        bd.eval().with_inputs([
             IopValue::Ciphertext(spec.from_int(0xFFFF)),
             IopValue::Ciphertext(spec.from_int(0x1)),
         ]).dump_and_wait();
@@ -725,7 +763,7 @@ mod test {
     fn pg_test_ks64() {
         let spec = CiphertextSpec::new(64, 2, 2);
         let bd = add_kogge_stone(spec, 12);
-    bd.eval().with_inputs([
+        bd.eval().with_inputs([
             IopValue::Ciphertext(spec.from_int(0xFFFFFFFFFFFF)),
             IopValue::Ciphertext(spec.from_int(0x1)),
         ]).dump_and_wait();

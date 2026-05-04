@@ -801,44 +801,4 @@ mod test {
             builder.test_random(100, semantic);
         }
     }
-
-    #[test]
-    fn pg_test_ks4() {
-        let spec = CiphertextSpec::new(4, 2, 2);
-        let bd = sub(spec);
-        bd.eval().with_inputs([
-            IopValue::Ciphertext(spec.from_int(0xE)),
-            IopValue::Ciphertext(spec.from_int(0x1)),
-        ]).dump_and_wait();
-    }
-
-    #[test]
-    fn pg_test_ks8() {
-        let spec = CiphertextSpec::new(8, 2, 2);
-        let bd = add_kogge_stone(spec, 1);
-        bd.eval().with_inputs([
-            IopValue::Ciphertext(spec.from_int(0xFF)),
-            IopValue::Ciphertext(spec.from_int(0x1)),
-        ]).dump_and_wait();
-    }
-
-    #[test]
-    fn pg_test_ks16() {
-        let spec = CiphertextSpec::new(16, 2, 2);
-        let bd = add_kogge_stone(spec, 7);
-        bd.eval().with_inputs([
-            IopValue::Ciphertext(spec.from_int(0xFFFF)),
-            IopValue::Ciphertext(spec.from_int(0x1)),
-        ]).dump_and_wait();
-    }
-
-    #[test]
-    fn pg_test_ks64() {
-        let spec = CiphertextSpec::new(64, 2, 2);
-        let bd = add_kogge_stone(spec, 12);
-        bd.eval().with_inputs([
-            IopValue::Ciphertext(spec.from_int(0xFFFFFFFFFFFF)),
-            IopValue::Ciphertext(spec.from_int(0x1)),
-        ]).dump_and_wait();
-    }
 }

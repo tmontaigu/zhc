@@ -318,8 +318,8 @@ mod test {
             )])
         }
 
-        for size in (8..10).step_by(2) {
-            count_0(CiphertextSpec::new(size, 2, 2)).test_random(10, semantic);
+        for size in (2..128).step_by(2) {
+            count_0(CiphertextSpec::new(size, 2, 2)).test_random(100, semantic);
         }
     }
 
@@ -342,14 +342,4 @@ mod test {
             count_1(CiphertextSpec::new(size, 2, 2)).test_random(100, semantic);
         }
     }
-
-    #[test]
-    fn pg_test_count0() {
-        let spec = CiphertextSpec::new(8, 2, 2);
-        let bd = count_0(spec);
-        bd.eval().with_inputs([
-            IopValue::Ciphertext(spec.from_int(0x7F)),
-        ]).dump_and_wait();
-    }
-
 }

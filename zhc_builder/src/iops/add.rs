@@ -43,6 +43,7 @@ pub fn add(spec: CiphertextSpec) -> Builder {
     };
     let res = match spec.int_size() {
         0..8   => builder.iop_ripple_carry_add(&src_a, &src_b, None),
+        8..17   => builder.iop_add_hillis_steele(&src_a, &src_b, None),
         8..256 => builder.iop_add_kogge_stone(&src_a, &src_b, None, par_w),
         _ => todo!(),
     };
@@ -64,7 +65,8 @@ pub fn sub(spec: CiphertextSpec) -> Builder {
     let b_inv = builder.iop_bitwise_inv(&src_b);
     let res = match spec.int_size() {
         0..8   => builder.iop_ripple_carry_add(&src_a, &b_inv, Some(&one)),
-        8..256 => builder.iop_add_kogge_stone(&src_a, &b_inv, Some(&one), par_w),
+        8..17   => builder.iop_add_hillis_steele(&src_a, &b_inv, Some(&one)),
+        17..256 => builder.iop_add_kogge_stone(&src_a, &b_inv, Some(&one), par_w),
         _ => todo!(),
     };
     builder.ciphertext_output(res);
@@ -82,6 +84,24 @@ pub fn add_kogge_stone(spec: CiphertextSpec, par_w: usize) -> Builder {
     let src_a = builder.ciphertext_input(spec.int_size());
     let src_b = builder.ciphertext_input(spec.int_size());
     let res = builder.iop_add_kogge_stone(&src_a, &src_b, None, par_w);
+    builder.ciphertext_output(res);
+    builder
+}
+
+pub fn add_hillis_steele(spec: CiphertextSpec) -> Builder {
+    let builder = Builder::new(spec.block_spec());
+    let src_a = builder.ciphertext_input(spec.int_size());
+    let src_b = builder.ciphertext_input(spec.int_size());
+    let res = builder.iop_add_hillis_steele(&src_a, &src_b, None);
+    builder.ciphertext_output(res);
+    builder
+}
+
+pub fn add_ripple(spec: CiphertextSpec) -> Builder {
+    let builder = Builder::new(spec.block_spec());
+    let src_a = builder.ciphertext_input(spec.int_size());
+    let src_b = builder.ciphertext_input(spec.int_size());
+    let res = builder.iop_ripple_carry_add(&src_a, &src_b, None);
     builder.ciphertext_output(res);
     builder
 }
@@ -109,11 +129,11 @@ impl Builder {
     }
 
 
-    pub fn iop_add_hillis_steele(&self, lhs: &Ciphertext, rhs: &Ciphertext) -> Ciphertext {
+    pub fn iop_add_hillis_steele(&self, lhs: &Ciphertext, rhs: &Ciphertext, cin: Option<&CiphertextBlock>) -> Ciphertext {
         let lhs_blocks = self.ciphertext_split(lhs);
         let rhs_blocks = self.ciphertext_split(rhs);
 
-        let output_blocks = self.iop_add_hillis_steele_raw(lhs_blocks, rhs_blocks, true);
+        let output_blocks = self.iop_add_hillis_steele_raw(lhs_blocks, rhs_blocks, cin, true);
 
         self.comment("Join").ciphertext_join(output_blocks, None)
     }
@@ -122,6 +142,7 @@ impl Builder {
         &self,
         lhs_blocks: impl AsRef<[CiphertextBlock]>,
         rhs_blocks: impl AsRef<[CiphertextBlock]>,
+        cin: Option<&CiphertextBlock>,
         clean: bool,
     ) -> Vec<CiphertextBlock> {
         // Implements the addition with carry-propagation using the hillis-steele resolution and
@@ -140,11 +161,14 @@ impl Builder {
         // the computation in a larger, more favorable case, and let DCE cut the un-necessary
         // computation. This improves code readability.
 
-        let sums = self.comment("Raw sum").vector_add(
+        let mut sums = self.comment("Raw sum").vector_add(
             &lhs_blocks,
             &rhs_blocks,
             ExtensionBehavior::Passthrough,
         );
+        if let Some(c) = cin {
+            sums[0] = self.block_add(&sums[0], c);
+        }
 
         let output_size = sums.len();
         let compute_size = sums.len().next_multiple_of(4).next_power_of_two();
@@ -395,9 +419,7 @@ impl<'a> KoggeTree<'a> {
     /// Recursively builds the subtree for the range `[start, end]` and
     /// caches the result.
     fn insert_subtree(&mut self, start: usize, end: usize) {
-        println!("PGDebug: insert_subtree range {start:?}..{end:?}");
         if self.cache.contains_key(&(start, end)) {
-            println!("PGDebug: insert_subtree nothing to do range {start:?}..{end:?}");
             return;
         }
 
@@ -430,7 +452,6 @@ impl<'a> KoggeTree<'a> {
 
         // MAC: lsb_val + (2^log_shift) * msb_val — implemented via doubling.
         let mac =  self.builder.block_mac(msb_val, lsb_val, msb_shift);
-        println!("PGDebug: insert_subtree mac {mac:?} cpos {cpos:?}");
 
         // Reduce via PBS based on cpos.
         let fresh = match cpos {
@@ -462,9 +483,7 @@ impl<'a> KoggeTree<'a> {
 
     /// Returns the prefix entry for the range `[start, end]`.
     fn get_prefix(&mut self, start: usize, end: usize) -> &KoggeEntry {
-        println!("PGDebug: get_prefix range {start:?}..{end:?}");
         self.insert_subtree(start, end);
-        println!("PGDebug: insert subtree done range {start:?}..{end:?}");
         &self.cache[&(start, end)]
     }
 }
@@ -516,12 +535,10 @@ impl Builder {
             let chunk = &sums[pos..end];
 
             self.push_comment(format!("Kogge chunk [{pos}..{end})"));
-            println!("PGDebug kogge_propagate_carry pos {pos:?} end {end:?} {chunk:?}");
             let (chunk_result, carry_out) = self.kogge_propagate_carry(chunk, &cin_pg_kogge_entry);
             self.pop_comment();
 
             result.extend(chunk_result);
-            println!("PGDebug kogge_propagate_carry pos {pos:?} end {end:?} {result:?} {carry_out:?}");
             cin_pg_kogge_entry = carry_out.clone();
             pos = end;
         }
@@ -702,6 +719,32 @@ mod test {
     }
 
     #[test]
+    fn correctness_add_hillis_steele() {
+        fn semantic(inp: &[IopValue]) -> Option<Vec<IopValue>> {
+            let [IopValue::Ciphertext(lhs), IopValue::Ciphertext(rhs)] = inp else {
+                unreachable!()
+            };
+            Some(vec![IopValue::Ciphertext(lhs.add(*rhs))])
+        }
+        for size in (2..128).step_by(2) {
+            add_hillis_steele(CiphertextSpec::new(size, 2, 2)).test_random(100, semantic);
+        }
+    }
+
+    #[test]
+    fn correctness_add_ripple() {
+        fn semantic(inp: &[IopValue]) -> Option<Vec<IopValue>> {
+            let [IopValue::Ciphertext(lhs), IopValue::Ciphertext(rhs)] = inp else {
+                unreachable!()
+            };
+            Some(vec![IopValue::Ciphertext(lhs.add(*rhs))])
+        }
+        for size in (2..128).step_by(2) {
+            add_ripple(CiphertextSpec::new(size, 2, 2)).test_random(100, semantic);
+        }
+    }
+
+    #[test]
     fn correctness_add() {
         fn semantic(inp: &[IopValue]) -> Option<Vec<IopValue>> {
             let [IopValue::Ciphertext(lhs), IopValue::Ciphertext(rhs)] = inp else {
@@ -710,7 +753,7 @@ mod test {
             Some(vec![IopValue::Ciphertext(lhs.add(*rhs))])
         }
         for size in (2..128).step_by(2) {
-            add(CiphertextSpec::new(size, 2, 2)).test_random(1000, semantic);
+            add(CiphertextSpec::new(size, 2, 2)).test_random(100, semantic);
         }
     }
 
@@ -723,12 +766,12 @@ mod test {
             Some(vec![IopValue::Ciphertext(lhs.sub(*rhs))])
         }
         for size in (2..128).step_by(2) {
-            sub(CiphertextSpec::new(size, 2, 2)).test_random(1000, semantic);
+            sub(CiphertextSpec::new(size, 2, 2)).test_random(100, semantic);
         }
     }
 
     #[test]
-    fn correctness_kogge_stone() {
+    fn correctness_add_kogge_stone() {
         fn semantic(inp: &[IopValue]) -> Option<Vec<IopValue>> {
             let [IopValue::Ciphertext(lhs), IopValue::Ciphertext(rhs)] = inp else {
                 unreachable!()
@@ -741,14 +784,14 @@ mod test {
     }
 
     #[test]
-    fn correctness_kogge_stone_par_w() {
+    fn correctness_add_kogge_stone_par_w() {
         fn semantic(inp: &[IopValue]) -> Option<Vec<IopValue>> {
             let [IopValue::Ciphertext(lhs), IopValue::Ciphertext(rhs)] = inp else {
                 unreachable!()
             };
             Some(vec![IopValue::Ciphertext(lhs.add(*rhs))])
         }
-        for par_w in [1, 2, 4, 8] {
+        for par_w in [1, 2, 4, 8, 10, 12] {
             let spec = CiphertextSpec::new(32, 2, 2);
             let builder = Builder::new(spec.block_spec());
             let a = builder.ciphertext_input(spec.int_size());

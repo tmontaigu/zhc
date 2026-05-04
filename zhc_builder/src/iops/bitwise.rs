@@ -392,16 +392,16 @@ mod test {
         }
     }
 
-    //#[test]
-    //fn correctness_inv() {
-    //    fn semantic(inp: &[IopValue]) -> Option<Vec<IopValue>> {
-    //        let [IopValue::Ciphertext(rhs)] = inp else {
-    //            unreachable!()
-    //        };
-    //        Some(vec![IopValue::Ciphertext(!*rhs)])
-    //    }
-    //    for size in (2..128).step_by(2) {
-    //        bitwise_inv(CiphertextSpec::new(size, 2, 2)).test_random(100, semantic);
-    //    }
-    //}
+    #[test]
+    fn correctness_inv() {
+        fn semantic(inp: &[IopValue]) -> Option<Vec<IopValue>> {
+            let [IopValue::Ciphertext(ct)] = inp else {
+                unreachable!()
+            };
+            Some(vec![IopValue::Ciphertext(ct.bitwise_not())])
+        }
+        for size in (2..128).step_by(2) {
+            bitwise_inv(CiphertextSpec::new(size, 2, 2)).test_random(100, semantic);
+        }
+    }
 }

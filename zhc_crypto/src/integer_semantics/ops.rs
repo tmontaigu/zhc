@@ -386,7 +386,7 @@ impl EmulatedCiphertext {
 
     pub fn sub(self, other: Self) -> EmulatedCiphertext {
         assert_eq!(self.spec, other.spec(), "Spec mismatch.");
-        let storage = (self.storage - other.storage) & self.spec.int_mask();
+        let storage = self.storage.wrapping_sub(other.storage) & self.spec.int_mask();
         EmulatedCiphertext {
             storage,
             spec: self.spec,
@@ -414,6 +414,14 @@ impl EmulatedCiphertext {
     pub fn bitwise_xor(self, other: Self) -> EmulatedCiphertext {
         assert_eq!(self.spec, other.spec(), "Spec mismatch.");
         let storage = (self.storage ^ other.storage) & self.spec.int_mask();
+        EmulatedCiphertext {
+            storage,
+            spec: self.spec,
+        }
+    }
+
+    pub fn bitwise_not(self) -> EmulatedCiphertext {
+        let storage = !self.storage & self.spec.int_mask();
         EmulatedCiphertext {
             storage,
             spec: self.spec,

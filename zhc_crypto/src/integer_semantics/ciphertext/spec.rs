@@ -82,7 +82,7 @@ impl CiphertextSpec {
     }
 
     pub fn int_mask(&self) -> EmulatedCiphertextStorage {
-        (1 << self.int_size()) - 1
+        EmulatedCiphertextStorage::MAX >> (EmulatedCiphertextStorage::BITS as u16 - self.int_size())
     }
 
     /// Returns the block specification shared by all blocks in this integer.
@@ -172,8 +172,7 @@ impl CiphertextSpec {
     ///
     /// Returns true if `storage >= 2^int_size`.
     pub fn overflows_int(&self, storage: EmulatedCiphertextStorage) -> bool {
-        let shift = self.int_size();
-        storage >= (1 << shift)
+        storage > self.int_mask()
     }
 
     /// Returns the corresponding plaintext specification.

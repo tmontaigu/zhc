@@ -87,6 +87,14 @@ pub fn bitwise_xor(spec: CiphertextSpec) -> Builder {
     builder
 }
 
+pub fn bitwise_inv(spec: CiphertextSpec) -> Builder {
+    let builder = Builder::new(spec.block_spec());
+    let src_ct = builder.ciphertext_input(spec.int_size());
+    let res = builder.iop_bitwise_inv(&src_ct);
+    builder.ciphertext_output(res);
+    builder
+}
+
 /// The kind of bitwise operation to apply block-wise.
 pub enum BwKind {
     /// Bitwise AND — each output block is `a & b`.
@@ -136,6 +144,30 @@ impl Builder {
             kind.lut(),
             crate::ExtensionBehavior::Panic,
         );
+        self.ciphertext_join(res, None)
+    }
+
+    /// Applies a bitwise in operation on an encrypted integer.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # use zhc_builder::{CiphertextSpec, Builder, BwKind};
+    /// # let spec = CiphertextSpec::new(16, 2, 2);
+    /// # let builder = Builder::new(spec.block_spec());
+    /// # let a = builder.ciphertext_input(spec.int_size());
+    /// let result = builder.iop_bitwise_inv(&a);
+    /// ```
+    pub fn iop_bitwise_inv(&self, ct: &Ciphertext) -> Ciphertext {
+        let ct_blocks = self.ciphertext_split(ct);
+        // create a message full of 1
+        let allone = self.block_let_plaintext((1 << self.spec().message_size())-1);
+        let res = ct_blocks
+            .iter()
+            .map(|m| {
+                self.block_plaintext_sub(allone, m)
+            })
+            .collect::<Vec<_>>();
         self.ciphertext_join(res, None)
     }
 }
@@ -359,4 +391,17 @@ mod test {
             bitwise_xor(CiphertextSpec::new(size, 2, 2)).test_random(100, semantic);
         }
     }
+
+    //#[test]
+    //fn correctness_inv() {
+    //    fn semantic(inp: &[IopValue]) -> Option<Vec<IopValue>> {
+    //        let [IopValue::Ciphertext(rhs)] = inp else {
+    //            unreachable!()
+    //        };
+    //        Some(vec![IopValue::Ciphertext(!*rhs)])
+    //    }
+    //    for size in (2..128).step_by(2) {
+    //        bitwise_inv(CiphertextSpec::new(size, 2, 2)).test_random(100, semantic);
+    //    }
+    //}
 }

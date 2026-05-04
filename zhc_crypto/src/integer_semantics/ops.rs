@@ -384,6 +384,15 @@ impl EmulatedCiphertext {
         }
     }
 
+    pub fn sub(self, other: Self) -> EmulatedCiphertext {
+        assert_eq!(self.spec, other.spec(), "Spec mismatch.");
+        let storage = (self.storage - other.storage) & self.spec.int_mask();
+        EmulatedCiphertext {
+            storage,
+            spec: self.spec,
+        }
+    }
+
     pub fn bitwise_and(self, other: Self) -> EmulatedCiphertext {
         assert_eq!(self.spec, other.spec(), "Spec mismatch.");
         let storage = (self.storage & other.storage) & self.spec.int_mask();

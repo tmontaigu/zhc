@@ -50,6 +50,27 @@ pub fn add(spec: CiphertextSpec) -> Builder {
     builder
 }
 
+pub fn sub(spec: CiphertextSpec) -> Builder {
+    let builder = Builder::new(spec.block_spec());
+    let src_a = builder.ciphertext_input(spec.int_size());
+    let src_b = builder.ciphertext_input(spec.int_size());
+    let par_w = match spec.int_size() {
+        8..16   => 1,
+        16..24  => 7,
+        24..256 => 12,
+        _  => 1,
+    };
+    let one = builder.block_let_ciphertext(1);
+    let b_inv = builder.iop_bitwise_inv(&src_b);
+    let res = match spec.int_size() {
+        0..8   => builder.iop_ripple_carry_add(&src_a, &b_inv, Some(&one)),
+        8..256 => builder.iop_add_kogge_stone(&src_a, &b_inv, Some(&one), par_w),
+        _ => todo!(),
+    };
+    builder.ciphertext_output(res);
+    builder
+}
+
 /// Creates an IR for the addition of two encrypted integers using Kogge-Stone
 /// carry propagation.
 ///
@@ -694,6 +715,19 @@ mod test {
     }
 
     #[test]
+    fn correctness_sub() {
+        fn semantic(inp: &[IopValue]) -> Option<Vec<IopValue>> {
+            let [IopValue::Ciphertext(lhs), IopValue::Ciphertext(rhs)] = inp else {
+                unreachable!()
+            };
+            Some(vec![IopValue::Ciphertext(lhs.sub(*rhs))])
+        }
+        for size in (2..128).step_by(2) {
+            sub(CiphertextSpec::new(size, 2, 2)).test_random(1000, semantic);
+        }
+    }
+
+    #[test]
     fn correctness_kogge_stone() {
         fn semantic(inp: &[IopValue]) -> Option<Vec<IopValue>> {
             let [IopValue::Ciphertext(lhs), IopValue::Ciphertext(rhs)] = inp else {
@@ -732,7 +766,7 @@ mod test {
     #[test]
     fn pg_test_ks4() {
         let spec = CiphertextSpec::new(4, 2, 2);
-        let bd = add(spec);
+        let bd = sub(spec);
         bd.eval().with_inputs([
             IopValue::Ciphertext(spec.from_int(0xE)),
             IopValue::Ciphertext(spec.from_int(0x1)),

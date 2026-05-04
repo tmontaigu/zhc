@@ -5,7 +5,6 @@ use zhc_langs::ioplang::{Lut1Def, Lut2Def};
 use zhc_utils::{
     iter::{ChunkIt, CollectInSmallVec, IterMapFirst, MultiZip, ReconcilerOf2, Slide, SliderExt},
     svec,
-    Dumpable,
 };
 
 use crate::{
@@ -44,7 +43,7 @@ pub fn add(spec: CiphertextSpec) -> Builder {
     let res = match spec.int_size() {
         0..8   => builder.iop_ripple_carry_add(&src_a, &src_b, None),
         8..17   => builder.iop_add_hillis_steele(&src_a, &src_b, None),
-        8..256 => builder.iop_add_kogge_stone(&src_a, &src_b, None, par_w),
+        17..256 => builder.iop_add_kogge_stone(&src_a, &src_b, None, par_w),
         _ => todo!(),
     };
     builder.ciphertext_output(res);

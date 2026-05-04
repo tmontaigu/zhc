@@ -221,6 +221,7 @@ impl Builder {
         let mut ir = self.ir().clone();
         eliminate_aliases(&mut ir);
         skip_store_load(&mut ir);
+        eliminate_dead_code(&mut ir);
         skip_redundant_stores(&mut ir);
         eliminate_dead_code(&mut ir);
         eliminate_common_subexpressions(&mut ir);

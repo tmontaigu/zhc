@@ -2,7 +2,6 @@ use zhc_crypto::integer_semantics::CiphertextSpec;
 use zhc_langs::ioplang::{Lut1Def, Lut2Def};
 use zhc_utils::{
     SafeAs,
-    Dumpable,
     iter::{ChunkIt, CollectInVec, UnwrapChunks},
     n_bits_to_encode,
 };
@@ -36,7 +35,6 @@ pub fn count_0(spec: CiphertextSpec) -> Builder {
     let src_a = builder.ciphertext_input(spec.int_size());
     let res = builder.iop_count(&src_a, BitType::Zero);
     builder.ciphertext_output(res);
-    println!("PGDebug {:?}", builder.signature());
     builder
 }
 
@@ -106,7 +104,6 @@ impl Builder {
             let res = self.count_from_bits(bits, kind);
             let output_size: u16 = n_bits_to_encode(inp.spec().int_size());
             let n_blocks = output_size.div_ceil(self.spec().message_size().sas()).sas();
-            println!("PGDebug {:?} {inp:?} {res:?} {output_size:?} {n_blocks:?}", self.signature());
             self.comment("output")
                 .ciphertext_join(&res[..n_blocks], Some(inp.spec().int_size()))
         })

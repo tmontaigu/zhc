@@ -16,6 +16,15 @@ pub fn div(spec: CiphertextSpec) -> Builder {
     builder
 }
 
+pub fn rem(spec: CiphertextSpec) -> Builder {
+    let builder = Builder::new(spec.block_spec());
+    let src_a = builder.ciphertext_input(spec.int_size());
+    let src_b = builder.ciphertext_input(spec.int_size());
+    let (_, remainder) = builder.iop_divx(&src_a, &src_b);
+    builder.ciphertext_output(remainder);
+    builder
+}
+
 /// Initialize the division.
 /// It computes:
 /// * keep_div : boolean to keep the division result, or set the default value.

@@ -431,10 +431,6 @@ impl<'a> KoggeTree<'a> {
         let msb = &self.cache[&(ms, me)];
 
         let cpos_trial = lsb.cpos + msb.cpos;
-        println!("PGDebug: insert_subtree lsb.cpos {:?} msb.cpos {:?} cpos_trial {cpos_trial:?} tw {:?}",
-            lsb.cpos,
-            msb.cpos,
-            self.total_width);
 
         // Choose which values to combine and the resulting cpos / shift.
         let (lsb_val, msb_val, cpos, msb_shift) = if cpos_trial > self.total_width {
@@ -470,7 +466,7 @@ impl<'a> KoggeTree<'a> {
             ),
         };
 
-        println!("PGDebug: insert_subtree cache insert [{start:?}..{end:?}] mac {mac:?} cpos {cpos:?} fresh {fresh:?}");
+        // all carry processed are inserted in the cache 
         self.cache.insert(
             (start, end),
             KoggeEntry {
@@ -484,6 +480,9 @@ impl<'a> KoggeTree<'a> {
     /// Returns the prefix entry for the range `[start, end]`.
     fn get_prefix(&mut self, start: usize, end: usize) -> &KoggeEntry {
         self.insert_subtree(start, end);
+        // here returning only the needed carry
+        // a part of the cached carry will be removed
+        // by dead code removal
         &self.cache[&(start, end)]
     }
 }
@@ -563,7 +562,6 @@ impl Builder {
         cin_pg: &KoggeEntry,
     ) -> (Vec<CiphertextBlock>, KoggeEntry) {
         let n = sums.len();
-        println!("PGDebug: kogge_propagate_carry {cin_pg:?}");
 
         // Split each sum into (PG, msg) via ManyGenProp.
         let mut carry_vec = Vec::with_capacity(n+1);
@@ -591,7 +589,6 @@ impl Builder {
         let mut output = Vec::with_capacity(n);
         for i in 0..n {
             let carry_fresh = carry_tree.get_prefix(0, i).fresh;
-            println!("PGDebug: carry fresh {carry_fresh:?}");
             // Pack carry_fresh (carry/high) + msg (message/low), then apply GenPropAdd.
             let resolved = self.block_pack_then_lookup(&carry_fresh, &msgs[i], Lut1Def::GenPropAdd);
             output.push(resolved);

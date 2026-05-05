@@ -24,7 +24,7 @@
 //! let mut builder = Builder::new(spec.block_spec());
 //! let a = builder.ciphertext_input(spec.int_size());
 //! let b = builder.ciphertext_input(spec.int_size());
-//! let sum = builder.iop_add_hillis_steele(&a, &b);
+//! let sum = builder.iop_add_hillis_steele(&a, &b, None);
 //! let is_gt = builder.iop_cmp(&sum, &b, CmpKind::Greater);
 //! builder.ciphertext_output(&is_gt);
 //! ```

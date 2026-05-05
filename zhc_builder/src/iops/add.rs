@@ -35,14 +35,14 @@ pub fn add(spec: CiphertextSpec) -> Builder {
     let src_a = builder.ciphertext_input(spec.int_size());
     let src_b = builder.ciphertext_input(spec.int_size());
     let par_w = match spec.int_size() {
-        8..16   => 1,
-        16..24  => 7,
+        8..16 => 1,
+        16..24 => 7,
         24..256 => 12,
-        _  => 1,
+        _ => 1,
     };
     let res = match spec.int_size() {
-        0..8   => builder.iop_ripple_carry_add(&src_a, &src_b, None),
-        8..17   => builder.iop_add_hillis_steele(&src_a, &src_b, None),
+        0..8 => builder.iop_ripple_carry_add(&src_a, &src_b, None),
+        8..17 => builder.iop_add_hillis_steele(&src_a, &src_b, None),
         17..256 => builder.iop_add_kogge_stone(&src_a, &src_b, None, par_w),
         _ => todo!(),
     };
@@ -55,16 +55,16 @@ pub fn sub(spec: CiphertextSpec) -> Builder {
     let src_a = builder.ciphertext_input(spec.int_size());
     let src_b = builder.ciphertext_input(spec.int_size());
     let par_w = match spec.int_size() {
-        8..16   => 1,
-        16..24  => 7,
+        8..16 => 1,
+        16..24 => 7,
         24..256 => 12,
-        _  => 1,
+        _ => 1,
     };
     let one = builder.block_let_ciphertext(1);
     let b_inv = builder.iop_bitwise_inv(&src_b);
     let res = match spec.int_size() {
-        0..8   => builder.iop_ripple_carry_add(&src_a, &b_inv, Some(&one)),
-        8..17   => builder.iop_add_hillis_steele(&src_a, &b_inv, Some(&one)),
+        0..8 => builder.iop_ripple_carry_add(&src_a, &b_inv, Some(&one)),
+        8..17 => builder.iop_add_hillis_steele(&src_a, &b_inv, Some(&one)),
         17..256 => builder.iop_add_kogge_stone(&src_a, &b_inv, Some(&one), par_w),
         _ => todo!(),
     };
@@ -106,13 +106,16 @@ pub fn add_ripple(spec: CiphertextSpec) -> Builder {
 }
 
 impl Builder {
-    pub fn iop_ripple_carry_add(&self, lhs: &Ciphertext, rhs: &Ciphertext, cin: Option<&CiphertextBlock>) -> Ciphertext {
+    pub fn iop_ripple_carry_add(
+        &self,
+        lhs: &Ciphertext,
+        rhs: &Ciphertext,
+        cin: Option<&CiphertextBlock>,
+    ) -> Ciphertext {
         let lhs_blocks = self.ciphertext_split(lhs);
         let rhs_blocks = self.ciphertext_split(rhs);
 
-        let mut carry = cin
-            .cloned()
-            .unwrap_or_else(|| self.block_let_ciphertext(0));
+        let mut carry = cin.cloned().unwrap_or_else(|| self.block_let_ciphertext(0));
         let mut output_blocks = Vec::new();
         for i in 0..lhs_blocks.iter().len() {
             self.push_comment(format!("{i}-th"));
@@ -127,8 +130,12 @@ impl Builder {
         self.comment("Join").ciphertext_join(output_blocks, None)
     }
 
-
-    pub fn iop_add_hillis_steele(&self, lhs: &Ciphertext, rhs: &Ciphertext, cin: Option<&CiphertextBlock>) -> Ciphertext {
+    pub fn iop_add_hillis_steele(
+        &self,
+        lhs: &Ciphertext,
+        rhs: &Ciphertext,
+        cin: Option<&CiphertextBlock>,
+    ) -> Ciphertext {
         let lhs_blocks = self.ciphertext_split(lhs);
         let rhs_blocks = self.ciphertext_split(rhs);
 
@@ -390,10 +397,7 @@ impl<'a> KoggeTree<'a> {
         let total_width = builder.spec().data_size() as usize;
         let mut cache = HashMap::new();
         for (i, block) in inputs.into_iter().enumerate() {
-            cache.insert(
-                (i, i),
-                block,
-            );
+            cache.insert((i, i), block);
         }
         KoggeTree {
             builder,
@@ -446,7 +450,7 @@ impl<'a> KoggeTree<'a> {
         };
 
         // MAC: lsb_val + (2^log_shift) * msb_val — implemented via doubling.
-        let mac =  self.builder.block_mac(msb_val, lsb_val, msb_shift);
+        let mac = self.builder.block_mac(msb_val, lsb_val, msb_shift);
 
         // Reduce via PBS based on cpos.
         let fresh = match cpos {
@@ -465,7 +469,7 @@ impl<'a> KoggeTree<'a> {
             ),
         };
 
-        // all carry processed are inserted in the cache 
+        // all carry processed are inserted in the cache
         self.cache.insert(
             (start, end),
             KoggeEntry {
@@ -488,11 +492,16 @@ impl<'a> KoggeTree<'a> {
 
 impl Builder {
     /// Adds two encrypted integers using Kogge-Stone carry propagation.
-    pub fn iop_add_kogge_stone(&self, lhs: &Ciphertext, rhs: &Ciphertext, cin: Option<&CiphertextBlock>, par_w: usize) -> Ciphertext {
+    pub fn iop_add_kogge_stone(
+        &self,
+        lhs: &Ciphertext,
+        rhs: &Ciphertext,
+        cin: Option<&CiphertextBlock>,
+        par_w: usize,
+    ) -> Ciphertext {
         let lhs_blocks = self.ciphertext_split(lhs);
         let rhs_blocks = self.ciphertext_split(rhs);
-        let output_blocks =
-            self.iop_add_kogge_stone_raw(lhs_blocks, rhs_blocks, cin, par_w, false);
+        let output_blocks = self.iop_add_kogge_stone_raw(lhs_blocks, rhs_blocks, cin, par_w, false);
         self.comment("Join").ciphertext_join(output_blocks, None)
     }
 
@@ -519,7 +528,7 @@ impl Builder {
         };
         let mut cin_pg_kogge_entry = KoggeEntry {
             block: cin_pg,
-            cpos : 1,
+            cpos: 1,
             fresh: cin_pg,
         };
 
@@ -563,7 +572,7 @@ impl Builder {
         let n = sums.len();
 
         // Split each sum into (PG, msg) via ManyGenProp.
-        let mut carry_vec = Vec::with_capacity(n+1);
+        let mut carry_vec = Vec::with_capacity(n + 1);
         let mut msgs = Vec::with_capacity(n);
         for (i, sum) in sums.iter().enumerate() {
             let (pg, msg) = self
@@ -794,8 +803,7 @@ mod test {
             let b = builder.ciphertext_input(spec.int_size());
             let a_blocks = builder.ciphertext_split(&a);
             let b_blocks = builder.ciphertext_split(&b);
-            let res =
-                builder.iop_add_kogge_stone_raw(a_blocks, b_blocks, None, par_w, true);
+            let res = builder.iop_add_kogge_stone_raw(a_blocks, b_blocks, None, par_w, true);
             let out = builder.ciphertext_join(res, None);
             builder.ciphertext_output(out);
             builder.test_random(100, semantic);

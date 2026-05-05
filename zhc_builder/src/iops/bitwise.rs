@@ -161,12 +161,10 @@ impl Builder {
     pub fn iop_bitwise_inv(&self, ct: &Ciphertext) -> Ciphertext {
         let ct_blocks = self.ciphertext_split(ct);
         // create a message full of 1
-        let allone = self.block_let_plaintext((1 << self.spec().message_size())-1);
+        let allone = self.block_let_plaintext((1 << self.spec().message_size()) - 1);
         let res = ct_blocks
             .iter()
-            .map(|m| {
-                self.block_plaintext_sub(allone, m)
-            })
+            .map(|m| self.block_plaintext_sub(allone, m))
             .collect::<Vec<_>>();
         self.ciphertext_join(res, None)
     }

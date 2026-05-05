@@ -247,9 +247,10 @@ impl Interpretable<IopValue> for super::IopInstructionSet {
                     )
                 };
                 let mul_val = (*mul).sas::<EmulatedCiphertextBlockStorage>();
-                let result =
-                    left.raw_complete_bits() * mul_val + right.raw_complete_bits();
-                svec![IopValue::CiphertextBlock(context.spec.from_complete(result))]
+                let result = left.raw_complete_bits() * mul_val + right.raw_complete_bits();
+                svec![IopValue::CiphertextBlock(
+                    context.spec.from_complete(result)
+                )]
             }
             AddPt => {
                 let (IopValue::CiphertextBlock(left), IopValue::PlaintextBlock(right)) =

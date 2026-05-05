@@ -1,8 +1,8 @@
 use std::str::FromStr;
 
 use zhc_builder::{
-    CiphertextSpec, add, sub, cmp_eq, cmp_gt, cmp_gte, cmp_lt, cmp_lte, cmp_neq, count_0, count_1,
-    div, rem, if_then_else, if_then_zero, ilog2, lead0, lead1, mul_lsb, trail0, trail1,
+    CiphertextSpec, add, cmp_eq, cmp_gt, cmp_gte, cmp_lt, cmp_lte, cmp_neq, count_0, count_1, div,
+    if_then_else, if_then_zero, ilog2, lead0, lead1, mul_lsb, rem, sub, trail0, trail1,
 };
 use zhc_sim::hpu::HpuConfig;
 

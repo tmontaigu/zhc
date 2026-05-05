@@ -176,8 +176,7 @@ impl Interpretable<HpuValue> for super::HpuInstructionSet {
                 let right = arguments[1].clone().unwrap_ct_register();
                 assert!(cst.0.is_power_of_two());
                 svec![HpuValue::CtRegister(
-                    left.wrapping_shl(cst.0.ilog2().sas())
-                        .wrapping_add(right)
+                    left.wrapping_shl(cst.0.ilog2().sas()).wrapping_add(right)
                 )]
             }
 

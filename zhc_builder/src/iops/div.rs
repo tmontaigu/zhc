@@ -140,7 +140,8 @@ impl Builder {
                 // Step2
                 // Compute remain - div
                 // Here, do not clean the last block, which is the carry
-                let diff_x_a = self.iop_add_hillis_steele_raw(&remain_a, &ext_mdiv_x_a, None, false);
+                let diff_x_a =
+                    self.iop_add_hillis_steele_raw(&remain_a, &ext_mdiv_x_a, None, false);
 
                 // Step3
                 // Comparison : look at the sign block

@@ -186,14 +186,16 @@ impl Interpretable<DopValue> for super::DopInstructionSet {
                 svec![DopValue::Ctx]
             }
             MAC {
-                dst, src1, src2, ..
+                dst, src1, src2, cst
             } => {
                 // dst = src1 * cst + src2
                 let left = context.read_ct(src1);
                 let right = context.read_ct(src2);
+                let Argument::PtConst { val: cst } = cst else {unreachable!()};
+                assert!(cst.is_power_of_two());
                 context.write_ct(
                     dst,
-                    left.wrapping_shl(left.spec().message_size())
+                    left.wrapping_shl(cst.ilog2().sas())
                         .wrapping_add(right),
                 );
                 svec![DopValue::Ctx]

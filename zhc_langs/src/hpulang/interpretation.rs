@@ -174,9 +174,9 @@ impl Interpretable<HpuValue> for super::HpuInstructionSet {
                 // src1 * cst + src2
                 let left = arguments[0].clone().unwrap_ct_register();
                 let right = arguments[1].clone().unwrap_ct_register();
-                assert_eq!(cst.0, 2u8.pow(left.spec().message_size().sas()));
+                assert!(cst.0.is_power_of_two());
                 svec![HpuValue::CtRegister(
-                    left.wrapping_shl(left.spec().message_size())
+                    left.wrapping_shl(cst.0.ilog2().sas())
                         .wrapping_add(right)
                 )]
             }

@@ -2,7 +2,6 @@ use std::fmt::Debug;
 use zhc_crypto::integer_semantics::{
     CiphertextBlockSpec, EmulatedCiphertext, EmulatedCiphertextBlock,
     EmulatedCiphertextBlockStorage, EmulatedPlaintext, EmulatedPlaintextBlock,
-    EmulatedPlaintextBlockStorage,
 };
 use zhc_ir::interpretation::{Interpretable, Interpretation, InterpretsTo};
 use zhc_utils::small::SmallVec;

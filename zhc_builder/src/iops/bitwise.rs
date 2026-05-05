@@ -87,6 +87,21 @@ pub fn bitwise_xor(spec: CiphertextSpec) -> Builder {
     builder
 }
 
+/// Creates an IR for bitwise NOT of an encrypted integer.
+///
+/// The returned [`Builder`] declares one ciphertext input and one ciphertext output,
+/// where each output block is the bitwise complement of the corresponding input block.
+/// The operation is computed block-wise as `(2^message_size - 1) - block`, which flips
+/// all message bits without requiring a PBS.
+///
+/// # Examples
+///
+/// ```rust,no_run
+/// # use zhc_builder::{CiphertextSpec, bitwise_inv};
+/// # let spec = CiphertextSpec::new(16, 2, 2);
+/// let builder = bitwise_inv(spec);
+/// let ir = builder.optimize_ir();
+/// ```
 pub fn bitwise_inv(spec: CiphertextSpec) -> Builder {
     let builder = Builder::new(spec.block_spec());
     let src_ct = builder.ciphertext_input(spec.int_size());
@@ -147,12 +162,16 @@ impl Builder {
         self.ciphertext_join(res, None)
     }
 
-    /// Applies a bitwise in operation on an encrypted integer.
+    /// Applies a bitwise NOT operation on an encrypted integer.
+    ///
+    /// Computes the complement by subtracting each block from a plaintext mask of all ones.
+    /// This avoids PBS entirely, making it a cheap operation suitable for use in subtraction
+    /// (two's complement) and other bitwise pipelines.
     ///
     /// # Examples
     ///
     /// ```rust,no_run
-    /// # use zhc_builder::{CiphertextSpec, Builder, BwKind};
+    /// # use zhc_builder::{CiphertextSpec, Builder};
     /// # let spec = CiphertextSpec::new(16, 2, 2);
     /// # let builder = Builder::new(spec.block_spec());
     /// # let a = builder.ciphertext_input(spec.int_size());

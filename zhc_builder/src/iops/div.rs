@@ -6,6 +6,20 @@ use crate::{
     builder::{Builder, Ciphertext},
 };
 
+/// Creates an IR for unsigned division of two encrypted integers.
+///
+/// The returned [`Builder`] declares two ciphertext inputs (dividend and divisor) and
+/// two ciphertext outputs (quotient and remainder). Division by zero produces an
+/// unspecified result without trapping.
+///
+/// # Examples
+///
+/// ```rust,no_run
+/// # use zhc_builder::{CiphertextSpec, div};
+/// # let spec = CiphertextSpec::new(16, 2, 2);
+/// let builder = div(spec);
+/// let ir = builder.optimize_ir();
+/// ```
 pub fn div(spec: CiphertextSpec) -> Builder {
     let builder = Builder::new(spec.block_spec());
     let src_a = builder.ciphertext_input(spec.int_size());
@@ -16,6 +30,20 @@ pub fn div(spec: CiphertextSpec) -> Builder {
     builder
 }
 
+/// Creates an IR for the unsigned remainder of two encrypted integers.
+///
+/// The returned [`Builder`] declares two ciphertext inputs (dividend and divisor) and
+/// one ciphertext output (remainder). Internally this delegates to [`div`] and discards
+/// the quotient. Remainder by zero produces an unspecified result without trapping.
+///
+/// # Examples
+///
+/// ```rust,no_run
+/// # use zhc_builder::{CiphertextSpec, rem};
+/// # let spec = CiphertextSpec::new(16, 2, 2);
+/// let builder = rem(spec);
+/// let ir = builder.optimize_ir();
+/// ```
 pub fn rem(spec: CiphertextSpec) -> Builder {
     let builder = Builder::new(spec.block_spec());
     let src_a = builder.ciphertext_input(spec.int_size());

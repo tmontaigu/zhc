@@ -1113,8 +1113,21 @@ impl Builder {
 
     /// Computes `src_a * mul + src_b` and applies a single-output PBS lookup.
     ///
-    /// Equivalent to calling [`block_mac`](Self::block_mac) followed by
-    /// [`block_lookup`](Self::block_lookup).
+    /// Combines a multiply-accumulate with an immediate multiplier and a programmable
+    /// bootstrapping in a single convenience method. The `mul` value is typically a small
+    /// power of two used for packing or shifting encoded values before the lookup.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # use zhc_builder::*;
+    /// # use zhc_langs::ioplang::Lut1Def;
+    /// let builder = Builder::new(CiphertextBlockSpec(2, 2));
+    /// let ct = builder.ciphertext_input(4);
+    /// let blocks = builder.ciphertext_split(&ct);
+    /// // Compute blocks[0] * 2 + blocks[1], then extract the message
+    /// let result = builder.block_mac_then_lookup(&blocks[0], &blocks[1], 2, Lut1Def::MsgOnly);
+    /// ```
     pub fn block_mac_then_lookup(
         &self,
         src_a: impl AsRef<CiphertextBlock>,

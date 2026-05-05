@@ -22,8 +22,11 @@ pub enum Iop {
     CmpNeq,
     IfThenElse,
     IfThenZero,
+    /// Wrapping addition of two encrypted integers.
     Add,
+    /// Wrapping subtraction of two encrypted integers.
     Sub,
+    /// Wrapping multiplication of two encrypted integers (LSB result).
     Mul,
     Ilog2,
     CountZeros,
@@ -32,7 +35,9 @@ pub enum Iop {
     LeadingOnes,
     TrailingZeros,
     TrailingOnes,
+    /// Unsigned division of two encrypted integers (quotient and remainder).
     Div,
+    /// Unsigned remainder of two encrypted integers.
     Mod,
     // AddPt,
     // SubPt,

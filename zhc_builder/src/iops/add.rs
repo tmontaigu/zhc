@@ -50,6 +50,21 @@ pub fn add(spec: CiphertextSpec) -> Builder {
     builder
 }
 
+/// Creates an IR for the subtraction of two encrypted integers.
+///
+/// The returned [`Builder`] declares two ciphertext inputs and one ciphertext output
+/// representing the wrapping difference `a - b`. Internally the subtraction is computed
+/// as `a + (!b) + 1` using two's complement, reusing the addition infrastructure with a
+/// carry-in of one.
+///
+/// # Examples
+///
+/// ```rust,no_run
+/// # use zhc_builder::{CiphertextSpec, sub};
+/// # let spec = CiphertextSpec::new(16, 2, 2);
+/// let builder = sub(spec);
+/// let ir = builder.optimize_ir();
+/// ```
 pub fn sub(spec: CiphertextSpec) -> Builder {
     let builder = Builder::new(spec.block_spec());
     let src_a = builder.ciphertext_input(spec.int_size());
@@ -87,6 +102,22 @@ pub fn add_kogge_stone(spec: CiphertextSpec, par_w: usize) -> Builder {
     builder
 }
 
+/// Creates an IR for the addition of two encrypted integers using Hillis-Steele carry
+/// propagation.
+///
+/// The returned [`Builder`] declares two ciphertext inputs and one ciphertext output
+/// representing the wrapping sum of the operands. This variant explicitly selects the
+/// Hillis-Steele algorithm, which groups blocks into fours and resolves carries with
+/// logarithmic depth. Prefer [`add`] for automatic algorithm selection based on bit-width.
+///
+/// # Examples
+///
+/// ```rust,no_run
+/// # use zhc_builder::{CiphertextSpec, add_hillis_steele};
+/// # let spec = CiphertextSpec::new(16, 2, 2);
+/// let builder = add_hillis_steele(spec);
+/// let ir = builder.optimize_ir();
+/// ```
 pub fn add_hillis_steele(spec: CiphertextSpec) -> Builder {
     let builder = Builder::new(spec.block_spec());
     let src_a = builder.ciphertext_input(spec.int_size());
@@ -96,6 +127,21 @@ pub fn add_hillis_steele(spec: CiphertextSpec) -> Builder {
     builder
 }
 
+/// Creates an IR for the addition of two encrypted integers using ripple-carry propagation.
+///
+/// The returned [`Builder`] declares two ciphertext inputs and one ciphertext output
+/// representing the wrapping sum of the operands. This variant explicitly selects the
+/// ripple-carry algorithm, which processes blocks sequentially from LSB to MSB. Suitable
+/// for small bit-widths where the simpler structure outweighs parallelism benefits.
+///
+/// # Examples
+///
+/// ```rust,no_run
+/// # use zhc_builder::{CiphertextSpec, add_ripple};
+/// # let spec = CiphertextSpec::new(8, 2, 2);
+/// let builder = add_ripple(spec);
+/// let ir = builder.optimize_ir();
+/// ```
 pub fn add_ripple(spec: CiphertextSpec) -> Builder {
     let builder = Builder::new(spec.block_spec());
     let src_a = builder.ciphertext_input(spec.int_size());
@@ -106,6 +152,23 @@ pub fn add_ripple(spec: CiphertextSpec) -> Builder {
 }
 
 impl Builder {
+    /// Adds two encrypted integers using sequential ripple-carry propagation.
+    ///
+    /// Processes blocks from LSB to MSB, computing each block's sum and carry in turn.
+    /// The optional `cin` injects an initial carry (useful for subtraction via two's
+    /// complement). Each block requires two PBS operations: one to extract the message
+    /// and one to extract the carry.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # use zhc_builder::{CiphertextSpec, Builder};
+    /// # let spec = CiphertextSpec::new(8, 2, 2);
+    /// # let builder = Builder::new(spec.block_spec());
+    /// # let a = builder.ciphertext_input(spec.int_size());
+    /// # let b = builder.ciphertext_input(spec.int_size());
+    /// let sum = builder.iop_ripple_carry_add(&a, &b, None);
+    /// ```
     pub fn iop_ripple_carry_add(
         &self,
         lhs: &Ciphertext,
@@ -130,6 +193,23 @@ impl Builder {
         self.comment("Join").ciphertext_join(output_blocks, None)
     }
 
+    /// Adds two encrypted integers using Hillis-Steele carry propagation.
+    ///
+    /// Groups blocks into fours, computes per-group propagation states, then resolves
+    /// inter-group carries with a parallel prefix scan. The optional `cin` injects an
+    /// initial carry into the LSB position. This algorithm offers O(log n) depth for
+    /// n groups, making it efficient for medium-width integers (roughly 8–16 blocks).
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # use zhc_builder::{CiphertextSpec, Builder};
+    /// # let spec = CiphertextSpec::new(16, 2, 2);
+    /// # let builder = Builder::new(spec.block_spec());
+    /// # let a = builder.ciphertext_input(spec.int_size());
+    /// # let b = builder.ciphertext_input(spec.int_size());
+    /// let sum = builder.iop_add_hillis_steele(&a, &b, None);
+    /// ```
     pub fn iop_add_hillis_steele(
         &self,
         lhs: &Ciphertext,
@@ -492,6 +572,23 @@ impl<'a> KoggeTree<'a> {
 
 impl Builder {
     /// Adds two encrypted integers using Kogge-Stone carry propagation.
+    ///
+    /// Builds a prefix tree over generate-propagate (PG) encoded carries, lazily computing
+    /// and reducing intermediate MAC values. The `par_w` parameter controls the chunk width:
+    /// carries are resolved within each chunk, then chained across chunks. Larger `par_w`
+    /// reduces PBS count at the cost of deeper trees; values around 7–12 work well for
+    /// typical 16–64 bit integers.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # use zhc_builder::{CiphertextSpec, Builder};
+    /// # let spec = CiphertextSpec::new(32, 2, 2);
+    /// # let builder = Builder::new(spec.block_spec());
+    /// # let a = builder.ciphertext_input(spec.int_size());
+    /// # let b = builder.ciphertext_input(spec.int_size());
+    /// let sum = builder.iop_add_kogge_stone(&a, &b, None, 12);
+    /// ```
     pub fn iop_add_kogge_stone(
         &self,
         lhs: &Ciphertext,

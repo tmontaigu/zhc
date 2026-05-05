@@ -1,9 +1,9 @@
 use std::str::FromStr;
 
 use zhc_builder::{
-    Builder, CiphertextSpec, add, cmp_eq, cmp_gt, cmp_gte, cmp_lt, cmp_lte, cmp_neq, count_0,
-    count_1, div, if_then_else, if_then_zero, ilog2, lead0, lead1, mul_lsb, rem, sub, trail0,
-    trail1,
+    CiphertextSpec, add, cmp_eq, cmp_gt, cmp_gte, cmp_lt, cmp_lte, cmp_neq, count_0, count_1, div,
+    if_then_else, if_then_zero, ilog2, lead0, lead1, mul_lsb, rem, sub, trail0, trail1,
+    bitwise_and, bitwise_or, bitwise_xor,
 };
 use zhc_sim::hpu::HpuConfig;
 
@@ -57,9 +57,9 @@ pub enum Iop {
     // OvfAdd,
     // OvfSub,
     // OvfMul,
-    // BwAnd,
-    // BwOr,
-    // BwXor,
+    BwAnd,
+    BwOr,
+    BwXor,
     // RightShift,
     // LeftShift,
     // RightRot,
@@ -112,9 +112,9 @@ impl FromStr for Iop {
             // "OVF_ADD" => Ok(Iop::OvfAdd),
             // "OVF_SUB" => Ok(Iop::OvfSub),
             // "OVF_MUL" => Ok(Iop::OvfMul),
-            // "BW_AND" => Ok(Iop::BwAnd),
-            // "BW_OR" => Ok(Iop::BwOr),
-            // "BW_XOR" => Ok(Iop::BwXor),
+            "BW_AND" => Ok(Iop::BwAnd),
+            "BW_OR" => Ok(Iop::BwOr),
+            "BW_XOR" => Ok(Iop::BwXor),
             // "SHIFT_R" => Ok(Iop::RightShift),
             // "SHIFT_L" => Ok(Iop::LeftShift),
             // "ROT_R" => Ok(Iop::RightRot),
@@ -225,9 +225,9 @@ impl Iop {
             // Iop::OvfAdd => todo!(),
             // Iop::OvfSub => todo!(),
             // Iop::OvfMul => todo!(),
-            // Iop::BwAnd => todo!(),
-            // Iop::BwOr => todo!(),
-            // Iop::BwXor => todo!(),
+            Iop::BwAnd => bitwise_and(spec).optimize_ir(),
+            Iop::BwOr => bitwise_or(spec).optimize_ir(),
+            Iop::BwXor => bitwise_xor(spec).optimize_ir(),
             // Iop::RightShift => todo!(),
             // Iop::LeftShift => todo!(),
             // Iop::RightRot => todo!(),

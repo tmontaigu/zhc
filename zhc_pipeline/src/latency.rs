@@ -20,7 +20,7 @@ use zhc_utils::tracing::Event;
 pub fn compute_lower_bound(ir: &IR<DopLang>, config: &HpuConfig) -> Cycle {
     let pbses_count = ir
         .walk_ops_linear()
-        .filter(|op| op.get_instruction().is_pbs_flush())
+        .filter(|op| op.get_instruction().is_pbs())
         .count();
     let n_full = pbses_count.div_euclid(config.pbs_max_batch_size);
     let last_batch_length = pbses_count.rem_euclid(config.pbs_max_batch_size);

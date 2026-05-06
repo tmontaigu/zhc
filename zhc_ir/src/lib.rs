@@ -33,6 +33,7 @@ pub mod visualization;
 
 mod annotation;
 mod dialect;
+mod failure;
 mod formatting;
 mod id;
 mod ir;
@@ -51,6 +52,7 @@ mod val_use;
 
 pub use annotation::*;
 pub use dialect::*;
+pub use failure::*;
 pub use formatting::*;
 pub use id::*;
 pub use ir::*;

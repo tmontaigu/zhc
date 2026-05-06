@@ -1,3 +1,4 @@
+use crate::failure::Failure;
 use crate::interpretation::{
     InterpState, Interpretable, Interpretation, InterpretsTo, interpret_ir,
 };
@@ -441,21 +442,74 @@ impl<D: Dialect> IR<D> {
         args: SmallVec<ValId>,
         comment: Option<String>,
     ) -> (OpId, SmallVec<ValId>) {
-        // Check that the args are live.
-        args.iter().for_each(|valid| {
-            assert!(self.has_valid(*valid), "Unknown valid");
-        });
+        self.try_add_op_impl(op, args, comment)
+            .unwrap_or_else(|e| panic!("add_op failed: {e}"))
+    }
+
+    /// Adds a new operation to the IR, returning an error on validation failure.
+    ///
+    /// Returns the [`OpId`] of the created operation and the [`ValId`]s of its return values.
+    /// The operation's signature is validated against the argument types, and use-def chains are
+    /// automatically updated.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Failure::UnknownValue`] if any argument ID does not exist,
+    /// [`Failure::InactiveValue`] if any argument has been deactivated,
+    /// [`Failure::SignatureMismatch`] if argument types do not match the operation's signature,
+    /// or [`Failure::DepthOverflow`] if depth computation overflows.
+    pub fn try_add_op(
+        &mut self,
+        op: D::InstructionSet,
+        args: SmallVec<ValId>,
+    ) -> Result<(OpId, SmallVec<ValId>), Failure<D>> {
+        self.try_add_op_impl(op, args, None)
+    }
+
+    /// Adds a new operation to the IR with a comment attached, returning an error on failure.
+    ///
+    /// Behaves identically to [`try_add_op`](Self::try_add_op) but attaches `comment` to the
+    /// operation for debugging and formatting purposes.
+    ///
+    /// # Errors
+    ///
+    /// Same as [`try_add_op`](Self::try_add_op).
+    pub fn try_add_op_with_comment(
+        &mut self,
+        op: D::InstructionSet,
+        args: SmallVec<ValId>,
+        comment: String,
+    ) -> Result<(OpId, SmallVec<ValId>), Failure<D>> {
+        self.try_add_op_impl(op, args, Some(comment))
+    }
+
+    fn try_add_op_impl(
+        &mut self,
+        op: D::InstructionSet,
+        args: SmallVec<ValId>,
+        comment: Option<String>,
+    ) -> Result<(OpId, SmallVec<ValId>), Failure<D>> {
+        // Check that the args exist and are live.
+        for valid in args.iter() {
+            if !self.raw_has_valid(*valid) {
+                return Err(Failure::UnknownValue(*valid));
+            }
+            if !self.raw_get_val(*valid).is_active() {
+                return Err(Failure::InactiveValue(*valid));
+            }
+        }
+
         // Check that the signature matches the arguments types.
         let sig = op.get_signature();
-        let actual = args
+        let actual: SmallVec<_> = args
             .iter()
-            .map(|a| self.get_val(*a).get_type())
-            .collect::<Vec<_>>();
-        if sig.get_args() != actual {
-            panic!(
-                "Signature Error: {op:?} received {actual:?} instead of {:?}",
-                sig.get_args()
-            );
+            .map(|a| self.get_val(*a).get_type().clone())
+            .collect();
+        if sig.get_args() != actual.as_slice() {
+            return Err(Failure::SignatureMismatch {
+                expected: sig.get_args().iter().cloned().collect(),
+                actual,
+            });
         }
 
         // We compute the depth from the inputs.
@@ -468,15 +522,14 @@ impl<D: Dialect> IR<D> {
         } else {
             let (d, overflow) = arg_depth.unwrap().overflowing_add(1);
             if overflow {
-                panic!("Overflow occured while computing the depth of a new operation.");
+                return Err(Failure::DepthOverflow);
             }
             d
         };
 
         // Now we are ready to mutate the various stores.
 
-        // We begin by adding the op. Note that for now the return values do not exist, and will be
-        // added once created.
+        // We begin by adding the op.
         let op = Op {
             instruction: op,
             signature: sig.clone(),
@@ -488,7 +541,7 @@ impl<D: Dialect> IR<D> {
         };
         let opid = self.raw_insert_op(op);
 
-        // We update the arg users list to add the newly created operation
+        // We update the arg users list to add the newly created operation.
         for (i, arg) in args.iter().enumerate() {
             let arg = self.raw_get_val_mut(*arg);
             arg.users.push(ValUse {
@@ -516,13 +569,12 @@ impl<D: Dialect> IR<D> {
             })
             .collect::<SmallVec<_>>();
 
-        // We update the op returns according to our newly created values
+        // We update the op returns according to our newly created values.
         self.raw_get_op_mut(opid)
             .returns
             .extend(valids.as_slice().iter().cloned());
 
-        // All good
-        (opid, valids)
+        Ok((opid, valids))
     }
 
     /// Replaces all uses of a value with another value.

@@ -656,7 +656,7 @@ fn test_replace_val_use_make_deeper() {
 
 /// Tests that add_op panics when argument types don't match operation signature
 #[test]
-#[should_panic(expected = "Signature Error")]
+#[should_panic(expected = "add_op failed: Signature error: received [Bool] instead of [Int]")]
 fn test_add_op_type_mismatch() {
     let mut store: IR<TestLang> = IR::empty();
     let (_, bool_val) = store.add_op(TestInstructionSet::BoolConstant { val: true }, svec![]);
@@ -666,7 +666,7 @@ fn test_add_op_type_mismatch() {
 
 /// Tests that add_op return error when wrong number of arguments provided
 #[test]
-#[should_panic(expected = "Signature Error")]
+#[should_panic(expected = "add_op failed: Signature error: received [Int] instead of [Int, Int]")]
 fn test_add_op_wrong_arg_count() {
     let mut store: IR<TestLang> = IR::empty();
     let (_, int_vals) = store.add_op(TestInstructionSet::IntInput { pos: 0 }, svec![]);
@@ -676,7 +676,7 @@ fn test_add_op_wrong_arg_count() {
 
 /// Tests that using inactive ValId in add_op panics
 #[test]
-#[should_panic(expected = "Unknown valid")]
+#[should_panic(expected = "add_op failed: Inactive value: %0")]
 fn test_add_op_with_deleted_value() {
     let mut store: IR<TestLang> = IR::empty();
     let (op_id, vals) = store.add_op(TestInstructionSet::IntInput { pos: 0 }, svec![]);

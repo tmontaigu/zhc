@@ -61,7 +61,8 @@ impl Builder {
         let n_blocks = output_size
             .div_ceil(src.spec().block_spec().message_size().sas())
             .sas();
-        self.ciphertext_join(&output_blocks[..n_blocks], Some(output_size))
+        self.comment("output")
+            .ciphertext_join(&output_blocks[..n_blocks], Some(src.spec().int_size()))
     }
 
     pub fn iop_trail0(&self, src: impl AsRef<Ciphertext>) -> Ciphertext {
@@ -78,7 +79,8 @@ impl Builder {
         let n_blocks = output_size
             .div_ceil(src.spec().block_spec().message_size().sas())
             .sas();
-        self.ciphertext_join(&output_blocks[..n_blocks], Some(output_size))
+        self.comment("output")
+            .ciphertext_join(&output_blocks[..n_blocks], Some(src.spec().int_size()))
     }
 
     pub fn iop_trail1(&self, src: impl AsRef<Ciphertext>) -> Ciphertext {
@@ -95,7 +97,8 @@ impl Builder {
         let n_blocks = output_size
             .div_ceil(src.spec().block_spec().message_size().sas())
             .sas();
-        self.ciphertext_join(&output_blocks[..n_blocks], Some(output_size))
+        self.comment("output")
+            .ciphertext_join(&output_blocks[..n_blocks], Some(src.spec().int_size()))
     }
 
     pub fn iop_lead0(&self, src: impl AsRef<Ciphertext>) -> Ciphertext {
@@ -112,7 +115,8 @@ impl Builder {
         let n_blocks = output_size
             .div_ceil(src.spec().block_spec().message_size().sas())
             .sas();
-        self.ciphertext_join(&output_blocks[..n_blocks], Some(output_size))
+        self.comment("output")
+            .ciphertext_join(&output_blocks[..n_blocks], Some(src.spec().int_size()))
     }
 
     pub fn iop_lead1(&self, src: impl AsRef<Ciphertext>) -> Ciphertext {
@@ -129,7 +133,8 @@ impl Builder {
         let n_blocks = output_size
             .div_ceil(src.spec().block_spec().message_size().sas())
             .sas();
-        self.ciphertext_join(&output_blocks[..n_blocks], Some(output_size))
+        self.comment("output")
+            .ciphertext_join(&output_blocks[..n_blocks], Some(src.spec().int_size()))
     }
 
     pub(crate) fn propagate_bits(
@@ -353,11 +358,10 @@ mod test {
             };
             let res = inp.as_storage().leading_zeros()
                 - (u128::BITS - inp.spec().int_size().sas::<u32>());
-            let output_size: u16 = n_bits_to_encode(inp.spec().int_size());
             Some(vec![IopValue::Ciphertext(
                 inp.spec()
                     .block_spec()
-                    .ciphertext_spec(output_size)
+                    .ciphertext_spec(inp.spec().int_size())
                     .from_int(res.sas()),
             )])
         }
@@ -375,11 +379,10 @@ mod test {
             };
             let res = (inp.as_storage() << (u128::BITS - inp.spec().int_size().sas::<u32>()))
                 .leading_ones();
-            let output_size: u16 = n_bits_to_encode(inp.spec().int_size());
             Some(vec![IopValue::Ciphertext(
                 inp.spec()
                     .block_spec()
-                    .ciphertext_spec(output_size)
+                    .ciphertext_spec(inp.spec().int_size())
                     .from_int(res.sas()),
             )])
         }
@@ -399,11 +402,10 @@ mod test {
                 .as_storage()
                 .trailing_zeros()
                 .min(inp.spec().int_size().sas());
-            let output_size: u16 = n_bits_to_encode(inp.spec().int_size());
             Some(vec![IopValue::Ciphertext(
                 inp.spec()
                     .block_spec()
-                    .ciphertext_spec(output_size)
+                    .ciphertext_spec(inp.spec().int_size())
                     .from_int(res.sas()),
             )])
         }
@@ -419,11 +421,10 @@ mod test {
                 unreachable!()
             };
             let res = inp.as_storage().trailing_ones();
-            let output_size: u16 = n_bits_to_encode(inp.spec().int_size());
             Some(vec![IopValue::Ciphertext(
                 inp.spec()
                     .block_spec()
-                    .ciphertext_spec(output_size)
+                    .ciphertext_spec(inp.spec().int_size())
                     .from_int(res.sas()),
             )])
         }
@@ -441,11 +442,10 @@ mod test {
             };
             let res = inp.as_storage();
             let res = if res == 0 { 0 } else { res.ilog2() };
-            let output_size: u16 = n_bits_to_encode(inp.spec().int_size());
             Some(vec![IopValue::Ciphertext(
                 inp.spec()
                     .block_spec()
-                    .ciphertext_spec(output_size)
+                    .ciphertext_spec(inp.spec().int_size())
                     .from_int(res.sas()),
             )])
         }

@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ZHC Benchmark Results</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: system-ui, sans-serif; margin: 2rem; background: #1a1a2e; color: #eee; }
+        h1 { color: #00d4ff; }
+        .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(500px, 1fr)); gap: 2rem; }
+        .chart-container { background: #16213e; padding: 1rem; border-radius: 8px; }
+        canvas { max-height: 300px; }
+        table { border-collapse: collapse; width: 100%; margin-top: 2rem; }
+        th, td { border: 1px solid #333; padding: 8px; text-align: right; }
+        th { background: #16213e; }
+        tr:nth-child(even) { background: #1a1a2e; }
+        tr:nth-child(odd) { background: #16213e; }
+    </style>
+</head>
+<body>
+    <h1>ZHC Benchmark Results</h1>
+    <div class="charts" id="charts"></div>
+    <h2>Latest Results (μs)</h2>
+    <div id="table"></div>
+    <script>
+        const DATA = [{"commit":"29694fa41f6d9cf79eb4322aa0e2ee61ecd9a996","timestamp":"2026-05-12T09:25:56Z","results":{"Add":{"8":2381.3575,"16":3226.885,"32":4376.1825,"64":8100.5925,"128":15177.35},"CmpEq":{"8":2386.1525,"16":3219.31,"32":4940.685,"64":6885.88,"128":12101.42},"CmpGt":{"8":2386.1525,"16":3219.31,"32":4940.685,"64":6885.88,"128":12101.42},"CmpGte":{"8":2386.1525,"16":3219.31,"32":4940.685,"64":6885.88,"128":12101.42},"CmpLt":{"8":2386.1525,"16":3219.31,"32":4940.685,"64":6885.88,"128":12101.42},"CmpLte":{"8":2386.1525,"16":3219.31,"32":4940.685,"64":6885.88,"128":12101.42},"CmpNeq":{"8":2386.1525,"16":3219.31,"32":4940.685,"64":6885.88,"128":12101.42},"CountOnes":{"8":3167.275,"16":4002.04,"32":4917.675,"64":7563.6125,"128":10185.7075},"CountZeros":{"8":3167.275,"16":4002.04,"32":4917.675,"64":7563.6125,"128":10185.7075},"Div":{"8":23149.67,"16":51664.6975,"32":145091.1375,"64":506400.6525,"128":1986905.3925},"IfThenElse":{"8":859.1125000000001,"16":1723.2525,"32":2639.4475,"64":5210.97,"128":9708.3325},"IfThenZero":{"8":810.7325000000001,"16":842.0125,"32":1685.765,"64":2574.7975,"128":5145.67},"Ilog2":{"8":3193.7275,"16":5648.1125,"32":7615.285,"64":12732.415,"128":20572.5425},"LeadingOnes":{"8":4779.3075,"16":5687.015,"32":6954.05,"64":12838.6925,"128":20873.6475},"LeadingZeros":{"8":4763.6675000000005,"16":5652.9875,"32":7606.1275,"64":12767.1325,"128":20647.4125},"Mod":{"8":23008.2625,"16":51585.07,"32":143857.5375,"64":502847.355,"128":1978464.1175},"Mul":{"8":3313.6775,"16":8661.8225,"32":31273.8075,"64":120890.12,"128":488998.91},"Sub":{"8":2410.255,"16":3282.5,"32":4447.5425000000005,"64":8127.68,"128":15205.79},"TrailingOnes":{"8":4774.3325,"16":5680.84,"32":6968.0650000000005,"64":12782.2425,"128":21099.4475},"TrailingZeros":{"8":4758.78,"16":5647.27,"32":7580.150000000001,"64":12747.66,"128":20812.385}}}];
+        const BITS = [8, 16, 32, 64, 128];
+        const COLORS = ['#ff6384', '#36a2eb', '#ffce56', '#4bc0c0', '#9966ff'];
+
+        // Get all IOPs from the latest result
+        const iops = DATA.length > 0 ? Object.keys(DATA[DATA.length - 1].results) : [];
+
+        // Create a chart for each IOP
+        const chartsDiv = document.getElementById('charts');
+        iops.forEach(iop => {
+            const container = document.createElement('div');
+            container.className = 'chart-container';
+            container.innerHTML = `<canvas id="chart-${iop}"></canvas>`;
+            chartsDiv.appendChild(container);
+
+            const ctx = document.getElementById(`chart-${iop}`).getContext('2d');
+            const datasets = BITS.map((bits, i) => ({
+                label: `${bits}b`,
+                data: DATA.map(r => r.results[iop]?.[bits] ?? null),
+                borderColor: COLORS[i],
+                tension: 0.1,
+                fill: false,
+            }));
+
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: DATA.map(r => r.commit.slice(0, 7)),
+                    datasets,
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: { display: true, text: iop, color: '#00d4ff' },
+                        legend: { labels: { color: '#eee' } },
+                    },
+                    scales: {
+                        x: { ticks: { color: '#aaa' }, grid: { color: '#333' } },
+                        y: {
+                            ticks: { color: '#aaa' },
+                            grid: { color: '#333' },
+                            title: { display: true, text: 'Latency (μs)', color: '#aaa' }
+                        },
+                    },
+                },
+            });
+        });
+
+        // Format number with space as thousand separator
+        function fmt(val) {
+            const [int, dec] = val.toFixed(2).split('.');
+            const spaced = int.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+            return spaced + '.' + dec;
+        }
+
+        // Generate table with latest results
+        if (DATA.length > 0) {
+            const latest = DATA[DATA.length - 1];
+            let html = '<table><tr><th>Operation</th>';
+            BITS.forEach(b => html += `<th>${b}b</th>`);
+            html += '</tr>';
+            iops.forEach(iop => {
+                html += `<tr><td style="text-align:left">${iop}</td>`;
+                BITS.forEach(b => {
+                    const val = latest.results[iop]?.[b];
+                    html += `<td>${val ? fmt(val) : '-'}</td>`;
+                });
+                html += '</tr>';
+            });
+            html += '</table>';
+            document.getElementById('table').innerHTML = html;
+        }
+    </script>
+</body>
+</html>

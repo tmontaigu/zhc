@@ -9,7 +9,10 @@ use std::{collections::HashMap, sync::LazyLock};
 
 use zhc_builder::CiphertextBlockSpec;
 use zhc_crypto::integer_semantics::lut::{Lut1, Lut2};
-use zhc_ir::{IR, translation::eager_translate_ann};
+use zhc_ir::{
+    IR,
+    translation::{Order, translate_ann},
+};
 use zhc_langs::{
     hpulang::{HpuInstructionSet, HpuLang, Immediate, LutId, TDstId, TImmId, TSrcId},
     ioplang::{IopInstructionSet, IopLang, Lut1Def, Lut2Def},
@@ -357,7 +360,7 @@ pub fn lower_iop_to_hpu(ir: &IR<IopLang>) -> IR<HpuLang> {
             let valanns = svec![(); a.get_return_arity()];
             (opann, valanns)
         });
-    eager_translate_ann(&ann_ir, |op, translator| {
+    translate_ann(&ann_ir, Order::Linear, |op, translator| {
         match op.get_instruction() {
             IopInstructionSet::_Consume { .. } => {
                 panic!("Tried to translate a _consume op");

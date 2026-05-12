@@ -1,7 +1,7 @@
 use std::cmp::max;
 use std::rc::Rc;
 
-use zhc_ir::translation::lazy_translate;
+use zhc_ir::translation::{Order, translate};
 use zhc_ir::{AnnIR, AnnOpRef, AnnValRef, IR, OpId, OpIdRaw};
 use zhc_langs::hpulang::{HpuInstructionSet, HpuLang};
 use zhc_sim::hpu::HpuConfig;
@@ -290,7 +290,10 @@ impl Dumpable for State {
     }
 }
 
-fn forward_extract_batches<'a, 'b>(dir: &'b CritIR<'a>, batch_size: usize) -> Batches<'a, 'b> {
+fn forward_extract_batches<'a, 'b>(
+    dir: &'b CritIR<'a>,
+    batch_size: usize,
+) -> (Batches<'a, 'b>, Vec<OpId>) {
     // When MH, we can:
     //  + start by marking the transfer_in as not ready,
     //  + schedule as much as possible until stalled,
@@ -304,21 +307,24 @@ fn forward_extract_batches<'a, 'b>(dir: &'b CritIR<'a>, batch_size: usize) -> Ba
         n => State::Waiting(n),
     });
 
-    let mut worklist = states
+    let mut worklist: std::collections::VecDeque<OpId> = states
         .iter()
         .filter_map(|(opid, state)| match state {
             State::Ready => Some(opid),
             _ => None,
         })
-        .covec();
-
+        .collect();
     let mut ready_list = Vec::new();
+    let mut order = Vec::new();
 
     loop {
         while !worklist.is_empty() {
-            let op = dir.get_op(worklist.pop().unwrap());
+            let op = dir.get_op(worklist.pop_front().unwrap());
             states.get_mut(&op).unwrap().transition(|old| match old {
-                State::Ready => State::Scheduled,
+                State::Ready => {
+                    order.push(op.get_id());
+                    State::Scheduled
+                }
                 _ => unreachable!(),
             });
             for user in op.get_users_iter() {
@@ -328,7 +334,7 @@ fn forward_extract_batches<'a, 'b>(dir: &'b CritIR<'a>, batch_size: usize) -> Ba
                     }
                     State::Waiting(1) => {
                         if !user.get_instruction().is_pbs() {
-                            worklist.push(user.get_id());
+                            worklist.push_back(user.get_id());
                         } else {
                             ready_list.push(user);
                         }
@@ -359,10 +365,13 @@ fn forward_extract_batches<'a, 'b>(dir: &'b CritIR<'a>, batch_size: usize) -> Ba
         batch = Batch::new(batch_size);
     }
 
-    batches
+    (batches, order)
 }
 
-fn backward_extract_batches<'a, 'b>(dir: &'b CritIR<'a>, batch_size: usize) -> Batches<'a, 'b> {
+fn backward_extract_batches<'a, 'b>(
+    dir: &'b CritIR<'a>,
+    batch_size: usize,
+) -> (Batches<'a, 'b>, Vec<OpId>) {
     let mut batches = Batches::new();
     let mut batch = Batch::new(batch_size);
 
@@ -371,21 +380,28 @@ fn backward_extract_batches<'a, 'b>(dir: &'b CritIR<'a>, batch_size: usize) -> B
         n => State::Waiting(n),
     });
 
-    let mut worklist = states
+    // FIFO ordering is required here: when batch members are enqueued together, FIFO ensures
+    // they are all dequeued (and added to `order`) before any of their predecessors, which
+    // are the batch inputs. LIFO would interleave predecessors between batch members, causing
+    // translate_val to be called on an untranslated value after the order is reversed.
+    let mut worklist: std::collections::VecDeque<OpId> = states
         .iter()
         .filter_map(|(opid, state)| match state {
             State::Ready => Some(opid),
             _ => None,
         })
-        .covec();
-
+        .collect();
     let mut ready_list = Vec::new();
+    let mut order = Vec::new();
 
     loop {
         while !worklist.is_empty() {
-            let op = dir.get_op(worklist.pop().unwrap());
+            let op = dir.get_op(worklist.pop_front().unwrap());
             states.get_mut(&op).unwrap().transition(|old| match old {
-                State::Ready => State::Scheduled,
+                State::Ready => {
+                    order.push(op.get_id());
+                    State::Scheduled
+                }
                 _ => unreachable!(),
             });
             for pred in op.get_predecessors_iter() {
@@ -395,7 +411,7 @@ fn backward_extract_batches<'a, 'b>(dir: &'b CritIR<'a>, batch_size: usize) -> B
                     }
                     State::Waiting(1) => {
                         if !pred.get_instruction().is_pbs() {
-                            worklist.push(pred.get_id());
+                            worklist.push_back(pred.get_id());
                         } else {
                             ready_list.push(pred);
                         }
@@ -425,7 +441,8 @@ fn backward_extract_batches<'a, 'b>(dir: &'b CritIR<'a>, batch_size: usize) -> B
         batch = Batch::new(batch_size);
     }
 
-    batches
+    order.reverse();
+    (batches, order)
 }
 
 pub struct PbsStatistics {
@@ -503,33 +520,26 @@ impl Dumpable for BatchingStatistics {
     }
 }
 
-pub struct BatchStatistics {
-    pub slacks: SmallVec<u16>,
-}
-
-pub struct Statistics {
-    pub pbs: PbsStatistics,
-    pub batching: BatchingStatistics,
-}
-
 pub fn batch<'a, 'b>(ir: &'a IR<HpuLang>, config: &'b HpuConfig) -> IR<HpuLang> {
     let air = analyze(ir);
     if TRACE_EXECUTION {
         let pbs_stats = PbsStatistics::extract(&air);
         pbs_stats.dump();
     }
-    let forward_batches = forward_extract_batches(&air, config.pbs_max_batch_size);
-    let backward_batches = backward_extract_batches(&air, config.pbs_max_batch_size);
-    let batches = [forward_batches, backward_batches]
+    let forward = forward_extract_batches(&air, config.pbs_max_batch_size);
+    let backward = backward_extract_batches(&air, config.pbs_max_batch_size);
+    let (batches, order) = [forward, backward]
         .into_iter()
-        .min_by_key(|batch| batch.len())
+        .min_by_key(|(batches, _)| batches.len())
         .unwrap();
+
     if TRACE_EXECUTION {
         let batching_stats = BatchingStatistics::extract(&batches);
         batching_stats.dump();
     }
     let batchmap = batches.into_batch_map();
-    let ir = lazy_translate(ir, move |opref, engine| {
+
+    translate(ir, Order::Custom(order), move |opref, engine| {
         use zhc_langs::hpulang::HpuInstructionSet::*;
         match opref.get_instruction() {
             AddCt
@@ -548,8 +558,9 @@ pub fn batch<'a, 'b>(ir: &'a IR<HpuLang>, config: &'b HpuConfig) -> IR<HpuLang> 
             | DstSt { .. }
             | SrcLd { .. } => {
                 let new_args = opref
-                    .get_args_iter()
-                    .map(|valref| engine.translate_val(valref))
+                    .get_arg_valids()
+                    .iter()
+                    .map(|valid| engine.translate_val(*valid))
                     .cosvec();
                 let new_rets = engine.add_op(opref.get_instruction(), new_args);
                 (opref.get_return_valids().iter(), new_rets.into_iter())
@@ -564,12 +575,15 @@ pub fn batch<'a, 'b>(ir: &'a IR<HpuLang>, config: &'b HpuConfig) -> IR<HpuLang> 
             | Pbs2F { .. }
             | Pbs4F { .. }
             | Pbs8F { .. } => {
-                let batch = batchmap.get(&*opref).unwrap();
+                if engine.has_translation(opref.get_return_valids()[0]) {
+                    return;
+                }
+                let batch = batchmap.get(&opref.get_id()).unwrap();
                 let (batch_ir, inputs, outputs) = batch.gen_batch_ir();
                 let block = Box::new(batch_ir);
                 let new_args = inputs
                     .into_iter()
-                    .map(|arg| engine.translate_val((*arg).clone()))
+                    .map(|arg| engine.translate_val(arg.get_id()))
                     .collect();
                 let new_rets = engine.add_op(Batch { block }, new_args);
                 (outputs.into_iter(), new_rets.into_iter())
@@ -580,8 +594,7 @@ pub fn batch<'a, 'b>(ir: &'a IR<HpuLang>, config: &'b HpuConfig) -> IR<HpuLang> 
                 panic!("Unexpected batch operations encountered.")
             }
         }
-    });
-    ir
+    })
 }
 
 #[cfg(test)]
@@ -610,27 +623,30 @@ mod test {
             ir.format().show_types(false),
             r#"
                 %0 = src_ld<0.0_tsrc>();
-                %1 = src_ld<1.0_tsrc>();
-                %2 = add_ct(%0, %1);
-                %3 = src_ld<0.1_tsrc>();
-                %4 = src_ld<1.1_tsrc>();
-                %5 = add_ct(%3, %4);
-                %6 = src_ld<0.2_tsrc>();
-                %7 = src_ld<1.2_tsrc>();
-                %8 = add_ct(%6, %7);
-                %9 = src_ld<0.3_tsrc>();
-                %10 = src_ld<1.3_tsrc>();
-                %11 = add_ct(%9, %10);
-                %12 = src_ld<0.4_tsrc>();
-                %13 = src_ld<1.4_tsrc>();
-                %14 = add_ct(%12, %13);
-                %15 = src_ld<0.5_tsrc>();
-                %16 = src_ld<1.5_tsrc>();
-                %17 = add_ct(%15, %16);
-                %18 = src_ld<0.6_tsrc>();
-                %19 = src_ld<1.6_tsrc>();
-                %20 = add_ct(%18, %19);
-                %21, %22, %23, %24, %25, %26, %27, %28 = batch {
+                %1 = src_ld<0.1_tsrc>();
+                %2 = src_ld<0.2_tsrc>();
+                %3 = src_ld<0.3_tsrc>();
+                %4 = src_ld<0.4_tsrc>();
+                %5 = src_ld<0.5_tsrc>();
+                %6 = src_ld<0.6_tsrc>();
+                %7 = src_ld<0.7_tsrc>();
+                %8 = src_ld<1.0_tsrc>();
+                %9 = src_ld<1.1_tsrc>();
+                %10 = src_ld<1.2_tsrc>();
+                %11 = src_ld<1.3_tsrc>();
+                %12 = src_ld<1.4_tsrc>();
+                %13 = src_ld<1.5_tsrc>();
+                %14 = src_ld<1.6_tsrc>();
+                %15 = src_ld<1.7_tsrc>();
+                %16 = add_ct(%0, %8);
+                %17 = add_ct(%1, %9);
+                %18 = add_ct(%2, %10);
+                %19 = add_ct(%3, %11);
+                %20 = add_ct(%4, %12);
+                %21 = add_ct(%5, %13);
+                %22 = add_ct(%6, %14);
+                %23 = add_ct(%7, %15);
+                %24, %25, %26, %27, %28, %29, %30, %31 = batch {
                     %a0 = batch_arg<0, CtRegister>();
                     %a1 = batch_arg<1, CtRegister>();
                     %a2 = batch_arg<2, CtRegister>();
@@ -638,27 +654,29 @@ mod test {
                     %a4 = batch_arg<4, CtRegister>();
                     %a5 = batch_arg<5, CtRegister>();
                     %a6 = batch_arg<6, CtRegister>();
-                    %a7, %a8 = pbs_2<Lut@26>(%a0);
-                    %a9 = pbs<Lut@47>(%a1);
+                    %a7 = pbs<Lut@47>(%a1);
+                    %a8, %a9 = pbs_2<Lut@26>(%a0);
                     %a10 = pbs<Lut@48>(%a2);
                     %a11 = pbs<Lut@49>(%a3);
-                    %a12 = pbs<Lut@47>(%a4);
-                    %a13 = pbs<Lut@48>(%a5);
+                    %a12 = pbs<Lut@48>(%a5);
+                    %a13 = pbs<Lut@47>(%a4);
                     %a14 = pbs_f<Lut@49>(%a6);
-                    batch_ret<0, CtRegister>(%a7);
-                    batch_ret<1, CtRegister>(%a8);
-                    batch_ret<2, CtRegister>(%a9);
+                    batch_ret<0, CtRegister>(%a8);
+                    batch_ret<1, CtRegister>(%a9);
+                    batch_ret<2, CtRegister>(%a7);
                     batch_ret<3, CtRegister>(%a10);
                     batch_ret<4, CtRegister>(%a11);
-                    batch_ret<5, CtRegister>(%a12);
-                    batch_ret<6, CtRegister>(%a13);
+                    batch_ret<5, CtRegister>(%a13);
+                    batch_ret<6, CtRegister>(%a12);
                     batch_ret<7, CtRegister>(%a14);
-                }(%2, %5, %8, %11, %14, %17, %20);
-                %29 = add_ct(%22, %23);
-                %30 = add_ct(%29, %24);
-                %31 = add_ct(%30, %25);
-                %32 = add_ct(%5, %22);
-                %33, %34, %35, %36, %37 = batch {
+                }(%16, %17, %18, %19, %20, %21, %22);
+                %32 = add_ct(%25, %26);
+                %33 = add_ct(%17, %25);
+                %34 = add_ct(%29, %30);
+                %35 = add_ct(%32, %27);
+                %36 = add_ct(%34, %31);
+                %37 = add_ct(%35, %28);
+                %38, %39, %40, %41, %42 = batch {
                     %a0 = batch_arg<0, CtRegister>();
                     %a1 = batch_arg<1, CtRegister>();
                     %a2 = batch_arg<2, CtRegister>();
@@ -674,46 +692,41 @@ mod test {
                     batch_ret<2, CtRegister>(%a6);
                     batch_ret<3, CtRegister>(%a9);
                     batch_ret<4, CtRegister>(%a8);
-                }(%21, %29, %30, %31, %32);
-                dst_st<0.0_tdst>(%36);
-                dst_st<0.1_tdst>(%37);
-                %38 = add_ct(%26, %33);
-                %39 = add_ct(%26, %27);
-                %40 = add_ct(%39, %33);
-                %41 = add_ct(%39, %28);
-                %42 = add_ct(%41, %33);
-                %43 = add_ct(%8, %34);
-                %44 = add_ct(%11, %35);
-                %45 = add_ct(%14, %33);
-                %46, %47, %48, %49, %50, %51 = batch {
+                }(%24, %32, %35, %37, %33);
+                %43 = add_ct(%29, %38);
+                %44 = add_ct(%34, %38);
+                %45 = add_ct(%36, %38);
+                %46 = add_ct(%20, %38);
+                %47 = add_ct(%19, %40);
+                %48 = add_ct(%18, %39);
+                dst_st<0.1_tdst>(%42);
+                dst_st<0.0_tdst>(%41);
+                %49, %50, %51, %52, %53, %54 = batch {
                     %a0 = batch_arg<0, CtRegister>();
                     %a1 = batch_arg<1, CtRegister>();
                     %a2 = batch_arg<2, CtRegister>();
                     %a3 = batch_arg<3, CtRegister>();
                     %a4 = batch_arg<4, CtRegister>();
                     %a5 = batch_arg<5, CtRegister>();
-                    %a6 = pbs<Lut@44>(%a0);
+                    %a6 = pbs<Lut@46>(%a2);
                     %a7 = pbs<Lut@45>(%a1);
-                    %a8 = pbs<Lut@46>(%a2);
-                    %a9 = pbs<Lut@1>(%a5);
+                    %a8 = pbs<Lut@44>(%a0);
+                    %a9 = pbs<Lut@1>(%a3);
                     %a10 = pbs<Lut@1>(%a4);
-                    %a11 = pbs_f<Lut@1>(%a3);
-                    batch_ret<0, CtRegister>(%a6);
+                    %a11 = pbs_f<Lut@1>(%a5);
+                    batch_ret<0, CtRegister>(%a8);
                     batch_ret<1, CtRegister>(%a7);
-                    batch_ret<2, CtRegister>(%a8);
-                    batch_ret<3, CtRegister>(%a11);
+                    batch_ret<2, CtRegister>(%a6);
+                    batch_ret<3, CtRegister>(%a9);
                     batch_ret<4, CtRegister>(%a10);
-                    batch_ret<5, CtRegister>(%a9);
-                }(%38, %40, %42, %43, %44, %45);
-                dst_st<0.2_tdst>(%49);
-                dst_st<0.3_tdst>(%50);
-                dst_st<0.4_tdst>(%51);
-                %52 = add_ct(%17, %46);
-                %53 = add_ct(%20, %47);
-                %54 = src_ld<0.7_tsrc>();
-                %55 = src_ld<1.7_tsrc>();
-                %56 = add_ct(%54, %55);
-                %57 = add_ct(%56, %48);
+                    batch_ret<5, CtRegister>(%a11);
+                }(%43, %44, %45, %48, %47, %46);
+                %55 = add_ct(%23, %51);
+                %56 = add_ct(%22, %50);
+                %57 = add_ct(%21, %49);
+                dst_st<0.2_tdst>(%52);
+                dst_st<0.3_tdst>(%53);
+                dst_st<0.4_tdst>(%54);
                 %58, %59, %60 = batch {
                     %a0 = batch_arg<0, CtRegister>();
                     %a1 = batch_arg<1, CtRegister>();
@@ -724,7 +737,7 @@ mod test {
                     batch_ret<0, CtRegister>(%a3);
                     batch_ret<1, CtRegister>(%a4);
                     batch_ret<2, CtRegister>(%a5);
-                }(%52, %53, %57);
+                }(%57, %56, %55);
                 dst_st<0.5_tdst>(%58);
                 dst_st<0.6_tdst>(%59);
                 dst_st<0.7_tdst>(%60);
@@ -765,7 +778,7 @@ mod test {
 //
 // The forward approach batches by increasing Pbs Depth (starting from input), while the backward
 // approach batches by increasing Pbs Height (starting from effect). Some circuits will have pretty
-// symmetric Depth/Height ranking, other will not. This imblance will greatly impacts how batching
+// symmetric Depth/Height ranking, other will not. This imbalance will greatly impacts how batching
 // performs.
 //
 // Another point of importance is the priority scheme used to select the next element to be added.

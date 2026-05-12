@@ -1,8 +1,9 @@
 use std::str::FromStr;
 
 use zhc_builder::{
-    CiphertextSpec, add, cmp_eq, cmp_gt, cmp_gte, cmp_lt, cmp_lte, cmp_neq, count_0, count_1, div,
-    if_then_else, if_then_zero, ilog2, lead0, lead1, mul_lsb, rem, sub, trail0, trail1,
+    Builder, CiphertextSpec, add, cmp_eq, cmp_gt, cmp_gte, cmp_lt, cmp_lte, cmp_neq, count_0,
+    count_1, div, if_then_else, if_then_zero, ilog2, lead0, lead1, mul_lsb, rem, sub, trail0,
+    trail1,
 };
 use zhc_sim::hpu::HpuConfig;
 
@@ -128,6 +129,55 @@ impl FromStr for Iop {
 }
 
 impl Iop {
+    pub const ALL: &[Iop] = &[
+        Iop::CmpGt,
+        Iop::CmpGte,
+        Iop::CmpLt,
+        Iop::CmpLte,
+        Iop::CmpEq,
+        Iop::CmpNeq,
+        Iop::IfThenElse,
+        Iop::IfThenZero,
+        Iop::Add,
+        Iop::Sub,
+        Iop::Mul,
+        Iop::Ilog2,
+        Iop::CountZeros,
+        Iop::CountOnes,
+        Iop::LeadingZeros,
+        Iop::LeadingOnes,
+        Iop::TrailingZeros,
+        Iop::TrailingOnes,
+        Iop::Div,
+        Iop::Mod,
+    ];
+
+    /// Returns the builder for this operation with the given ciphertext spec.
+    pub fn to_builder(&self, spec: CiphertextSpec) -> Builder {
+        match self {
+            Iop::CmpGt => cmp_gt(spec),
+            Iop::CmpGte => cmp_gte(spec),
+            Iop::CmpLt => cmp_lt(spec),
+            Iop::CmpLte => cmp_lte(spec),
+            Iop::CmpEq => cmp_eq(spec),
+            Iop::CmpNeq => cmp_neq(spec),
+            Iop::IfThenElse => if_then_else(spec),
+            Iop::IfThenZero => if_then_zero(spec),
+            Iop::Add => add(spec),
+            Iop::Sub => sub(spec),
+            Iop::Mul => mul_lsb(spec),
+            Iop::Ilog2 => ilog2(spec),
+            Iop::CountZeros => count_0(spec),
+            Iop::CountOnes => count_1(spec),
+            Iop::LeadingZeros => lead0(spec),
+            Iop::LeadingOnes => lead1(spec),
+            Iop::TrailingZeros => trail0(spec),
+            Iop::TrailingOnes => trail1(spec),
+            Iop::Div => div(spec),
+            Iop::Mod => rem(spec),
+        }
+    }
+
     /// Generates a translation table for the specified operation configuration.
     ///
     /// Takes the HPU hardware configuration in `hpu_config`, and an integer arithmetic

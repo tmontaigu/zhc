@@ -9,6 +9,7 @@ members = [
     "zhc_utils_macro",
     "zhc_builder",
     "zhc_crypto",
+    "zhc_bench",
 ]
 resolver = "3"
 

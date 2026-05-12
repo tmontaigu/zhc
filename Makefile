@@ -1,4 +1,4 @@
-.PHONY: test update-expects fmt fmt-check check
+.PHONY: test update-expects fmt fmt-check check bench bench-site
 
 test:
 	cargo test --release $(if $(F),-- $(F))
@@ -15,3 +15,9 @@ fmt-check:
 check:
 	RUSTFLAGS="-D warnings" cargo check
 	RUSTDOCFLAGS="-D warnings" cargo doc --no-deps
+
+bench:
+	cargo run --release -p zhc_bench
+
+bench-site:
+	cargo run --release -p zhc_bench -- site

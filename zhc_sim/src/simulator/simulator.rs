@@ -87,13 +87,29 @@ where
     /// construction.
     pub fn from_simulatable_and_dispatcher(
         freq: MHz,
-        simulatable: S,
+        mut simulatable: S,
         mut dispatcher: Dispatcher<S::Event>,
         tracing_level: TracingLevel,
     ) -> Self {
         let quantum = freq.period();
         let tracer = Tracer::new();
         simulatable.power_up(&mut dispatcher);
+        Simulator {
+            simulatable,
+            tracer,
+            quantum,
+            dispatcher,
+            tracing_level,
+        }
+    }
+
+    pub fn from_raw_parts(
+        simulatable: S,
+        quantum: Microseconds,
+        tracer: Tracer<S::Event>,
+        dispatcher: Dispatcher<S::Event>,
+        tracing_level: TracingLevel,
+    ) -> Self {
         Simulator {
             simulatable,
             tracer,
@@ -195,6 +211,17 @@ where
         }
     }
 
+    pub fn play_until_event_or_over(&mut self, event: S::Event) {
+        let event_eq = |trig: &Trigger<S::Event>| -> bool { trig.event == event };
+        loop {
+            match self.step_cond(event_eq) {
+                SimulationState::MayContinue => {}
+                SimulationState::CondEncountered => return,
+                SimulationState::SimulationOver => return,
+            }
+        }
+    }
+
     /// Runs the simulation until the given condition function `f` returns true for an event.
     pub fn play_until(&mut self, f: impl Fn(&S::Event) -> bool) {
         let event_cond = |trig: &Trigger<S::Event>| -> bool { f(&trig.event) };
@@ -219,6 +246,10 @@ where
 
     pub fn get_tracer(&self) -> &Tracer<S::Event> {
         &self.tracer
+    }
+
+    pub fn into_simulatable(self) -> S {
+        self.simulatable
     }
 
     /// Returns a reference to the simulatable component.

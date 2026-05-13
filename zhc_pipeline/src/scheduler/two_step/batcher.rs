@@ -11,6 +11,8 @@ use zhc_utils::small::{SmallMap, SmallVec};
 use zhc_utils::{Dumpable, FastMap, fsm};
 use zhc_utils::{SafeAs, svec};
 
+use super::SchedulingDirection;
+
 static TRACE_EXECUTION: bool = false;
 
 fn flush_pbs(instruction: HpuInstructionSet) -> HpuInstructionSet {
@@ -270,10 +272,6 @@ impl<'a, 'b> Batches<'a, 'b> {
             .flat_map(|batch| (0..batch.len()).map(move |i| (batch.ops[i].get_id(), batch.clone())))
             .collect()
     }
-
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
 }
 
 #[fsm]
@@ -290,21 +288,23 @@ impl Dumpable for State {
     }
 }
 
-fn forward_extract_batches<'a, 'b>(
+fn extract_batches<'a, 'b>(
     dir: &'b CritIR<'a>,
     batch_size: usize,
+    direction: SchedulingDirection,
 ) -> (Batches<'a, 'b>, Vec<OpId>) {
-    // When MH, we can:
-    //  + start by marking the transfer_in as not ready,
-    //  + schedule as much as possible until stalled,
-    //  + activate the transfer_in and
-
     let mut batches = Batches::new();
     let mut batch = Batch::new(batch_size);
 
-    let mut states = dir.totally_mapped_opmap(|op| match op.get_predecessors_iter().count() {
-        0 => State::Ready,
-        n => State::Waiting(n),
+    let mut states = dir.totally_mapped_opmap(|op| {
+        let count = match direction {
+            SchedulingDirection::Forward => op.get_predecessors_iter().count(),
+            SchedulingDirection::Backward => op.get_users_iter().count(),
+        };
+        match count {
+            0 => State::Ready,
+            n => State::Waiting(n),
+        }
     });
 
     let mut worklist: std::collections::VecDeque<OpId> = states
@@ -327,22 +327,27 @@ fn forward_extract_batches<'a, 'b>(
                 }
                 _ => unreachable!(),
             });
-            for user in op.get_users_iter() {
-                states.get_mut(&user).unwrap().transition(|old| match old {
-                    State::Waiting(0) => {
-                        unreachable!()
-                    }
-                    State::Waiting(1) => {
-                        if !user.get_instruction().is_pbs() {
-                            worklist.push_back(user.get_id());
-                        } else {
-                            ready_list.push(user);
+            let neighbors: Vec<CritOpRef<'a, 'b>> = match direction {
+                SchedulingDirection::Forward => op.get_users_iter().covec(),
+                SchedulingDirection::Backward => op.get_predecessors_iter().covec(),
+            };
+            for neighbor in neighbors {
+                states
+                    .get_mut(&neighbor)
+                    .unwrap()
+                    .transition(|old| match old {
+                        State::Waiting(0) => unreachable!(),
+                        State::Waiting(1) => {
+                            if !neighbor.get_instruction().is_pbs() {
+                                worklist.push_back(neighbor.get_id());
+                            } else {
+                                ready_list.push(neighbor);
+                            }
+                            State::Ready
                         }
-                        State::Ready
-                    }
-                    State::Waiting(n) => State::Waiting(n - 1),
-                    _ => unreachable!(),
-                });
+                        State::Waiting(n) => State::Waiting(n - 1),
+                        _ => unreachable!(),
+                    });
             }
         }
 
@@ -351,97 +356,25 @@ fn forward_extract_batches<'a, 'b>(
         }
 
         while !batch.is_full() {
-            // ready_list.shuffle(&mut rand::rng());
-            ready_list.sort_by_key(|v| v.get_annotation().height);
+            ready_list.sort_by_key(|v| match direction {
+                SchedulingDirection::Forward => v.get_annotation().height,
+                SchedulingDirection::Backward => v.get_annotation().depth,
+            });
             match ready_list.pop() {
                 Some(v) => batch.push(v),
                 None => break,
             }
         }
 
-        // Batch is either full or there is not enough ready to schedule.
         worklist.extend(batch.iter_members().map(|op| op.get_id()));
         batches.push(batch.clone());
         batch = Batch::new(batch_size);
     }
 
-    (batches, order)
-}
-
-fn backward_extract_batches<'a, 'b>(
-    dir: &'b CritIR<'a>,
-    batch_size: usize,
-) -> (Batches<'a, 'b>, Vec<OpId>) {
-    let mut batches = Batches::new();
-    let mut batch = Batch::new(batch_size);
-
-    let mut states = dir.totally_mapped_opmap(|op| match op.get_users_iter().count() {
-        0 => State::Ready,
-        n => State::Waiting(n),
-    });
-
-    // FIFO ordering is required here: when batch members are enqueued together, FIFO ensures
-    // they are all dequeued (and added to `order`) before any of their predecessors, which
-    // are the batch inputs. LIFO would interleave predecessors between batch members, causing
-    // translate_val to be called on an untranslated value after the order is reversed.
-    let mut worklist: std::collections::VecDeque<OpId> = states
-        .iter()
-        .filter_map(|(opid, state)| match state {
-            State::Ready => Some(opid),
-            _ => None,
-        })
-        .collect();
-    let mut ready_list = Vec::new();
-    let mut order = Vec::new();
-
-    loop {
-        while !worklist.is_empty() {
-            let op = dir.get_op(worklist.pop_front().unwrap());
-            states.get_mut(&op).unwrap().transition(|old| match old {
-                State::Ready => {
-                    order.push(op.get_id());
-                    State::Scheduled
-                }
-                _ => unreachable!(),
-            });
-            for pred in op.get_predecessors_iter() {
-                states.get_mut(&pred).unwrap().transition(|old| match old {
-                    State::Waiting(0) => {
-                        unreachable!()
-                    }
-                    State::Waiting(1) => {
-                        if !pred.get_instruction().is_pbs() {
-                            worklist.push_back(pred.get_id());
-                        } else {
-                            ready_list.push(pred);
-                        }
-                        State::Ready
-                    }
-                    State::Waiting(n) => State::Waiting(n - 1),
-                    _ => unreachable!(),
-                });
-            }
-        }
-
-        if ready_list.is_empty() {
-            break;
-        }
-
-        while !batch.is_full() {
-            // ready_list.shuffle(&mut rand::rng());
-            ready_list.sort_by_key(|v| v.get_annotation().depth);
-            match ready_list.pop() {
-                Some(op) => batch.push(op),
-                None => break,
-            }
-        }
-
-        worklist.extend(batch.iter_members().map(|op| op.get_id()));
-        batches.push(batch.clone());
-        batch = Batch::new(batch_size);
+    if direction == SchedulingDirection::Backward {
+        order.reverse();
     }
 
-    order.reverse();
     (batches, order)
 }
 
@@ -520,18 +453,17 @@ impl Dumpable for BatchingStatistics {
     }
 }
 
-pub fn batch<'a, 'b>(ir: &'a IR<HpuLang>, config: &'b HpuConfig) -> IR<HpuLang> {
+pub fn batch<'a, 'b>(
+    ir: &'a IR<HpuLang>,
+    config: &'b HpuConfig,
+    direction: SchedulingDirection,
+) -> IR<HpuLang> {
     let air = analyze(ir);
     if TRACE_EXECUTION {
         let pbs_stats = PbsStatistics::extract(&air);
         pbs_stats.dump();
     }
-    let forward = forward_extract_batches(&air, config.pbs_max_batch_size);
-    let backward = backward_extract_batches(&air, config.pbs_max_batch_size);
-    let (batches, order) = [forward, backward]
-        .into_iter()
-        .min_by_key(|(batches, _)| batches.len())
-        .unwrap();
+    let (batches, order) = extract_batches(&air, config.pbs_max_batch_size, direction);
 
     if TRACE_EXECUTION {
         let batching_stats = BatchingStatistics::extract(&batches);
@@ -599,6 +531,7 @@ pub fn batch<'a, 'b>(ir: &'a IR<HpuLang>, config: &'b HpuConfig) -> IR<HpuLang> 
 
 #[cfg(test)]
 mod test {
+    use crate::{test::check_iop_hpu_equivalence, translation::lower_iop_to_hpu};
     use zhc_builder::{
         Builder, CiphertextSpec, add, bitwise_and, bitwise_or, bitwise_xor, div, if_then_else,
         if_then_zero, mul,
@@ -608,12 +541,12 @@ mod test {
     use zhc_sim::hpu::{HpuConfig, PhysicalConfig};
     use zhc_utils::assert_display_is;
 
-    use crate::{batcher::batch, test::check_iop_hpu_equivalence, translation::lower_iop_to_hpu};
+    use super::*;
 
     fn pipeline(ir: &IR<IopLang>) -> IR<HpuLang> {
         let ir = lower_iop_to_hpu(&ir);
         let config = HpuConfig::from(PhysicalConfig::gaussian_64b());
-        batch(&ir, &config)
+        batch(&ir, &config, SchedulingDirection::Forward)
     }
 
     #[test]
@@ -770,7 +703,7 @@ mod test {
 // Notes
 // =====
 //
-// [1]: We implemented both a forward and a backward list-scheduling algorithm. There is no clear winner in terms of
+// [1]: The list scheduler can be used in both direction. There is no clear winner in terms of
 // performances, hence, we highlight some important matters here, in case this needs more thinking.
 // The key to understanding batching performance is to notice that inspite of the fact that they
 // perform a very similar processing; they both greedily schedule batches of pbses; both scheduler
@@ -788,3 +721,9 @@ mod test {
 // operations in forward order, operations with bigger height will have more operations depending on
 // it (it will be closer to the critical path). Hence, scheduling them as soon as possible will
 // unlock more operations as we go through scheduling, and will prevent starving the scheduler.
+//
+// [2]:
+// FIFO ordering is required for Backward: when batch members are enqueued together, FIFO
+// ensures they are all dequeued (and added to `order`) before any of their predecessors,
+// which are the batch inputs. LIFO would interleave predecessors between batch members,
+// causing translate_val to be called on an untranslated value after the order is reversed.

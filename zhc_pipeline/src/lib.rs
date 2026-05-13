@@ -5,10 +5,10 @@
 //! pipeline consists of translation from IOP language to HPU language,
 //! operation scheduling, register allocation, and final code generation.
 
+use crate::scheduler::SchedulingDirection;
+use allocator::allocate_registers;
 use std::f64;
 use std::path::Path;
-
-use allocator::allocate_registers;
 use zhc_builder::Builder;
 use zhc_ir::IR;
 use zhc_langs::doplang::DopLang;
@@ -18,14 +18,13 @@ use zhc_sim::MHz;
 use zhc_sim::hpu::HpuConfig;
 
 pub mod allocator;
-pub mod batch_scheduler;
-pub mod batcher;
 pub mod compat;
 pub mod draw_slack;
 pub mod gpu_metrics;
 pub mod hpu_metrics;
 pub mod latency;
 pub mod pbs_metrics;
+pub mod scheduler;
 pub mod tracing;
 pub mod translation;
 pub mod translation_table;
@@ -37,10 +36,13 @@ pub mod translation_table;
 pub fn compute_hpu_metrics(builder: &Builder) -> hpu_metrics::HpuMetrics {
     let ir = builder.optimize_ir();
     let unscheduled = translation::lower_iop_to_hpu(&ir);
-    let batched = batcher::batch(&unscheduled, &HpuConfig::default());
-    let scheduled = batch_scheduler::schedule(&batched, &HpuConfig::default());
+    let scheduled = scheduler::two_step::schedule(
+        &unscheduled,
+        &HpuConfig::default(),
+        SchedulingDirection::Forward,
+    );
     let allocated = allocate_registers(&scheduled, &HpuConfig::default());
-    hpu_metrics::compute_hpu_metrics(&allocated, &batched)
+    hpu_metrics::compute_hpu_metrics(&allocated, &scheduled)
 }
 
 /// Computes GPU-level performance metrics for a circuit.
@@ -55,11 +57,12 @@ pub fn compute_gpu_metrics(
     let mut config = HpuConfig::default();
     config.pbs_min_batch_size = optimal_batch_size;
     config.pbs_max_batch_size = optimal_batch_size;
-    let batched = batcher::batch(&unscheduled, &config);
-    let stats = get_batch_statistics(&batched);
+    let scheduled =
+        scheduler::two_step::schedule(&unscheduled, &config, SchedulingDirection::Forward);
+    let stats = get_batch_statistics(&scheduled);
     gpu_metrics::GpuMetrics {
         batch_stats: stats,
-        ir: batched,
+        ir: scheduled,
     }
 }
 
@@ -102,8 +105,11 @@ pub fn draw_slack(builder: &Builder, path: impl AsRef<Path>) {
 
 fn regular_pipeline(ir: IR<IopLang>, config: &HpuConfig) -> IR<DopLang> {
     let unscheduled = translation::lower_iop_to_hpu(&ir);
-    let batched = batcher::batch(&unscheduled, config);
-    let scheduled = batch_scheduler::schedule(&batched, config);
+    let scheduled = scheduler::two_step::schedule(
+        &unscheduled,
+        config,
+        scheduler::SchedulingDirection::Forward,
+    );
     allocate_registers(&scheduled, config)
 }
 

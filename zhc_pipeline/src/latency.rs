@@ -103,10 +103,7 @@ fn compute_pe_pbs_idle_duration(simulator: &Simulator<Hpu>) -> Cycle {
 #[cfg(test)]
 mod test {
     use super::compute_latency;
-    use crate::{
-        allocator::allocate_registers, batch_scheduler::schedule, batcher::batch,
-        translation::lower_iop_to_hpu,
-    };
+    use crate::{allocator::allocate_registers, scheduler, translation::lower_iop_to_hpu};
     use zhc_builder::{CiphertextSpec, add, cmp_gt, count_0, lead0, mul, overflow_mul};
     use zhc_ir::IR;
     use zhc_langs::ioplang::IopLang;
@@ -119,8 +116,8 @@ mod test {
     fn pipeline(ir: &IR<IopLang>) -> Cycle {
         let ir = lower_iop_to_hpu(&ir);
         let config = HpuConfig::from(PhysicalConfig::tuniform_64b_pfail128_psi64());
-        let batched = batch(&ir, &config);
-        let scheduled = schedule(&batched, &config);
+        let scheduled =
+            scheduler::two_step::schedule(&ir, &config, scheduler::SchedulingDirection::Forward);
         let allocated = allocate_registers(&scheduled, &config);
         compute_latency(&allocated, &config).0
     }
@@ -131,7 +128,7 @@ mod test {
         assert_display_is!(
             format!("{}us", lat.as_ts(MHz(400).period())),
             r#"
-                3237.15us
+                3236.4125us
             "#
         );
     }
@@ -142,7 +139,7 @@ mod test {
         assert_display_is!(
             format!("{}us", lat.as_ts(MHz(400).period())),
             r#"
-                12128.1775us
+                11906.305us
             "#
         );
     }
@@ -153,7 +150,7 @@ mod test {
         assert_display_is!(
             format!("{}us", lat.as_ts(MHz(400).period())),
             r#"
-                10277.4675us
+                10356.8025us
             "#
         );
     }
@@ -164,7 +161,7 @@ mod test {
         assert_display_is!(
             format!("{}us", lat.as_ts(MHz(400).period())),
             r#"
-                120738.1525us
+                120853.38500000001us
             "#
         );
     }
@@ -175,7 +172,7 @@ mod test {
         assert_display_is!(
             format!("{}us", lat.as_ts(MHz(400).period())),
             r#"
-                166201.765us
+                167717.6525us
             "#
         );
     }

@@ -21,6 +21,9 @@ pub trait Dispatch {
     /// If `delay` is `None`, the event is dispatched immediately.
     fn dispatch(&mut self, event: Self::Event, delay: Option<Cycle>);
 
+    fn iter_triggers(&self) -> impl Iterator<Item = &Trigger<Self::Event>>;
+    fn now(&self) -> Cycle;
+
     /// Schedules an `event` for immediate dispatch.
     fn dispatch_now(&mut self, event: Self::Event) {
         self.dispatch(event, None);
@@ -61,7 +64,7 @@ pub trait Simulatable: Sized + Serialize {
     ///
     /// This method is called once before simulation begins and can be used
     /// to schedule initial events or set up the component's initial state.
-    fn power_up(&self, _: &mut impl Dispatch<Event = Self::Event>) {}
+    fn power_up(&mut self, _: &mut impl Dispatch<Event = Self::Event>) {}
 
     /// Returns the name of this simulatable component.
     fn name(&self) -> String {
@@ -93,7 +96,7 @@ macro_rules! impl_simulatable_for_tuple {
                 )+
             }
 
-            fn power_up(&self, dispatcher: &mut impl Dispatch<Event = Self::Event>) {
+            fn power_up(&mut self, dispatcher: &mut impl Dispatch<Event = Self::Event>) {
                 let ($($T),+) = self ;
                 $(
                 $T.power_up(dispatcher);

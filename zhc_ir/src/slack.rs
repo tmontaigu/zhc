@@ -2,7 +2,7 @@ use zhc_utils::svec;
 
 use crate::{AnnIR, Dialect, IR, OpIdRaw};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Slack(pub OpIdRaw);
 
 pub fn compute_slack<D: Dialect>(ir: &IR<D>) -> AnnIR<'_, D, Slack, ()> {

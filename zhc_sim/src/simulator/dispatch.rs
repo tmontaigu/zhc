@@ -8,6 +8,15 @@ pub struct Dispatcher<E: Event> {
     triggers: BinaryHeap<Trigger<E>>,
 }
 
+impl<E: Event> Dispatcher<E> {
+    pub fn from_raw_parts(now: Cycle, triggers: impl Iterator<Item = Trigger<E>>) -> Self {
+        Dispatcher {
+            now,
+            triggers: triggers.collect(),
+        }
+    }
+}
+
 impl<E: Event> Default for Dispatcher<E> {
     fn default() -> Self {
         Self {
@@ -19,6 +28,7 @@ impl<E: Event> Default for Dispatcher<E> {
 
 impl<E: Event> Dispatch for Dispatcher<E> {
     type Event = E;
+
     fn contains_event(&self, event: &Self::Event, filter: Option<Cycle>) -> bool {
         if let Some(filter_at) = filter.as_ref() {
             self.triggers
@@ -42,6 +52,14 @@ impl<E: Event> Dispatch for Dispatcher<E> {
                 event,
             });
         }
+    }
+
+    fn iter_triggers(&self) -> impl Iterator<Item = &Trigger<Self::Event>> {
+        self.triggers.iter()
+    }
+
+    fn now(&self) -> Cycle {
+        self.now
     }
 }
 

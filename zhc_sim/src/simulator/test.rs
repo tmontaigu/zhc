@@ -419,7 +419,7 @@ fn test_power_up_scheduling() {
             }
         }
 
-        fn power_up(&self, dispatcher: &mut impl Dispatch<Event = Self::Event>) {
+        fn power_up(&mut self, dispatcher: &mut impl Dispatch<Event = Self::Event>) {
             // Schedule boot event 1 cycle after power up
             dispatcher.dispatch_after(Cycle(1), AutoStartEvent::Boot);
         }
@@ -564,7 +564,7 @@ fn test_tuple_power_up() {
             }
         }
 
-        fn power_up(&self, dispatcher: &mut impl Dispatch<Event = Self::Event>) {
+        fn power_up(&mut self, dispatcher: &mut impl Dispatch<Event = Self::Event>) {
             dispatcher.dispatch_after(Cycle(2), StartEvent::InitEarly);
         }
     }
@@ -585,7 +585,7 @@ fn test_tuple_power_up() {
             }
         }
 
-        fn power_up(&self, dispatcher: &mut impl Dispatch<Event = Self::Event>) {
+        fn power_up(&mut self, dispatcher: &mut impl Dispatch<Event = Self::Event>) {
             dispatcher.dispatch_after(Cycle(5), StartEvent::InitLate);
         }
     }

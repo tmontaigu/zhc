@@ -54,7 +54,7 @@ impl Simulatable for Hpu {
         self.retirement.handle(dispatcher, trigger.clone());
     }
 
-    fn power_up(&self, dispatcher: &mut impl Dispatch<Event = Events>) {
+    fn power_up(&mut self, dispatcher: &mut impl Dispatch<Event = Events>) {
         self.scheduler.power_up(dispatcher);
         self.pe_mem.power_up(dispatcher);
         self.pe_pbs.power_up(dispatcher);

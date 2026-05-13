@@ -448,7 +448,7 @@ impl InstructionScheduler {
 impl Simulatable for InstructionScheduler {
     type Event = Events;
 
-    fn power_up(&self, dispatcher: &mut impl Dispatch<Event = Events>) {
+    fn power_up(&mut self, dispatcher: &mut impl Dispatch<Event = Events>) {
         dispatcher.dispatch_after(Cycle(1), Events::IscQuery);
     }
 

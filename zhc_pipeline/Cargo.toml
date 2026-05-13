@@ -17,7 +17,3 @@ zhc_crypto.workspace = true
 serde.workspace = true
 bitfield-struct.workspace = true
 rand.workspace = true
-
-[[bin]]
-name = "bench_broken"
-path = "bench/bench_broken.rs"

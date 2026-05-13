@@ -269,7 +269,7 @@ impl Iop {
             Iop::AddSimd => add_simd(spec).optimize_ir(),
             // Iop::MemCpy => todo!(),
         };
-        let allocated = regular_pipeline(ir, hpu_config);
+        let (_, allocated) = regular_pipeline(ir, hpu_config);
         generate_translation_table(&allocated)
     }
 }

@@ -11,7 +11,7 @@ mod pe_alu;
 mod pe_ctl;
 mod pe_mem;
 mod pe_pbs;
-mod retirement;
+mod statistics;
 #[cfg(test)]
 mod test;
 pub use config::*;
@@ -23,8 +23,8 @@ use pe_alu::PeAlu;
 pub use pe_ctl::*;
 use pe_mem::PeMem;
 pub use pe_pbs::*;
-pub use retirement::*;
 use serde::Serialize;
+pub use statistics::*;
 
 /// HPU simulator containing all processing elements and scheduling logic.
 #[derive(Debug, Serialize)]
@@ -34,7 +34,7 @@ pub struct Hpu {
     pub pe_pbs: PePbs,
     pub pe_alu: PeAlu,
     pub pe_ctl: PeCtl,
-    pub retirement: Retirement,
+    pub statistics: Statistics,
     pub config: HpuConfig,
 }
 
@@ -51,7 +51,7 @@ impl Simulatable for Hpu {
         self.pe_pbs.handle(dispatcher, trigger.clone());
         self.pe_alu.handle(dispatcher, trigger.clone());
         self.pe_ctl.handle(dispatcher, trigger.clone());
-        self.retirement.handle(dispatcher, trigger.clone());
+        self.statistics.handle(dispatcher, trigger.clone());
     }
 
     fn power_up(&mut self, dispatcher: &mut impl Dispatch<Event = Events>) {
@@ -60,7 +60,7 @@ impl Simulatable for Hpu {
         self.pe_pbs.power_up(dispatcher);
         self.pe_alu.power_up(dispatcher);
         self.pe_ctl.power_up(dispatcher);
-        self.retirement.power_up(dispatcher);
+        self.statistics.power_up(dispatcher);
     }
 
     fn report<'t>(&self, at: Cycle, tracer: &mut Tracer<Events>, tracing_level: TracingLevel) {
@@ -69,7 +69,7 @@ impl Simulatable for Hpu {
         tracer.add_simulatable(tracing_level, at, &self.pe_pbs);
         tracer.add_simulatable(tracing_level, at, &self.pe_alu);
         tracer.add_simulatable(tracing_level, at, &self.pe_ctl);
-        tracer.add_simulatable(tracing_level, at, &self.retirement);
+        tracer.add_simulatable(tracing_level, at, &self.statistics);
 
         // PE loading counters
         tracer.add_counter(
@@ -124,7 +124,7 @@ impl Hpu {
                 ),
             ),
             pe_ctl: PeCtl,
-            retirement: Retirement::default(),
+            statistics: Statistics::default(),
             config: config.clone(),
         }
     }

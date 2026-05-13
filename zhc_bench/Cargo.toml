@@ -11,5 +11,7 @@ zhc_pipeline.workspace = true
 zhc_builder.workspace = true
 zhc_sim.workspace = true
 zhc_utils.workspace = true
+zhc_langs.workspace = true
+zhc_ir.workspace = true
 serde.workspace = true
 serde_json.workspace = true

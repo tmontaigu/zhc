@@ -211,13 +211,13 @@ where
         }
     }
 
-    pub fn play_until_event_or_over(&mut self, event: S::Event) {
+    pub fn play_until_event_or_over(&mut self, event: S::Event) -> SimulationState {
         let event_eq = |trig: &Trigger<S::Event>| -> bool { trig.event == event };
         loop {
             match self.step_cond(event_eq) {
                 SimulationState::MayContinue => {}
-                SimulationState::CondEncountered => return,
-                SimulationState::SimulationOver => return,
+                SimulationState::CondEncountered => return SimulationState::CondEncountered,
+                SimulationState::SimulationOver => return SimulationState::SimulationOver,
             }
         }
     }

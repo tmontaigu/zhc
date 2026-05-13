@@ -325,7 +325,7 @@ fn analyze_ir(builder: &Builder) -> String {
 fn run_analyze(filters: &Filters) {
     let columns = filters.bits.iter().map(|b| format!("{}b", b));
     let rows = filters.iops.iter().map(|iop| format!("{:?}", iop));
-    let mut table = DynamicTable::new(columns, rows).with_row_separators();
+    let mut table = DynamicTable::new(columns, rows);
 
     for (row, iop) in filters.iops.iter().enumerate() {
         for (col, bits) in filters.bits.iter().enumerate() {

@@ -1,13 +1,13 @@
 use std::fmt::Display;
-use zhc_ir::{AsValId, ValId};
+use zhc_ir::{AsValId, OpId, ValId};
 use zhc_utils::{StoreIndex, fsm};
 
 /// Represents the state of a register.
 #[fsm]
 #[derive(Clone, Copy, Debug)]
 pub enum RegState {
-    /// The register does not hold any value
-    Empty,
+    /// The register does not hold any value (timestamped)
+    Empty(OpId),
     /// The register holds a value.
     Storing(ValId),
     /// The register holds an unspilled value.
@@ -23,7 +23,7 @@ pub enum RegState {
 impl Display for RegState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            RegState::Empty => write!(f, "     "),
+            RegState::Empty(_) => write!(f, "     "),
             RegState::Fresh(val_id) => write!(f, "\x1b[1m★{:4}\x1b[0m", val_id.as_usize()),
             RegState::Storing(val_id) => write!(f, " {:4}", val_id.as_usize()),
             RegState::Retiring(val_id) => {
@@ -43,31 +43,31 @@ impl Display for RegState {
 impl RegState {
     /// Whether the register can receive a spill.
     pub fn may_receive_unspill(&self) -> bool {
-        matches!(self, RegState::Empty)
+        matches!(self, RegState::Empty(_))
     }
 
     /// Whether the register can receive a dst.
     pub fn may_receive_dst(&self, is_batch: bool) -> bool {
         if is_batch {
-            matches!(self, RegState::Empty)
+            matches!(self, RegState::Empty(_))
         } else {
-            matches!(self, RegState::Empty | RegState::Retiring(_))
+            matches!(self, RegState::Empty(_) | RegState::Retiring(_))
         }
     }
 
     /// Whether the register is empty.
     pub fn is_empty(&self) -> bool {
-        matches!(self, RegState::Empty)
+        matches!(self, RegState::Empty(_))
     }
 
     /// Turn a transitive state to a stable one.
     ///
     /// Returns the value id if a value was retired.
-    pub fn stabilize(&mut self) -> Option<ValId> {
+    pub fn stabilize(&mut self, current: OpId) -> Option<ValId> {
         use RegState::*;
         self.transition_with(|transitive| match transitive {
-            Empty => (Empty, None),
-            Retiring(valid) => (Empty, Some(valid)),
+            Empty(i) => (Empty(i), None),
+            Retiring(valid) => (Empty(current), Some(valid)),
             Storing(valid) | Fresh(valid) | Unspilled(valid) => (Storing(valid), None),
             Transitioning(old, valid) => (Storing(valid), Some(old)),
             _ => unreachable!("{:?}", transitive),
@@ -86,10 +86,10 @@ impl RegState {
     /// Evicts a register.
     ///
     /// Returns the ValId stored inside.
-    pub fn evict(&mut self) -> ValId {
+    pub fn evict(&mut self, current: OpId) -> ValId {
         use RegState::*;
         self.transition_with(|old| match old {
-            Storing(valid) => (Empty, valid),
+            Storing(valid) => (Empty(current), valid),
             _ => unreachable!(),
         })
     }
@@ -99,7 +99,7 @@ impl RegState {
         use RegState::*;
         let valid = valid.val_id();
         self.transition(|old| match old {
-            Empty => Unspilled(valid),
+            Empty(_) => Unspilled(valid),
             _ => unreachable!(),
         });
     }
@@ -109,7 +109,7 @@ impl RegState {
         use RegState::*;
         let valid = valid.val_id();
         self.transition(|old| match old {
-            Empty => Fresh(valid),
+            Empty(_) => Fresh(valid),
             Retiring(old) => Transitioning(old, valid),
             _ => unreachable!(),
         });

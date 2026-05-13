@@ -1,4 +1,4 @@
-use crate::{AsOpId, Formatted, Op};
+use crate::{AsOpId, AsOpRef, Formatted, Op};
 use std::{hash::Hash, ops::Deref};
 use zhc_utils::{Dumpable, FastSet, iter::CollectInSmallVec};
 
@@ -53,6 +53,20 @@ impl<D: Dialect> AsOpId for OpRef<'_, D> {
 impl<D: Dialect> AsOpId for &OpRef<'_, D> {
     fn op_id(&self) -> OpId {
         self.id
+    }
+}
+
+impl<D: Dialect> AsOpRef for OpRef<'_, D> {
+    type Dialect = D;
+    fn op_ref(&self) -> OpRef<'_, D> {
+        self.clone()
+    }
+}
+
+impl<D: Dialect> AsOpRef for &OpRef<'_, D> {
+    type Dialect = D;
+    fn op_ref(&self) -> OpRef<'_, D> {
+        (*self).clone()
     }
 }
 

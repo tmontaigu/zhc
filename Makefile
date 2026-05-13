@@ -23,7 +23,7 @@ bench-export:
 	cargo run --release -p zhc_bench -- export
 
 bench-diff:
-	cargo run --release -p zhc_bench -- diff  # --iops=mul --bits=32
+	RUSTFLAGS="-A warnings" cargo run --release -p zhc_bench -- diff
 
 analyze:
 	cargo run --release -p zhc_bench -- analyze $(if $(F),$(F))

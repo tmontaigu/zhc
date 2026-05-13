@@ -7,11 +7,22 @@ use zhc_ir::IR;
 use zhc_langs::hpulang::HpuLang;
 use zhc_sim::hpu::HpuConfig;
 
+#[allow(unused)]
 pub fn schedule(
     ir: &IR<HpuLang>,
     config: &HpuConfig,
-    direction: SchedulingDirection,
+    batch_policy: SchedPolicy,
+    sched_policy: SchedPolicy,
 ) -> IR<HpuLang> {
-    let batched = batcher::batch(ir, config, direction);
-    scheduler::schedule(&batched, config, direction)
+    let batched = batcher::batch(ir, config, batch_policy);
+    scheduler::schedule(&batched, config, sched_policy)
+}
+
+#[allow(unused)]
+pub fn small_schedule(
+    ir: &IR<HpuLang>,
+    config: &HpuConfig,
+    sched_policy: SchedPolicy,
+) -> IR<HpuLang> {
+    scheduler::schedule(&ir, config, sched_policy)
 }

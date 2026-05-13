@@ -5,17 +5,18 @@
 //! pipeline consists of translation from IOP language to HPU language,
 //! operation scheduling, register allocation, and final code generation.
 
-use crate::scheduler::SchedulingDirection;
 use allocator::allocate_registers;
 use std::f64;
 use std::path::Path;
 use zhc_builder::Builder;
 use zhc_ir::IR;
 use zhc_langs::doplang::DopLang;
-use zhc_langs::hpulang::get_batch_statistics;
+use zhc_langs::hpulang::{HpuLang, get_batch_statistics};
 use zhc_langs::ioplang::IopLang;
 use zhc_sim::MHz;
 use zhc_sim::hpu::HpuConfig;
+
+use crate::scheduler::SchedPolicy;
 
 pub mod allocator;
 pub mod compat;
@@ -35,13 +36,7 @@ pub mod translation_table;
 /// and batching statistics. Uses default HPU configuration.
 pub fn compute_hpu_metrics(builder: &Builder) -> hpu_metrics::HpuMetrics {
     let ir = builder.optimize_ir();
-    let unscheduled = translation::lower_iop_to_hpu(&ir);
-    let scheduled = scheduler::two_step::schedule(
-        &unscheduled,
-        &HpuConfig::default(),
-        SchedulingDirection::Forward,
-    );
-    let allocated = allocate_registers(&scheduled, &HpuConfig::default());
+    let (scheduled, allocated) = regular_pipeline(ir, &HpuConfig::default());
     hpu_metrics::compute_hpu_metrics(&allocated, &scheduled)
 }
 
@@ -53,12 +48,10 @@ pub fn compute_gpu_metrics(
     optimal_batch_size: usize,
 ) -> gpu_metrics::GpuMetrics {
     let ir = builder.optimize_ir();
-    let unscheduled = translation::lower_iop_to_hpu(&ir);
     let mut config = HpuConfig::default();
     config.pbs_min_batch_size = optimal_batch_size;
     config.pbs_max_batch_size = optimal_batch_size;
-    let scheduled =
-        scheduler::two_step::schedule(&unscheduled, &config, SchedulingDirection::Forward);
+    let (scheduled, _) = regular_pipeline(ir, &config);
     let stats = get_batch_statistics(&scheduled);
     gpu_metrics::GpuMetrics {
         batch_stats: stats,
@@ -82,7 +75,7 @@ pub fn compute_pbs_metrics(builder: &Builder) -> pbs_metrics::PbsMetrics {
 /// The trace is written to the specified path and can be opened in perfetto.
 pub fn trace_execution(builder: &Builder, config: HpuConfig, path: impl AsRef<Path>) {
     let ir = builder.optimize_ir();
-    let allocated = regular_pipeline(ir, &config);
+    let (_, allocated) = regular_pipeline(ir, &config);
     tracing::trace_execution(&allocated, &config, path);
 }
 
@@ -93,7 +86,7 @@ pub fn trace_execution(builder: &Builder, config: HpuConfig, path: impl AsRef<Pa
 /// Returns the latency as a floating-point number of micro-seconds.
 pub fn compute_latency(builder: &Builder, config: HpuConfig, freq: MHz) -> f64 {
     let ir = builder.optimize_ir();
-    let allocated = regular_pipeline(ir, &config);
+    let (_, allocated) = regular_pipeline(ir, &config);
     latency::compute_latency(&allocated, &config)
         .0
         .as_ts(freq.period())
@@ -103,14 +96,12 @@ pub fn draw_slack(builder: &Builder, path: impl AsRef<Path>) {
     draw_slack::draw_slack(builder, path);
 }
 
-fn regular_pipeline(ir: IR<IopLang>, config: &HpuConfig) -> IR<DopLang> {
+pub fn regular_pipeline(ir: IR<IopLang>, config: &HpuConfig) -> (IR<HpuLang>, IR<DopLang>) {
     let unscheduled = translation::lower_iop_to_hpu(&ir);
-    let scheduled = scheduler::two_step::schedule(
-        &unscheduled,
-        config,
-        scheduler::SchedulingDirection::Forward,
-    );
-    allocate_registers(&scheduled, config)
+    let scheduled =
+        scheduler::one_step::schedule(&unscheduled, config, SchedPolicy::AsLateAsPossible);
+    let allocated = allocate_registers(&scheduled, config);
+    (scheduled, allocated)
 }
 
 #[cfg(test)]

@@ -2,17 +2,18 @@ use std::{
     fmt::Display,
     ops::{Index, IndexMut},
 };
+use zhc_ir::OpId;
 use zhc_utils::{SafeAs, iter::ChunkIt, small::SmallVec};
 
 use crate::allocator::register_state::RegState;
 
 /// A unique identifier of a register in a register file.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct RegId(pub u8);
+pub struct RegId(pub u16);
 
 /// A unique identifier of a range of register of a given size, in a register file.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct RegRangeId(pub RegId, pub u8);
+pub struct RegRangeId(pub RegId, pub u16);
 
 impl RegRangeId {
     /// Returns an iterator to the reg identifiers within this range.
@@ -31,7 +32,7 @@ pub struct RegFile(Vec<RegState>);
 impl RegFile {
     /// Creates a new register file of a given size.
     pub fn empty(size: usize) -> Self {
-        RegFile(vec![RegState::Empty; size])
+        RegFile(vec![RegState::Empty(OpId(0)); size])
     }
 
     /// Returns an iterator over the registers and register states.
@@ -50,7 +51,7 @@ impl RegFile {
     /// Returns an iterator over the register ranges and the registers states.
     pub fn iter_register_ranges(
         &self,
-        range_size: u8,
+        range_size: u16,
     ) -> impl Iterator<Item = (RegRangeId, SmallVec<&RegState>)> {
         self.0
             .iter()
@@ -58,7 +59,10 @@ impl RegFile {
             .enumerate()
             .map(move |(i, a)| {
                 let a = a.unwrap_complete();
-                (RegRangeId(RegId(i.sas::<u8>() * range_size), range_size), a)
+                (
+                    RegRangeId(RegId(i.sas::<u16>() * range_size), range_size),
+                    a,
+                )
             })
     }
 
@@ -66,7 +70,7 @@ impl RegFile {
     #[allow(unused)]
     pub fn iter_register_ranges_mut(
         &mut self,
-        range_size: u8,
+        range_size: u16,
     ) -> impl Iterator<Item = (RegRangeId, SmallVec<&mut RegState>)> {
         self.0
             .iter_mut()
@@ -74,7 +78,10 @@ impl RegFile {
             .enumerate()
             .map(move |(i, a)| {
                 let a = a.unwrap_complete();
-                (RegRangeId(RegId(i.sas::<u8>() * range_size), range_size), a)
+                (
+                    RegRangeId(RegId(i.sas::<u16>() * range_size), range_size),
+                    a,
+                )
             })
     }
 }

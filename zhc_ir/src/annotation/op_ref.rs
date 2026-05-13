@@ -3,7 +3,8 @@ use std::{fmt::Debug, ops::Deref};
 use zhc_utils::Dumpable;
 
 use crate::{
-    AnnValRef, Annotation, AsOpId, Dialect, Formatted, OpId, OpRef, annotation::view::AnnIRView,
+    AnnValRef, Annotation, AsOpId, AsOpRef, Dialect, Formatted, OpId, OpRef,
+    annotation::view::AnnIRView,
 };
 
 /// Operation reference with attached annotation data.
@@ -148,6 +149,24 @@ impl<D: Dialect, OpAnn: Annotation, ValAnn: Annotation> AsOpId
 {
     fn op_id(&self) -> OpId {
         self.opref.op_id()
+    }
+}
+
+impl<'a, D: Dialect, OpAnn: Annotation, ValAnn: Annotation> AsOpRef
+    for AnnOpRef<'a, '_, D, OpAnn, ValAnn>
+{
+    type Dialect = D;
+    fn op_ref(&self) -> OpRef<'a, D> {
+        self.opref.clone()
+    }
+}
+
+impl<D: Dialect, OpAnn: Annotation, ValAnn: Annotation> AsOpRef
+    for &AnnOpRef<'_, '_, D, OpAnn, ValAnn>
+{
+    type Dialect = D;
+    fn op_ref(&self) -> OpRef<'_, D> {
+        self.opref.clone()
     }
 }
 

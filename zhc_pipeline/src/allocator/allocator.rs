@@ -90,13 +90,13 @@ impl<'ir> Allocator<'ir> {
         rid
     }
 
-    fn pick_regs_for_dst_eviction(&mut self, range_size: u8, is_batch: bool) -> RegRangeId {
+    fn pick_regs_for_dst_eviction(&mut self, range_size: u16, is_batch: bool) -> RegRangeId {
         let (rrid, _) = self
             .register_file
             .iter_register_ranges(range_size)
             .filter(|(_, range)| {
                 range.iter().all(|r| match r {
-                    RegState::Empty => true,
+                    RegState::Empty(_) => true,
                     RegState::Storing(valid) => {
                         !self.live_ranges[*valid].is_used_at(self.current_point)
                     }
@@ -158,12 +158,19 @@ impl<'ir> Allocator<'ir> {
             let maybe_avail = self
                 .register_file
                 .iter_registers()
-                .find(|(_, rs)| rs.may_receive_unspill());
+                .find(|(_, rs)| rs.may_receive_unspill())
+                //.filter(|(_, rs)| rs.may_receive_unspill())
+                // .min_by_key(|reg| match reg.1 {
+                //     RegState::Empty(ts) => ts.0,
+                //     _ => unreachable!(),
+                // })
+                .map(|a| a.0);
+
             let available = match maybe_avail {
-                Some((ri, _)) => ri,
+                Some(ri) => ri,
                 None => {
                     let rid = self.pick_reg_for_src_eviction();
-                    let evicted = self.register_file[rid].evict();
+                    let evicted = self.register_file[rid].evict(op.get_id());
                     let slot = self.heap.get(&evicted);
                     self.map[evicted].spill(slot);
                     spills.push(Spill {
@@ -189,7 +196,7 @@ impl<'ir> Allocator<'ir> {
         let mut spills = svec![];
         let is_batch = op.get_instruction().is_batch();
 
-        for val_range in get_ranges(op) {
+        for val_range in get_ranges(&op) {
             let range_size = val_range.len().sas();
             let maybe_avail = self
                 .register_file
@@ -202,7 +209,7 @@ impl<'ir> Allocator<'ir> {
                     let rrid = self.pick_regs_for_dst_eviction(range_size, is_batch);
                     for rid in rrid.rids_iter() {
                         if !self.register_file[rid].is_empty() {
-                            let evicted = self.register_file[rid].evict();
+                            let evicted = self.register_file[rid].evict(op.get_id());
                             let slot = self.heap.get(&evicted);
                             self.map[evicted].spill(slot);
                             spills.push(Spill {
@@ -265,12 +272,12 @@ impl<'ir> Allocator<'ir> {
                 eprintln!("  : Heap size: {}", self.heap.size());
             }
 
-            self.register_file
-                .iter_registers_mut()
-                .for_each(|(_, rs)| match rs.stabilize() {
+            self.register_file.iter_registers_mut().for_each(|(_, rs)| {
+                match rs.stabilize(op.get_id()) {
                     Some(valid) => self.map[valid].retire(),
                     None => {}
-                });
+                }
+            });
 
             self.current_point += 1;
         }
@@ -278,7 +285,7 @@ impl<'ir> Allocator<'ir> {
     }
 }
 
-fn get_ranges<'ir>(op: OpRef<'ir, HpuLang>) -> impl Iterator<Item = SmallVec<ValId>> + 'ir {
+fn get_ranges<'ir>(op: &OpRef<'ir, HpuLang>) -> impl Iterator<Item = SmallVec<ValId>> + 'ir {
     use HpuInstructionSet::*;
     match op.get_instruction() {
         AddCt

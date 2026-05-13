@@ -1,37 +1,21 @@
 use std::cmp::max;
-use std::rc::Rc;
-
 use zhc_ir::translation::{Order, translate};
-use zhc_ir::{AnnIR, AnnOpRef, AnnValRef, IR, OpId, OpIdRaw};
-use zhc_langs::hpulang::{HpuInstructionSet, HpuLang};
+use zhc_ir::{AnnIR, AnnOpRef, IR, OpId, OpIdRaw};
+use zhc_langs::hpulang::HpuLang;
 use zhc_sim::hpu::HpuConfig;
 use zhc_utils::data_visulization::Histogram;
-use zhc_utils::iter::{CollectInSmallVec, CollectInVec, DedupedByKey, MultiZip};
-use zhc_utils::small::{SmallMap, SmallVec};
-use zhc_utils::{Dumpable, FastMap, fsm};
+use zhc_utils::iter::{CollectInSmallVec, CollectInVec, MultiZip};
+use zhc_utils::small::SmallVec;
+use zhc_utils::{Dumpable, fsm};
 use zhc_utils::{SafeAs, svec};
 
-use super::SchedulingDirection;
+use crate::scheduler::utils::{Batch, Batches};
+
+use super::SchedPolicy;
 
 static TRACE_EXECUTION: bool = false;
-
-fn flush_pbs(instruction: HpuInstructionSet) -> HpuInstructionSet {
-    match instruction {
-        HpuInstructionSet::Pbs { lut } | HpuInstructionSet::PbsF { lut } => {
-            HpuInstructionSet::PbsF { lut }
-        }
-        HpuInstructionSet::Pbs2 { lut } | HpuInstructionSet::Pbs2F { lut } => {
-            HpuInstructionSet::Pbs2F { lut }
-        }
-        HpuInstructionSet::Pbs4 { lut } | HpuInstructionSet::Pbs4F { lut } => {
-            HpuInstructionSet::Pbs4F { lut }
-        }
-        HpuInstructionSet::Pbs8 { lut } | HpuInstructionSet::Pbs8F { lut } => {
-            HpuInstructionSet::Pbs8F { lut }
-        }
-        _ => unreachable!(),
-    }
-}
+static PBS_COST: OpIdRaw = 1000;
+static NON_PBS_COST: OpIdRaw = 1;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Criticallity {
@@ -41,20 +25,25 @@ pub struct Criticallity {
 }
 
 type CritOpRef<'a, 'b> = AnnOpRef<'a, 'b, HpuLang, Criticallity, ()>;
-type CritValRef<'a, 'b> = AnnValRef<'a, 'b, HpuLang, Criticallity, ()>;
 type CritIR<'a> = AnnIR<'a, HpuLang, Criticallity, ()>;
 
 fn analyze<'a>(ir: &'a IR<HpuLang>) -> CritIR<'a> {
     let a = ir.forward_dataflow_analysis(|opref| {
-        let previous_depth = opref
+        let previous_depth: OpIdRaw = opref
             .get_predecessors_iter()
             .map(|p| p.get_annotation().clone().unwrap_analyzed())
             .max()
             .unwrap_or(0);
         if opref.get_instruction().is_pbs() {
-            (previous_depth + 1000, svec![(); opref.get_return_arity()])
+            (
+                previous_depth + PBS_COST,
+                svec![(); opref.get_return_arity()],
+            )
         } else {
-            (previous_depth + 1, svec![(); opref.get_return_arity()])
+            (
+                previous_depth + NON_PBS_COST,
+                svec![(); opref.get_return_arity()],
+            )
         }
     });
     let critical_path_length = a
@@ -71,11 +60,12 @@ fn analyze<'a>(ir: &'a IR<HpuLang>) -> CritIR<'a> {
             .unwrap_or(0);
 
         if opref.get_instruction().is_pbs() {
+            let slack = critical_path_length + PBS_COST - depth - previous_height;
             (
                 Criticallity {
                     depth,
-                    height: previous_height + 1000,
-                    slack: critical_path_length - depth - previous_height + 1,
+                    height: previous_height + PBS_COST,
+                    slack,
                 },
                 svec![(); opref.get_return_arity()],
             )
@@ -83,8 +73,8 @@ fn analyze<'a>(ir: &'a IR<HpuLang>) -> CritIR<'a> {
             (
                 Criticallity {
                     depth,
-                    height: previous_height + 1,
-                    slack: critical_path_length - depth - previous_height,
+                    height: previous_height + NON_PBS_COST,
+                    slack: critical_path_length + NON_PBS_COST - depth - previous_height,
                 },
                 svec![(); opref.get_return_arity()],
             )
@@ -92,13 +82,7 @@ fn analyze<'a>(ir: &'a IR<HpuLang>) -> CritIR<'a> {
     })
 }
 
-#[derive(Clone)]
-struct Batch<'a, 'b> {
-    ops: Vec<CritOpRef<'a, 'b>>,
-    cap: usize,
-}
-
-impl Dumpable for Batch<'_, '_> {
+impl Dumpable for Batch<CritOpRef<'_, '_>> {
     fn dump_to_string(&self) -> String {
         let mut result = format!("[{}/{}", self.ops.len(), self.cap);
         let mut slacks = self.ops.iter().map(|op| op.get_annotation().slack).cosvec();
@@ -111,31 +95,7 @@ impl Dumpable for Batch<'_, '_> {
     }
 }
 
-impl<'a, 'b> Batch<'a, 'b> {
-    pub fn new(batch_size: usize) -> Self {
-        let output = Batch {
-            ops: Vec::with_capacity(batch_size),
-            cap: batch_size,
-        };
-        output
-    }
-
-    pub fn is_full(&self) -> bool {
-        self.ops.len() == self.cap
-    }
-
-    pub fn push(&mut self, op: CritOpRef<'a, 'b>) {
-        assert!(op.get_instruction().is_pbs());
-        if self.is_full() {
-            panic!()
-        }
-        self.ops.push(op);
-    }
-
-    pub fn len(&self) -> usize {
-        self.ops.len()
-    }
-
+impl<'a, 'b> Batch<CritOpRef<'a, 'b>> {
     #[allow(unused)]
     pub fn slacks(&self) -> SmallVec<OpIdRaw> {
         self.ops.iter().map(|a| a.get_annotation().slack).collect()
@@ -148,129 +108,15 @@ impl<'a, 'b> Batch<'a, 'b> {
             .min()
             .unwrap()
     }
-
-    pub fn iter_members(&self) -> impl Iterator<Item = CritOpRef<'a, 'b>> {
-        self.ops.iter().cloned()
-    }
-
-    pub fn gen_batch_ir(
-        &self,
-    ) -> (
-        IR<HpuLang>,
-        Vec<CritValRef<'a, 'b>>,
-        Vec<CritValRef<'a, 'b>>,
-    ) {
-        // We collect the inputs and outputs of the batch.
-        let mut inputs = self
-            .ops
-            .iter()
-            .map(|op| op.get_args_iter())
-            .flatten()
-            .filter(|arg| {
-                // To be a batch input, an op arg origin must not be in the batch.
-                !self.ops.as_slice().contains(&arg.get_origin().opref)
-            })
-            .dedup_by_key(|op| op.get_id())
-            .covec();
-        inputs.sort_unstable_by_key(|a| a.get_id());
-        let mut outputs = self
-            .ops
-            .iter()
-            .map(|op| op.get_returns_iter())
-            .flatten()
-            .filter(|arg| {
-                // To be a batch ouptut, a value must be produced by an operation that has users,
-                // and which have at least one user outside of the batch.
-                arg.get_origin()
-                    .opref
-                    .get_users_iter()
-                    .any(|user| !self.ops.as_slice().contains(&user))
-            })
-            .dedup_by_key(|op| op.get_id())
-            .covec();
-        outputs.sort_unstable_by_key(|a| a.get_id());
-
-        // Now we write the batch IR
-        let mut batch = IR::empty();
-        let mut batch_map = SmallMap::new();
-        for (i, val) in inputs.iter().enumerate() {
-            let (_, batch_arg) = batch.add_op(
-                HpuInstructionSet::BatchArg {
-                    pos: i.try_into().unwrap(),
-                    ty: val.get_type(),
-                },
-                svec![],
-            );
-            batch_map.insert(val.get_id(), batch_arg[0]);
-        }
-        for (idx, op) in self.ops.iter().enumerate() {
-            let instr = if idx == self.ops.len() - 1 {
-                // Ensures the last is a flush...
-                flush_pbs(op.get_instruction())
-            } else {
-                op.get_instruction()
-            };
-            let (_, batch_op_rets) = batch.add_op(
-                instr,
-                op.get_arg_valids()
-                    .iter()
-                    .map(|k| batch_map.get(k).unwrap())
-                    .copied()
-                    .collect(),
-            );
-            for (k, v) in (op.get_return_valids().iter(), batch_op_rets.into_iter()).mzip() {
-                batch_map.insert(*k, v);
-            }
-        }
-        for (i, val) in outputs.iter().enumerate() {
-            batch.add_op(
-                HpuInstructionSet::BatchRet {
-                    pos: i.try_into().unwrap(),
-                    ty: val.get_type(),
-                },
-                svec![*batch_map.get(&val.get_id()).unwrap()],
-            );
-        }
-
-        (batch, inputs, outputs)
-    }
 }
 
-#[derive(Clone)]
-struct Batches<'a, 'b>(Vec<Batch<'a, 'b>>);
-
-impl Dumpable for Batches<'_, '_> {
+impl Dumpable for Batches<CritOpRef<'_, '_>> {
     fn dump_to_string(&self) -> String {
         let mut result = String::new();
         for (i, batch) in self.0.iter().enumerate() {
             result.push_str(&format!("{}: {}\n", i + 1, batch.dump_to_string()));
         }
         result
-    }
-}
-
-impl<'a, 'b> Batches<'a, 'b> {
-    pub fn new() -> Self {
-        Batches(Vec::new())
-    }
-
-    pub fn push(&mut self, batch: Batch<'a, 'b>) {
-        self.0.push(batch);
-    }
-
-    fn into_batch_iter(self) -> impl Iterator<Item = Batch<'a, 'b>> {
-        self.0.into_iter()
-    }
-
-    fn batch_iter(&self) -> impl Iterator<Item = &Batch<'a, 'b>> {
-        self.0.iter()
-    }
-
-    pub fn into_batch_map(self) -> FastMap<OpId, Rc<Batch<'a, 'b>>> {
-        self.into_batch_iter()
-            .map(Rc::new)
-            .flat_map(|batch| (0..batch.len()).map(move |i| (batch.ops[i].get_id(), batch.clone())))
-            .collect()
     }
 }
 
@@ -291,15 +137,15 @@ impl Dumpable for State {
 fn extract_batches<'a, 'b>(
     dir: &'b CritIR<'a>,
     batch_size: usize,
-    direction: SchedulingDirection,
-) -> (Batches<'a, 'b>, Vec<OpId>) {
+    policy: SchedPolicy,
+) -> (Batches<CritOpRef<'a, 'b>>, Vec<OpId>) {
     let mut batches = Batches::new();
-    let mut batch = Batch::new(batch_size);
+    let mut batch: Batch<_>;
 
     let mut states = dir.totally_mapped_opmap(|op| {
-        let count = match direction {
-            SchedulingDirection::Forward => op.get_predecessors_iter().count(),
-            SchedulingDirection::Backward => op.get_users_iter().count(),
+        let count = match policy {
+            SchedPolicy::AsSoonAsPossible => op.get_predecessors_iter().count(),
+            SchedPolicy::AsLateAsPossible => op.get_users_iter().count(),
         };
         match count {
             0 => State::Ready,
@@ -327,9 +173,9 @@ fn extract_batches<'a, 'b>(
                 }
                 _ => unreachable!(),
             });
-            let neighbors: Vec<CritOpRef<'a, 'b>> = match direction {
-                SchedulingDirection::Forward => op.get_users_iter().covec(),
-                SchedulingDirection::Backward => op.get_predecessors_iter().covec(),
+            let neighbors: Vec<CritOpRef<'a, 'b>> = match policy {
+                SchedPolicy::AsSoonAsPossible => op.get_users_iter().covec(),
+                SchedPolicy::AsLateAsPossible => op.get_predecessors_iter().covec(),
             };
             for neighbor in neighbors {
                 states
@@ -355,23 +201,24 @@ fn extract_batches<'a, 'b>(
             break;
         }
 
-        while !batch.is_full() {
-            ready_list.sort_by_key(|v| match direction {
-                SchedulingDirection::Forward => v.get_annotation().height,
-                SchedulingDirection::Backward => v.get_annotation().depth,
+        batch = Batch::new(batch_size);
+        if ready_list.len() < batch_size {
+            ready_list.drain(..).for_each(|op| batch.push(op));
+        } else {
+            ready_list.reverse();
+            ready_list.sort_by_key(|v| match policy {
+                SchedPolicy::AsSoonAsPossible => v.get_annotation().height,
+                SchedPolicy::AsLateAsPossible => v.get_annotation().depth,
             });
-            match ready_list.pop() {
-                Some(v) => batch.push(v),
-                None => break,
-            }
+            ready_list.reverse();
+            ready_list.drain(..batch_size).for_each(|op| batch.push(op));
         }
 
         worklist.extend(batch.iter_members().map(|op| op.get_id()));
         batches.push(batch.clone());
-        batch = Batch::new(batch_size);
     }
 
-    if direction == SchedulingDirection::Backward {
+    if policy == SchedPolicy::AsLateAsPossible {
         order.reverse();
     }
 
@@ -401,6 +248,7 @@ impl PbsStatistics {
                 depth,
                 height,
                 slack,
+                ..
             } = op.get_annotation();
             output.depth_distribution.count(depth);
             output.height_distribution.count(height);
@@ -429,7 +277,7 @@ pub struct BatchingStatistics {
 }
 
 impl BatchingStatistics {
-    fn extract<'a, 'b>(batches: &Batches<'a, 'b>) -> Self {
+    fn extract<'a, 'b>(batches: &Batches<CritOpRef<'a, 'b>>) -> Self {
         let mut output = BatchingStatistics {
             size_distribution: Histogram::empty(),
             min_slack_distribution: Histogram::empty(),
@@ -456,14 +304,14 @@ impl Dumpable for BatchingStatistics {
 pub fn batch<'a, 'b>(
     ir: &'a IR<HpuLang>,
     config: &'b HpuConfig,
-    direction: SchedulingDirection,
+    policy: SchedPolicy,
 ) -> IR<HpuLang> {
     let air = analyze(ir);
     if TRACE_EXECUTION {
         let pbs_stats = PbsStatistics::extract(&air);
         pbs_stats.dump();
     }
-    let (batches, order) = extract_batches(&air, config.pbs_max_batch_size, direction);
+    let (batches, order) = extract_batches(&air, config.pbs_max_batch_size, policy);
 
     if TRACE_EXECUTION {
         let batching_stats = BatchingStatistics::extract(&batches);
@@ -546,7 +394,7 @@ mod test {
     fn pipeline(ir: &IR<IopLang>) -> IR<HpuLang> {
         let ir = lower_iop_to_hpu(&ir);
         let config = HpuConfig::from(PhysicalConfig::gaussian_64b());
-        batch(&ir, &config, SchedulingDirection::Forward)
+        batch(&ir, &config, SchedPolicy::AsSoonAsPossible)
     }
 
     #[test]
@@ -587,26 +435,26 @@ mod test {
                     %a4 = batch_arg<4, CtRegister>();
                     %a5 = batch_arg<5, CtRegister>();
                     %a6 = batch_arg<6, CtRegister>();
-                    %a7 = pbs<Lut@47>(%a1);
-                    %a8, %a9 = pbs_2<Lut@26>(%a0);
+                    %a7, %a8 = pbs_2<Lut@26>(%a0);
+                    %a9 = pbs<Lut@47>(%a1);
                     %a10 = pbs<Lut@48>(%a2);
                     %a11 = pbs<Lut@49>(%a3);
-                    %a12 = pbs<Lut@48>(%a5);
-                    %a13 = pbs<Lut@47>(%a4);
+                    %a12 = pbs<Lut@47>(%a4);
+                    %a13 = pbs<Lut@48>(%a5);
                     %a14 = pbs_f<Lut@49>(%a6);
-                    batch_ret<0, CtRegister>(%a8);
-                    batch_ret<1, CtRegister>(%a9);
-                    batch_ret<2, CtRegister>(%a7);
+                    batch_ret<0, CtRegister>(%a7);
+                    batch_ret<1, CtRegister>(%a8);
+                    batch_ret<2, CtRegister>(%a9);
                     batch_ret<3, CtRegister>(%a10);
                     batch_ret<4, CtRegister>(%a11);
-                    batch_ret<5, CtRegister>(%a13);
-                    batch_ret<6, CtRegister>(%a12);
+                    batch_ret<5, CtRegister>(%a12);
+                    batch_ret<6, CtRegister>(%a13);
                     batch_ret<7, CtRegister>(%a14);
                 }(%16, %17, %18, %19, %20, %21, %22);
-                %32 = add_ct(%25, %26);
-                %33 = add_ct(%17, %25);
+                %32 = add_ct(%17, %25);
+                %33 = add_ct(%25, %26);
                 %34 = add_ct(%29, %30);
-                %35 = add_ct(%32, %27);
+                %35 = add_ct(%33, %27);
                 %36 = add_ct(%34, %31);
                 %37 = add_ct(%35, %28);
                 %38, %39, %40, %41, %42 = batch {
@@ -615,25 +463,25 @@ mod test {
                     %a2 = batch_arg<2, CtRegister>();
                     %a3 = batch_arg<3, CtRegister>();
                     %a4 = batch_arg<4, CtRegister>();
-                    %a5 = pbs<Lut@46>(%a3);
-                    %a6 = pbs<Lut@45>(%a2);
+                    %a5 = pbs<Lut@1>(%a0);
+                    %a6 = pbs<Lut@1>(%a4);
                     %a7 = pbs<Lut@44>(%a1);
-                    %a8 = pbs<Lut@1>(%a4);
-                    %a9 = pbs_f<Lut@1>(%a0);
-                    batch_ret<0, CtRegister>(%a5);
+                    %a8 = pbs<Lut@45>(%a2);
+                    %a9 = pbs_f<Lut@46>(%a3);
+                    batch_ret<0, CtRegister>(%a9);
                     batch_ret<1, CtRegister>(%a7);
-                    batch_ret<2, CtRegister>(%a6);
-                    batch_ret<3, CtRegister>(%a9);
-                    batch_ret<4, CtRegister>(%a8);
-                }(%24, %32, %35, %37, %33);
-                %43 = add_ct(%29, %38);
-                %44 = add_ct(%34, %38);
-                %45 = add_ct(%36, %38);
-                %46 = add_ct(%20, %38);
-                %47 = add_ct(%19, %40);
-                %48 = add_ct(%18, %39);
-                dst_st<0.1_tdst>(%42);
+                    batch_ret<2, CtRegister>(%a8);
+                    batch_ret<3, CtRegister>(%a5);
+                    batch_ret<4, CtRegister>(%a6);
+                }(%24, %33, %35, %37, %32);
                 dst_st<0.0_tdst>(%41);
+                dst_st<0.1_tdst>(%42);
+                %43 = add_ct(%18, %39);
+                %44 = add_ct(%19, %40);
+                %45 = add_ct(%29, %38);
+                %46 = add_ct(%34, %38);
+                %47 = add_ct(%36, %38);
+                %48 = add_ct(%20, %38);
                 %49, %50, %51, %52, %53, %54 = batch {
                     %a0 = batch_arg<0, CtRegister>();
                     %a1 = batch_arg<1, CtRegister>();
@@ -641,24 +489,24 @@ mod test {
                     %a3 = batch_arg<3, CtRegister>();
                     %a4 = batch_arg<4, CtRegister>();
                     %a5 = batch_arg<5, CtRegister>();
-                    %a6 = pbs<Lut@46>(%a2);
-                    %a7 = pbs<Lut@45>(%a1);
+                    %a6 = pbs<Lut@1>(%a3);
+                    %a7 = pbs<Lut@1>(%a4);
                     %a8 = pbs<Lut@44>(%a0);
-                    %a9 = pbs<Lut@1>(%a3);
-                    %a10 = pbs<Lut@1>(%a4);
+                    %a9 = pbs<Lut@45>(%a1);
+                    %a10 = pbs<Lut@46>(%a2);
                     %a11 = pbs_f<Lut@1>(%a5);
                     batch_ret<0, CtRegister>(%a8);
-                    batch_ret<1, CtRegister>(%a7);
-                    batch_ret<2, CtRegister>(%a6);
-                    batch_ret<3, CtRegister>(%a9);
-                    batch_ret<4, CtRegister>(%a10);
+                    batch_ret<1, CtRegister>(%a9);
+                    batch_ret<2, CtRegister>(%a10);
+                    batch_ret<3, CtRegister>(%a6);
+                    batch_ret<4, CtRegister>(%a7);
                     batch_ret<5, CtRegister>(%a11);
-                }(%43, %44, %45, %48, %47, %46);
-                %55 = add_ct(%23, %51);
-                %56 = add_ct(%22, %50);
-                %57 = add_ct(%21, %49);
+                }(%45, %46, %47, %43, %44, %48);
                 dst_st<0.2_tdst>(%52);
                 dst_st<0.3_tdst>(%53);
+                %55 = add_ct(%21, %49);
+                %56 = add_ct(%22, %50);
+                %57 = add_ct(%23, %51);
                 dst_st<0.4_tdst>(%54);
                 %58, %59, %60 = batch {
                     %a0 = batch_arg<0, CtRegister>();
@@ -670,7 +518,7 @@ mod test {
                     batch_ret<0, CtRegister>(%a3);
                     batch_ret<1, CtRegister>(%a4);
                     batch_ret<2, CtRegister>(%a5);
-                }(%57, %56, %55);
+                }(%55, %56, %57);
                 dst_st<0.5_tdst>(%58);
                 dst_st<0.6_tdst>(%59);
                 dst_st<0.7_tdst>(%60);

@@ -2,18 +2,12 @@ use super::*;
 
 /// Tracks completed operations and manages resource cleanup after execution.
 #[derive(Debug, Default, Serialize)]
-pub struct Retirement {
-    dops: Vec<DOp>,
+pub struct Statistics {
+    pub dops: Vec<DOp>,
+    pub timeouts: u16,
 }
 
-impl Retirement {
-    /// Returns the most recently retired operation, if any.
-    pub fn last_retired(&self) -> Option<&DOp> {
-        self.dops.last()
-    }
-}
-
-impl Simulatable for Retirement {
+impl Simulatable for Statistics {
     type Event = Events;
 
     fn handle(
@@ -24,6 +18,9 @@ impl Simulatable for Retirement {
         match trigger.event {
             Events::IscRetireDOp(dop) => {
                 self.dops.push(dop);
+            }
+            Events::NotifyStartOnTimeout { .. } => {
+                self.timeouts += 1;
             }
             _ => {}
         }

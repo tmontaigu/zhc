@@ -1,7 +1,7 @@
 use std::collections::BinaryHeap;
 
 use super::*;
-use zhc_ir::{AnnIR, AnnOpRef, IR, OpId, scheduler::reschedule};
+use zhc_ir::{AnnIR, AnnOpRef, IR, OpId, OpIdRaw, scheduler::reschedule};
 use zhc_langs::hpulang::HpuLang;
 use zhc_sim::{
     Cycle,
@@ -9,31 +9,46 @@ use zhc_sim::{
 };
 use zhc_utils::{Dumpable, fsm, svec};
 
-type Prio = u16;
+static PBS_COST: OpIdRaw = 2;
+static NON_PBS_COST: OpIdRaw = 1;
+
+type Prio = OpIdRaw;
 type PrioOpRef<'a, 'b> = AnnOpRef<'a, 'b, HpuLang, Prio, ()>;
 type PrioIR<'a> = AnnIR<'a, HpuLang, Prio, ()>;
 
-fn analyze_prio<'a>(ir: &'a IR<HpuLang>, direction: SchedulingDirection) -> PrioIR<'a> {
+fn analyze_prio<'a>(ir: &'a IR<HpuLang>, policy: SchedPolicy) -> PrioIR<'a> {
     use zhc_langs::hpulang::HpuInstructionSet::*;
-    match direction {
-        SchedulingDirection::Forward => ir.backward_dataflow_analysis(|opref| {
+    match policy {
+        SchedPolicy::AsSoonAsPossible => ir.backward_dataflow_analysis(|opref| {
             let prio = opref
                 .get_users_iter()
                 .map(|p| p.get_annotation().clone().unwrap_analyzed())
                 .max();
             match opref.get_instruction() {
-                Batch { .. } => (prio.unwrap() + 1_u16, svec![(); opref.get_return_arity()]),
-                _ => (prio.unwrap_or(0_u16), svec![(); opref.get_return_arity()]),
+                Batch { .. } => (
+                    prio.unwrap() + PBS_COST,
+                    svec![(); opref.get_return_arity()],
+                ),
+                _ => (
+                    prio.unwrap_or(0) + NON_PBS_COST,
+                    svec![(); opref.get_return_arity()],
+                ),
             }
         }),
-        SchedulingDirection::Backward => ir.forward_dataflow_analysis(|opref| {
-            let prio = opref
+        SchedPolicy::AsLateAsPossible => ir.forward_dataflow_analysis(|opref| {
+            let prio: Option<Prio> = opref
                 .get_predecessors_iter()
                 .map(|p| p.get_annotation().clone().unwrap_analyzed())
                 .max();
             match opref.get_instruction() {
-                Batch { .. } => (prio.unwrap() + 1_u16, svec![(); opref.get_return_arity()]),
-                _ => (prio.unwrap_or(0_u16), svec![(); opref.get_return_arity()]),
+                Batch { .. } => (
+                    prio.unwrap() + PBS_COST,
+                    svec![(); opref.get_return_arity()],
+                ),
+                _ => (
+                    prio.unwrap_or(0) + NON_PBS_COST,
+                    svec![(); opref.get_return_arity()],
+                ),
             }
         }),
     }
@@ -47,58 +62,27 @@ enum Affinity {
     Ctl,
 }
 
-#[derive(Debug)]
-pub struct PrioritizedOp<'a, 'b>(pub PrioOpRef<'a, 'b>);
-
-impl<'a, 'b> From<PrioOpRef<'a, 'b>> for PrioritizedOp<'a, 'b> {
-    fn from(value: PrioOpRef<'a, 'b>) -> Self {
-        Self(value)
-    }
-}
-
-impl<'a, 'b> PartialOrd for PrioritizedOp<'a, 'b> {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.0
-            .get_annotation()
-            .partial_cmp(&other.0.get_annotation())
-    }
-}
-
-impl<'a, 'b> Ord for PrioritizedOp<'a, 'b> {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.0.get_annotation().cmp(other.0.get_annotation())
-    }
-}
-
-impl<'a, 'b> PartialEq for PrioritizedOp<'a, 'b> {
-    fn eq(&self, other: &Self) -> bool {
-        self.0.get_annotation().eq(other.0.get_annotation())
-    }
-}
-
-impl<'a, 'b> Eq for PrioritizedOp<'a, 'b> {}
-
 #[fsm]
 #[derive(Debug)]
 enum ProcessingElementState<'a, 'b> {
     Idle,
-    Running(PrioritizedOp<'a, 'b>),
+    Running(PrioOpRef<'a, 'b>),
 }
 
 pub struct ProcessingElement<'a, 'b> {
     state: ProcessingElementState<'a, 'b>,
-    ready: BinaryHeap<PrioritizedOp<'a, 'b>>,
+    ready: Vec<PrioOpRef<'a, 'b>>,
 }
 
 impl<'a, 'b> ProcessingElement<'a, 'b> {
-    pub fn new(inps: impl Iterator<Item = PrioritizedOp<'a, 'b>>) -> Self {
+    pub fn new(inps: impl Iterator<Item = PrioOpRef<'a, 'b>>) -> Self {
         ProcessingElement {
             state: ProcessingElementState::Idle,
-            ready: BinaryHeap::from_iter(inps),
+            ready: inps.collect(),
         }
     }
 
-    pub fn land(&mut self) -> PrioritizedOp<'a, 'b> {
+    pub fn land(&mut self) -> PrioOpRef<'a, 'b> {
         self.state.transition_with(|old| match old {
             ProcessingElementState::Running(op) => (ProcessingElementState::Idle, op),
             _ => unreachable!(),
@@ -106,9 +90,11 @@ impl<'a, 'b> ProcessingElement<'a, 'b> {
     }
 
     pub fn kick(&mut self, config: &HpuConfig) -> Option<(OpId, Cycle)> {
+        self.ready.reverse();
+        self.ready.sort_by_key(|op| *op.get_annotation());
         self.ready.pop().map(|op| {
-            let duration = get_op_latency(&op.0, config);
-            let id = op.0.get_id();
+            let duration = get_op_latency(&op, config);
+            let id = op.get_id();
             self.state.transition(|old| match old {
                 ProcessingElementState::Idle => ProcessingElementState::Running(op),
                 _ => unreachable!(),
@@ -117,7 +103,7 @@ impl<'a, 'b> ProcessingElement<'a, 'b> {
         })
     }
 
-    pub fn push(&mut self, op: PrioritizedOp<'a, 'b>) {
+    pub fn push(&mut self, op: PrioOpRef<'a, 'b>) {
         self.ready.push(op);
     }
 
@@ -217,30 +203,26 @@ fn get_op_latency<'a, 'b>(op: &PrioOpRef<'a, 'b>, config: &HpuConfig) -> Cycle {
     }
 }
 
-pub fn schedule<'a>(
-    ir: &'a IR<HpuLang>,
-    config: &HpuConfig,
-    direction: SchedulingDirection,
-) -> IR<HpuLang> {
-    let air = analyze_prio(ir, direction);
-    let schedule = schedule_inner(&air, config, direction);
-    match direction {
-        SchedulingDirection::Forward => reschedule(ir, schedule.into_iter()).0,
-        SchedulingDirection::Backward => reschedule(ir, schedule.into_iter().rev()).0,
+pub fn schedule<'a>(ir: &'a IR<HpuLang>, config: &HpuConfig, policy: SchedPolicy) -> IR<HpuLang> {
+    let air = analyze_prio(ir, policy);
+    let schedule = schedule_inner(&air, config, policy);
+    match policy {
+        SchedPolicy::AsSoonAsPossible => reschedule(ir, schedule.into_iter()).0,
+        SchedPolicy::AsLateAsPossible => reschedule(ir, schedule.into_iter().rev()).0,
     }
 }
 
 fn schedule_inner<'a, 'b>(
     anir: &'b PrioIR<'a>,
     config: &HpuConfig,
-    direction: SchedulingDirection,
+    policy: SchedPolicy,
 ) -> Vec<OpId> {
     let mut output = Vec::new();
 
     let mut states = anir.totally_mapped_opmap(|op| {
-        let count = match direction {
-            SchedulingDirection::Forward => op.get_predecessors_iter().count(),
-            SchedulingDirection::Backward => op.get_users_iter().count(),
+        let count = match policy {
+            SchedPolicy::AsSoonAsPossible => op.get_predecessors_iter().count(),
+            SchedPolicy::AsLateAsPossible => op.get_users_iter().count(),
         };
         match count {
             0 => State::Ready,
@@ -363,15 +345,15 @@ fn schedule_inner<'a, 'b>(
             break;
         };
         let current_cycle = at;
-        let PrioritizedOp(op) = match aff {
+        let op = match aff {
             Affinity::Pea => pea.land(),
             Affinity::Pem => pem.land(),
             Affinity::Pep => pep.land(),
             Affinity::Ctl => ctl.land(),
         };
 
-        match direction {
-            SchedulingDirection::Forward => {
+        match policy {
+            SchedPolicy::AsSoonAsPossible => {
                 for neighbor in op.get_users_iter() {
                     process_neighbor(
                         neighbor,
@@ -383,7 +365,7 @@ fn schedule_inner<'a, 'b>(
                     );
                 }
             }
-            SchedulingDirection::Backward => {
+            SchedPolicy::AsLateAsPossible => {
                 for neighbor in op.get_predecessors_iter() {
                     process_neighbor(
                         neighbor,
@@ -448,7 +430,7 @@ mod test {
 
     use super::*;
     use crate::{
-        scheduler::{SchedulingDirection, two_step::batcher::batch},
+        scheduler::{SchedPolicy, two_step::batcher::batch},
         test::check_iop_hpu_equivalence,
         translation::lower_iop_to_hpu,
     };
@@ -456,8 +438,8 @@ mod test {
     fn pipeline(ir: &IR<IopLang>) -> IR<HpuLang> {
         let ir = lower_iop_to_hpu(ir);
         let config = HpuConfig::from(PhysicalConfig::gaussian_64b());
-        let batched = batch(&ir, &config, SchedulingDirection::Forward);
-        schedule(&batched, &config, SchedulingDirection::Forward)
+        let batched = batch(&ir, &config, SchedPolicy::AsSoonAsPossible);
+        schedule(&batched, &config, SchedPolicy::AsSoonAsPossible)
     }
 
     #[test]
@@ -468,13 +450,13 @@ mod test {
             r#"
                 %0 = cst_ct<0_imm>();
                 %1 = src_ld<0.0_tsrc>();
-                %2 = src_ld<0.2_tsrc>();
-                %3 = src_ld<0.6_tsrc>();
-                %4 = src_ld<0.7_tsrc>();
-                %5 = src_ld<0.5_tsrc>();
-                %6 = src_ld<0.1_tsrc>();
-                %7 = src_ld<0.4_tsrc>();
-                %8 = src_ld<0.3_tsrc>();
+                %2 = src_ld<0.7_tsrc>();
+                %3 = src_ld<0.1_tsrc>();
+                %4 = src_ld<0.6_tsrc>();
+                %5 = src_ld<0.2_tsrc>();
+                %6 = src_ld<0.5_tsrc>();
+                %7 = src_ld<0.3_tsrc>();
+                %8 = src_ld<0.4_tsrc>();
                 %9, %10, %11, %12, %13, %14, %15, %16, %17, %18, %19, %20, %21, %22, %23, %24 = batch {
                     %a0 = batch_arg<0, CtRegister>();
                     %a1 = batch_arg<1, CtRegister>();
@@ -484,63 +466,63 @@ mod test {
                     %a5 = batch_arg<5, CtRegister>();
                     %a6 = batch_arg<6, CtRegister>();
                     %a7 = batch_arg<7, CtRegister>();
-                    %a8, %a9 = pbs_2<Lut@71>(%a4);
-                    %a10, %a11 = pbs_2<Lut@71>(%a3);
-                    %a12, %a13 = pbs_2<Lut@71>(%a0);
-                    %a14, %a15 = pbs_2<Lut@71>(%a1);
-                    %a16, %a17 = pbs_2<Lut@71>(%a5);
-                    %a18, %a19 = pbs_2<Lut@71>(%a2);
+                    %a8, %a9 = pbs_2<Lut@71>(%a0);
+                    %a10, %a11 = pbs_2<Lut@71>(%a1);
+                    %a12, %a13 = pbs_2<Lut@71>(%a2);
+                    %a14, %a15 = pbs_2<Lut@71>(%a3);
+                    %a16, %a17 = pbs_2<Lut@71>(%a4);
+                    %a18, %a19 = pbs_2<Lut@71>(%a5);
                     %a20, %a21 = pbs_2<Lut@71>(%a6);
                     %a22, %a23 = pbs_2f<Lut@71>(%a7);
-                    batch_ret<0, CtRegister>(%a12);
-                    batch_ret<1, CtRegister>(%a13);
-                    batch_ret<2, CtRegister>(%a14);
-                    batch_ret<3, CtRegister>(%a15);
-                    batch_ret<4, CtRegister>(%a18);
-                    batch_ret<5, CtRegister>(%a19);
-                    batch_ret<6, CtRegister>(%a10);
-                    batch_ret<7, CtRegister>(%a11);
-                    batch_ret<8, CtRegister>(%a8);
-                    batch_ret<9, CtRegister>(%a9);
-                    batch_ret<10, CtRegister>(%a16);
-                    batch_ret<11, CtRegister>(%a17);
+                    batch_ret<0, CtRegister>(%a8);
+                    batch_ret<1, CtRegister>(%a9);
+                    batch_ret<2, CtRegister>(%a10);
+                    batch_ret<3, CtRegister>(%a11);
+                    batch_ret<4, CtRegister>(%a12);
+                    batch_ret<5, CtRegister>(%a13);
+                    batch_ret<6, CtRegister>(%a14);
+                    batch_ret<7, CtRegister>(%a15);
+                    batch_ret<8, CtRegister>(%a16);
+                    batch_ret<9, CtRegister>(%a17);
+                    batch_ret<10, CtRegister>(%a18);
+                    batch_ret<11, CtRegister>(%a19);
                     batch_ret<12, CtRegister>(%a20);
                     batch_ret<13, CtRegister>(%a21);
                     batch_ret<14, CtRegister>(%a22);
                     batch_ret<15, CtRegister>(%a23);
-                }(%1, %6, %2, %8, %7, %5, %3, %4);
+                }(%1, %3, %5, %7, %8, %6, %4, %2);
                 dst_st<0.7_tdst>(%0);
-                dst_st<0.6_tdst>(%0);
-                dst_st<0.5_tdst>(%0);
-                dst_st<0.4_tdst>(%0);
                 dst_st<0.3_tdst>(%0);
-                %25 = add_ct(%16, %17);
-                %26 = add_ct(%9, %10);
-                %27 = add_ct(%23, %24);
-                %28 = add_ct(%25, %18);
-                %29 = add_ct(%26, %11);
+                dst_st<0.6_tdst>(%0);
+                dst_st<0.4_tdst>(%0);
+                dst_st<0.5_tdst>(%0);
+                %25 = add_ct(%9, %10);
+                %26 = add_ct(%16, %17);
+                %27 = add_ct(%25, %11);
+                %28 = add_ct(%26, %18);
+                %29 = add_ct(%27, %12);
                 %30 = add_ct(%28, %19);
-                %31 = add_ct(%29, %12);
+                %31 = add_ct(%29, %13);
                 %32 = add_ct(%30, %20);
-                %33 = add_ct(%31, %13);
+                %33 = add_ct(%31, %14);
                 %34 = add_ct(%32, %21);
-                %35 = add_ct(%33, %14);
+                %35 = add_ct(%33, %15);
                 %36 = add_ct(%34, %22);
-                %37 = add_ct(%35, %15);
+                %37 = add_ct(%23, %24);
                 %38, %39, %40, %41, %42, %43 = batch {
                     %a0 = batch_arg<0, CtRegister>();
                     %a1 = batch_arg<1, CtRegister>();
                     %a2 = batch_arg<2, CtRegister>();
-                    %a3, %a4 = pbs_2<Lut@70>(%a0);
-                    %a5, %a6 = pbs_2<Lut@70>(%a1);
-                    %a7, %a8 = pbs_2f<Lut@65>(%a2);
-                    batch_ret<0, CtRegister>(%a3);
-                    batch_ret<1, CtRegister>(%a4);
-                    batch_ret<2, CtRegister>(%a5);
-                    batch_ret<3, CtRegister>(%a6);
-                    batch_ret<4, CtRegister>(%a7);
-                    batch_ret<5, CtRegister>(%a8);
-                }(%37, %36, %27);
+                    %a3, %a4 = pbs_2<Lut@65>(%a2);
+                    %a5, %a6 = pbs_2<Lut@70>(%a0);
+                    %a7, %a8 = pbs_2f<Lut@70>(%a1);
+                    batch_ret<0, CtRegister>(%a5);
+                    batch_ret<1, CtRegister>(%a6);
+                    batch_ret<2, CtRegister>(%a7);
+                    batch_ret<3, CtRegister>(%a8);
+                    batch_ret<4, CtRegister>(%a3);
+                    batch_ret<5, CtRegister>(%a4);
+                }(%35, %36, %37);
                 %44 = add_ct(%38, %40);
                 %45 = add_ct(%39, %41);
                 %46 = add_ct(%44, %42);
@@ -548,13 +530,13 @@ mod test {
                 %48, %49, %50, %51 = batch {
                     %a0 = batch_arg<0, CtRegister>();
                     %a1 = batch_arg<1, CtRegister>();
-                    %a2, %a3 = pbs_2<Lut@26>(%a1);
-                    %a4 = pbs<Lut@3>(%a0);
-                    %a5 = pbs_f<Lut@1>(%a0);
-                    batch_ret<0, CtRegister>(%a5);
-                    batch_ret<1, CtRegister>(%a4);
-                    batch_ret<2, CtRegister>(%a2);
-                    batch_ret<3, CtRegister>(%a3);
+                    %a2 = pbs<Lut@1>(%a0);
+                    %a3 = pbs<Lut@3>(%a0);
+                    %a4, %a5 = pbs_2f<Lut@26>(%a1);
+                    batch_ret<0, CtRegister>(%a2);
+                    batch_ret<1, CtRegister>(%a3);
+                    batch_ret<2, CtRegister>(%a4);
+                    batch_ret<3, CtRegister>(%a5);
                 }(%46, %47);
                 dst_st<0.0_tdst>(%48);
                 %52 = add_ct(%49, %50);
@@ -594,7 +576,7 @@ mod test {
             check(bitwise_xor(spec));
             check(if_then_else(spec));
             check(if_then_zero(spec));
-            check(mul_lsb(spec));
+            check(mul(spec));
             check(div(spec));
         }
     }

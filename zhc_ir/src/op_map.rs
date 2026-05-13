@@ -283,3 +283,17 @@ impl<T: Dumpable> Dumpable for OpMap<T> {
             .join("\n")
     }
 }
+
+impl<T: serde::Serialize> serde::Serialize for OpMap<T> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeMap;
+        let mut map = serializer.serialize_map(Some(self.n_stored as usize))?;
+        for (id, value) in self.iter() {
+            map.serialize_entry(&id, value)?;
+        }
+        map.end()
+    }
+}

@@ -3,7 +3,10 @@ use std::{
     ops::{Add, Sub},
 };
 
+use serde::Serialize;
 use zhc_utils::{Dumpable, SafeAs, StoreIndex};
+
+use crate::{Dialect, OpRef};
 
 /// Trait for types that can provide an [`OpId`].
 ///
@@ -13,6 +16,11 @@ use zhc_utils::{Dumpable, SafeAs, StoreIndex};
 /// identifier is needed.
 pub trait AsOpId {
     fn op_id(&self) -> OpId;
+}
+
+pub trait AsOpRef {
+    type Dialect: Dialect;
+    fn op_ref(&self) -> OpRef<'_, Self::Dialect>;
 }
 
 /// Trait for types that can provide a [`ValId`].
@@ -35,7 +43,7 @@ macro_rules! impl_index {
         pub type $raw = $raw_type;
 
         #[doc = $doc]
-        #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
         pub struct $name(pub $raw);
 
         impl Add<$raw> for $name {

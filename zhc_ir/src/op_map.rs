@@ -1,5 +1,5 @@
 use std::fmt::Debug;
-use std::ops::Index;
+use std::ops::{Index, IndexMut};
 
 use zhc_utils::{Dumpable, Store};
 
@@ -256,6 +256,15 @@ impl<I: AsOpId, T> Index<I> for OpMap<T> {
         match self.get(index) {
             Some(a) => a,
             None => panic!("Tried to get unmapped index"),
+        }
+    }
+}
+
+impl<T> IndexMut<OpId> for OpMap<T> {
+    fn index_mut(&mut self, index: OpId) -> &mut Self::Output {
+        match self.get_mut(&index) {
+            Some(a) => a,
+            None => panic!("Tried to get unmapped index {:?}", index),
         }
     }
 }

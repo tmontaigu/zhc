@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use std::fs;
+use std::io::{self, Write as _};
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -11,6 +12,13 @@ use zhc_sim::MHz;
 const BITS: &[u16] = &[8, 16, 32, 64, 128];
 const RESULTS_DIR: &str = "zhc_bench/results";
 const SITE_DIR: &str = "zhc_bench/site";
+const DELTA_COL_WIDTH: usize = 8;
+const LATENCY_COL_WIDTH: usize = 12;
+const DELTA_THRESHOLD: f64 = 0.5;
+
+const RED: &str = "\x1b[31m";
+const GREEN: &str = "\x1b[32m";
+const RESET: &str = "\x1b[0m";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct BenchResult {
@@ -28,10 +36,18 @@ fn get_commit_hash() -> String {
 }
 
 fn get_commit_short() -> String {
+    resolve_rev_short("HEAD")
+}
+
+fn resolve_rev_short(rev: &str) -> String {
     let output = Command::new("git")
-        .args(["rev-parse", "--short", "HEAD"])
+        .args(["rev-parse", "--short", rev])
         .output()
-        .expect("failed to get commit hash");
+        .expect("failed to resolve revision");
+    if !output.status.success() {
+        eprintln!("Error: unknown revision '{}'", rev);
+        std::process::exit(1);
+    }
     String::from_utf8_lossy(&output.stdout).trim().to_string()
 }
 
@@ -55,6 +71,17 @@ fn check_git_clean() {
     }
 }
 
+fn bench_iop(iop: &Iop, config: &zhc_sim::hpu::HpuConfig, freq: MHz) -> BTreeMap<u16, f64> {
+    let mut bits_results = BTreeMap::new();
+    for &bits in BITS {
+        let spec = CiphertextSpec::new(bits, 2, 2);
+        let builder = iop.to_builder(spec);
+        let latency = zhc_pipeline::compute_latency(&builder, config.clone(), freq);
+        bits_results.insert(bits, latency);
+    }
+    bits_results
+}
+
 fn run_benchmarks() -> BenchResult {
     let config = zhc_sim::hpu::HpuConfig::default();
     let freq = MHz(400);
@@ -63,16 +90,10 @@ fn run_benchmarks() -> BenchResult {
     for iop in Iop::ALL {
         let iop_name = format!("{:?}", iop);
         println!("Benchmarking {}", iop_name);
-        let mut bits_results = BTreeMap::new();
-
-        for &bits in BITS {
-            let spec = CiphertextSpec::new(bits, 2, 2);
-            let builder = iop.to_builder(spec);
-            let latency = zhc_pipeline::compute_latency(&builder, config.clone(), freq);
-            bits_results.insert(bits, latency);
+        let bits_results = bench_iop(iop, &config, freq);
+        for (&bits, &latency) in &bits_results {
             println!("  {}b: {:.2}us", bits, latency);
         }
-
         results.insert(iop_name, bits_results);
     }
 
@@ -114,6 +135,201 @@ fn load_all_results() -> Vec<BenchResult> {
 
     results.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
     results
+}
+
+fn load_result_by_rev(rev: &str) -> Option<BenchResult> {
+    let short = resolve_rev_short(rev);
+    let path = PathBuf::from(RESULTS_DIR).join(format!("{}.json", short));
+    if !path.exists() {
+        return None;
+    }
+    let content = fs::read_to_string(&path).expect("failed to read file");
+    Some(serde_json::from_str(&content).expect("failed to parse"))
+}
+
+fn find_latest_baseline(exclude_commit: &str) -> Option<BenchResult> {
+    let results = load_all_results();
+    results
+        .into_iter()
+        .rev()
+        .find(|r| !r.commit.starts_with(exclude_commit) && !exclude_commit.starts_with(&r.commit))
+}
+
+fn list_available_baselines() -> Vec<String> {
+    let dir = PathBuf::from(RESULTS_DIR);
+    if !dir.exists() {
+        return vec![];
+    }
+    fs::read_dir(&dir)
+        .expect("failed to read results dir")
+        .filter_map(|e| e.ok())
+        .filter_map(|e| {
+            let path = e.path();
+            path.file_stem()
+                .and_then(|s| s.to_str())
+                .map(|s| s.to_string())
+        })
+        .collect()
+}
+
+fn format_latency(us: f64) -> String {
+    let int_part = us.round() as u64;
+    let int_str = int_part
+        .to_string()
+        .as_bytes()
+        .rchunks(3)
+        .rev()
+        .map(|chunk| std::str::from_utf8(chunk).unwrap())
+        .collect::<Vec<_>>()
+        .join(" ");
+    format!("{} µs", int_str)
+}
+
+fn format_latency_cell(latency: Option<&f64>) -> String {
+    match latency {
+        Some(&us) => {
+            let formatted = format_latency(us);
+            format!("{:>w$}", formatted, w = LATENCY_COL_WIDTH)
+        }
+        None => format!("{:>w$}", "-", w = LATENCY_COL_WIDTH),
+    }
+}
+
+fn format_delta(pct: f64, use_color: bool) -> String {
+    let sign = if pct >= 0.0 { "+" } else { "" };
+    let text = format!("{}{:.1}%", sign, pct);
+    if !use_color || pct.abs() < DELTA_THRESHOLD {
+        return text;
+    }
+    if pct > 0.0 {
+        format!("{}{}{}", RED, text, RESET)
+    } else {
+        format!("{}{}{}", GREEN, text, RESET)
+    }
+}
+
+fn format_diff_cell(curr: Option<&f64>, base: Option<&f64>, use_color: bool) -> String {
+    match (curr, base) {
+        (Some(c), Some(b)) if *b != 0.0 => {
+            let pct = (c - b) / b * 100.0;
+            let formatted = format_delta(pct, use_color);
+            let visible_len = if pct.abs() >= DELTA_THRESHOLD && use_color {
+                formatted.len() - RED.len() - RESET.len()
+            } else {
+                formatted.len()
+            };
+            let pad = DELTA_COL_WIDTH.saturating_sub(visible_len);
+            let left = pad / 2;
+            let right = pad - left;
+            format!("{:l$}{}{:r$}", "", formatted, "", l = left, r = right)
+        }
+        _ => format!("{:^w$}", "-", w = DELTA_COL_WIDTH),
+    }
+}
+
+fn run_diff_incremental(baseline: &BenchResult, use_color: bool) {
+    let baseline_short = &baseline.commit[..7.min(baseline.commit.len())];
+    let baseline_date = &baseline.timestamp[..10.min(baseline.timestamp.len())];
+    println!("vs {} ({})\n", baseline_short, baseline_date);
+
+    let iop_names: Vec<_> = Iop::ALL.iter().map(|iop| format!("{:?}", iop)).collect();
+    let op_width = iop_names.iter().map(|s| s.len()).max().unwrap_or(9).max(9) + 2;
+
+    // Top border
+    print!("┌{:─<w$}", "", w = op_width);
+    for _ in BITS {
+        print!("┬{:─<w$}", "", w = DELTA_COL_WIDTH);
+    }
+    println!("┐");
+
+    // Header
+    print!("│{:^w$}", "Operation", w = op_width);
+    for bits in BITS {
+        print!("│{:^w$}", format!("{}b", bits), w = DELTA_COL_WIDTH);
+    }
+    println!("│");
+
+    // Header separator
+    print!("├{:─<w$}", "", w = op_width);
+    for _ in BITS {
+        print!("┼{:─<w$}", "", w = DELTA_COL_WIDTH);
+    }
+    println!("┤");
+
+    let config = zhc_sim::hpu::HpuConfig::default();
+    let freq = MHz(400);
+
+    // Data rows - benchmark and print each row as it completes
+    for iop in Iop::ALL {
+        let iop_name = format!("{:?}", iop);
+        print!("│ {:<w$}", iop_name, w = op_width - 1);
+        io::stdout().flush().unwrap();
+
+        let bits_results = bench_iop(iop, &config, freq);
+
+        for bits in BITS {
+            let curr = bits_results.get(bits);
+            let base = baseline.results.get(&iop_name).and_then(|m| m.get(bits));
+            let cell = format_diff_cell(curr, base, use_color);
+            print!("│{}", cell);
+            io::stdout().flush().unwrap();
+        }
+        println!("│");
+    }
+
+    // Bottom border
+    print!("└{:─<w$}", "", w = op_width);
+    for _ in BITS {
+        print!("┴{:─<w$}", "", w = DELTA_COL_WIDTH);
+    }
+    println!("┘");
+}
+
+fn run_latency_table() {
+    let iop_names: Vec<_> = Iop::ALL.iter().map(|iop| format!("{:?}", iop)).collect();
+    let op_width = iop_names.iter().map(|s| s.len()).max().unwrap_or(9).max(9) + 2;
+
+    print!("┌{:─<w$}", "", w = op_width);
+    for _ in BITS {
+        print!("┬{:─<w$}", "", w = LATENCY_COL_WIDTH);
+    }
+    println!("┐");
+
+    print!("│{:^w$}", "Operation", w = op_width);
+    for bits in BITS {
+        print!("│{:^w$}", format!("{}b", bits), w = LATENCY_COL_WIDTH);
+    }
+    println!("│");
+
+    print!("├{:─<w$}", "", w = op_width);
+    for _ in BITS {
+        print!("┼{:─<w$}", "", w = LATENCY_COL_WIDTH);
+    }
+    println!("┤");
+
+    let config = zhc_sim::hpu::HpuConfig::default();
+    let freq = MHz(400);
+
+    for iop in Iop::ALL {
+        let iop_name = format!("{:?}", iop);
+        print!("│ {:<w$}", iop_name, w = op_width - 1);
+        io::stdout().flush().unwrap();
+
+        let bits_results = bench_iop(iop, &config, freq);
+
+        for bits in BITS {
+            let cell = format_latency_cell(bits_results.get(bits));
+            print!("│{}", cell);
+            io::stdout().flush().unwrap();
+        }
+        println!("│");
+    }
+
+    print!("└{:─<w$}", "", w = op_width);
+    for _ in BITS {
+        print!("┴{:─<w$}", "", w = LATENCY_COL_WIDTH);
+    }
+    println!("┘");
 }
 
 fn generate_html(results: &[BenchResult]) {
@@ -236,20 +452,54 @@ fn main() {
 
     match cmd {
         "run" => {
+            run_latency_table();
+        }
+        "export" => {
             check_git_clean();
             let result = run_benchmarks();
             save_result(&result);
             let all = load_all_results();
             generate_html(&all);
         }
-        "site" => {
-            let all = load_all_results();
-            generate_html(&all);
+        "diff" => {
+            let use_color = !args.iter().any(|a| a == "--no-color");
+            let rev_arg = args.iter().skip(2).find(|a| !a.starts_with("--"));
+            let baseline = if let Some(rev) = rev_arg {
+                match load_result_by_rev(rev) {
+                    Some(b) => b,
+                    None => {
+                        let available = list_available_baselines();
+                        eprintln!("Error: no saved results for '{}'", rev);
+                        if available.is_empty() {
+                            eprintln!("No baselines available. Run 'zhc_bench export' first.");
+                        } else {
+                            eprintln!("Available baselines: {}", available.join(", "));
+                        }
+                        std::process::exit(1);
+                    }
+                }
+            } else {
+                let current_short = get_commit_short();
+                match find_latest_baseline(&current_short) {
+                    Some(b) => b,
+                    None => {
+                        eprintln!("Error: no baseline found.");
+                        eprintln!("Run 'zhc_bench export' on a commit first.");
+                        std::process::exit(1);
+                    }
+                }
+            };
+            run_diff_incremental(&baseline, use_color);
         }
         _ => {
-            eprintln!("Usage: zhc_bench [run|site]");
-            eprintln!("  run  - Run benchmarks and regenerate site");
-            eprintln!("  site - Regenerate site from existing results");
+            eprintln!("Usage: zhc_bench [run|export|diff]");
+            eprintln!("  run                     - Run benchmarks and display latency table");
+            eprintln!(
+                "  export                  - Run benchmarks, save results, and regenerate site"
+            );
+            eprintln!(
+                "  diff [REV] [--no-color] - Compare current against REV (default: latest baseline)"
+            );
         }
     }
 }

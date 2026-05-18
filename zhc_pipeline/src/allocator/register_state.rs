@@ -1,5 +1,5 @@
 use std::fmt::Display;
-use zhc_ir::ValId;
+use zhc_ir::{AsValId, ValId};
 use zhc_utils::{StoreIndex, fsm};
 
 /// Represents the state of a register.
@@ -95,8 +95,9 @@ impl RegState {
     }
 
     /// Acquire a register for unspill.
-    pub fn acquire_unspill(&mut self, valid: ValId) {
+    pub fn acquire_unspill(&mut self, valid: impl AsValId) {
         use RegState::*;
+        let valid = valid.val_id();
         self.transition(|old| match old {
             Empty => Unspilled(valid),
             _ => unreachable!(),
@@ -104,8 +105,9 @@ impl RegState {
     }
 
     /// Acquire a register for dst
-    pub fn acquire_dst(&mut self, valid: ValId) {
+    pub fn acquire_dst(&mut self, valid: impl AsValId) {
         use RegState::*;
+        let valid = valid.val_id();
         self.transition(|old| match old {
             Empty => Fresh(valid),
             Retiring(old) => Transitioning(old, valid),

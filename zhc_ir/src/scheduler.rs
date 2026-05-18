@@ -26,7 +26,7 @@ pub fn reschedule<'a, D: Dialect>(
             .map(|a| *valmap.get(a).unwrap())
             .collect();
         let (new_opid, new_rets) = output.add_op(op.get_instruction().clone(), new_args);
-        assert!(opmap.insert(op.get_id(), new_opid).is_none());
+        assert!(opmap.insert(&op, new_opid).is_none());
         op.get_return_valids()
             .iter()
             .copied()

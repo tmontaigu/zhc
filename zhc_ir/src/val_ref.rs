@@ -3,7 +3,7 @@ use std::ops::Deref;
 
 use zhc_utils::Dumpable;
 
-use super::{Dialect, IR, State, ValId};
+use super::{AsValId, Dialect, IR, State, ValId};
 use crate::val_use::ValUse;
 use crate::{Formatted, OpRef, ValOrigin, ValOriginRef, ValUseRef};
 use zhc_utils::iter::Deduped;
@@ -42,6 +42,18 @@ impl<'ir, D: Dialect> Deref for ValRef<'ir, D> {
 
     fn deref(&self) -> &Self::Target {
         &self.id
+    }
+}
+
+impl<D: Dialect> AsValId for ValRef<'_, D> {
+    fn val_id(&self) -> ValId {
+        self.id
+    }
+}
+
+impl<D: Dialect> AsValId for &ValRef<'_, D> {
+    fn val_id(&self) -> ValId {
+        self.id
     }
 }
 

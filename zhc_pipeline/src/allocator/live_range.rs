@@ -1,6 +1,6 @@
 use std::ops::Index;
 
-use zhc_ir::{IR, OpIdRaw, ValId, ValMap};
+use zhc_ir::{AsValId, IR, OpIdRaw, ValId, ValMap};
 use zhc_langs::hpulang::HpuLang;
 use zhc_utils::{SafeAs, small::SmallVec, svec};
 
@@ -52,14 +52,10 @@ impl LiveRangeMap {
         let mut live_ranges: ValMap<LiveRange> = ir.empty_valmap();
         for (point, op) in ir.walk_ops_linear().enumerate() {
             for val in op.get_args_iter() {
-                live_ranges
-                    .get_mut(&val.get_id())
-                    .unwrap()
-                    .0
-                    .push(point.sas());
+                live_ranges.get_mut(&val).unwrap().0.push(point.sas());
             }
             for val in op.get_returns_iter() {
-                live_ranges.insert(val.get_id(), LiveRange(svec![point.sas()]));
+                live_ranges.insert(&val, LiveRange(svec![point.sas()]));
             }
         }
         LiveRangeMap(live_ranges)
@@ -74,10 +70,10 @@ impl LiveRangeMap {
     }
 }
 
-impl Index<ValId> for LiveRangeMap {
+impl<I: AsValId> Index<I> for LiveRangeMap {
     type Output = LiveRange;
 
-    fn index(&self, index: ValId) -> &LiveRange {
+    fn index(&self, index: I) -> &LiveRange {
         &self.0[index]
     }
 }

@@ -3,7 +3,9 @@ use std::ops::Deref;
 use zhc_utils::Dumpable;
 
 use super::*;
-use crate::{AnnOpRef, AnnValRef, Dialect, Formatted, IR, OpId, OpMap, ValId, ValMap};
+use crate::{
+    AnnOpRef, AnnValRef, AsOpId, AsValId, Dialect, Formatted, IR, OpId, OpMap, ValId, ValMap,
+};
 
 #[derive(Debug, Clone)]
 pub struct AnnIRView<'ir, 'ann, D: Dialect, OpAnn: Annotation, ValAnn: Annotation> {
@@ -50,7 +52,8 @@ impl<'ir, 'ann, D: Dialect, OpAnn: Annotation, ValAnn: Annotation>
     /// # Panics
     ///
     /// Panics if the operation ID does not exist or refers to an inactive operation.
-    pub fn get_op(&self, opid: OpId) -> AnnOpRef<'ir, '_, D, OpAnn, ValAnn> {
+    pub fn get_op(&self, opid: impl AsOpId) -> AnnOpRef<'ir, '_, D, OpAnn, ValAnn> {
+        let opid = opid.op_id();
         let opref = self.ir.get_op(opid);
         let ann = &self.op_annotations[opid];
         AnnOpRef {
@@ -65,7 +68,8 @@ impl<'ir, 'ann, D: Dialect, OpAnn: Annotation, ValAnn: Annotation>
     /// # Panics
     ///
     /// Panics if the value ID does not exist, refers to an inactive value.
-    pub fn get_val(&self, valid: ValId) -> AnnValRef<'ir, '_, D, OpAnn, ValAnn> {
+    pub fn get_val(&self, valid: impl AsValId) -> AnnValRef<'ir, '_, D, OpAnn, ValAnn> {
+        let valid = valid.val_id();
         let valref = self.ir.get_val(valid);
         let ann = &self.val_annotations[valid];
         AnnValRef {
@@ -80,7 +84,7 @@ impl<'ir, 'ann, D: Dialect, OpAnn: Annotation, ValAnn: Annotation>
         &self,
     ) -> impl DoubleEndedIterator<Item = AnnOpRef<'ir, '_, D, OpAnn, ValAnn>> {
         self.ir.walk_ops_linear().map(|opref| {
-            let ann = &self.op_annotations[*opref];
+            let ann = &self.op_annotations[&opref];
             AnnOpRef {
                 ir: self.clone(),
                 opref,
@@ -94,7 +98,7 @@ impl<'ir, 'ann, D: Dialect, OpAnn: Annotation, ValAnn: Annotation>
         &self,
     ) -> impl DoubleEndedIterator<Item = AnnOpRef<'ir, '_, D, OpAnn, ValAnn>> {
         self.ir.walk_ops_topological().map(|opref| {
-            let ann = &self.op_annotations[*opref];
+            let ann = &self.op_annotations[&opref];
             AnnOpRef {
                 ir: self.clone(),
                 opref,
@@ -109,7 +113,7 @@ impl<'ir, 'ann, D: Dialect, OpAnn: Annotation, ValAnn: Annotation>
         walker: impl Iterator<Item = OpId>,
     ) -> impl Iterator<Item = AnnOpRef<'ir, '_, D, OpAnn, ValAnn>> {
         self.ir.walk_ops_with(walker).map(|opref| {
-            let ann = &self.op_annotations[*opref];
+            let ann = &self.op_annotations[&opref];
             AnnOpRef {
                 ir: self.clone(),
                 opref,
@@ -123,7 +127,7 @@ impl<'ir, 'ann, D: Dialect, OpAnn: Annotation, ValAnn: Annotation>
         &self,
     ) -> impl DoubleEndedIterator<Item = AnnValRef<'ir, '_, D, OpAnn, ValAnn>> {
         self.ir.walk_vals_linear().map(|valref| {
-            let ann = &self.val_annotations[*valref];
+            let ann = &self.val_annotations[&valref];
             AnnValRef {
                 ir: self.clone(),
                 valref,
@@ -138,7 +142,7 @@ impl<'ir, 'ann, D: Dialect, OpAnn: Annotation, ValAnn: Annotation>
         walker: impl Iterator<Item = ValId>,
     ) -> impl Iterator<Item = AnnValRef<'ir, '_, D, OpAnn, ValAnn>> {
         self.ir.walk_vals_with(walker).map(|valref| {
-            let ann = &self.val_annotations[*valref];
+            let ann = &self.val_annotations[&valref];
             AnnValRef {
                 ir: self.clone(),
                 valref,

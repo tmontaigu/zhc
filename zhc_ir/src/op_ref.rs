@@ -1,4 +1,4 @@
-use crate::{Formatted, Op};
+use crate::{AsOpId, Formatted, Op};
 use std::{hash::Hash, ops::Deref};
 use zhc_utils::{Dumpable, FastSet, iter::CollectInSmallVec};
 
@@ -41,6 +41,18 @@ impl<'ir, D: Dialect> Deref for OpRef<'ir, D> {
 
     fn deref(&self) -> &Self::Target {
         &self.id
+    }
+}
+
+impl<D: Dialect> AsOpId for OpRef<'_, D> {
+    fn op_id(&self) -> OpId {
+        self.id
+    }
+}
+
+impl<D: Dialect> AsOpId for &OpRef<'_, D> {
+    fn op_id(&self) -> OpId {
+        self.id
     }
 }
 

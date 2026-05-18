@@ -10,7 +10,7 @@
 //! |-------|---------------------|-------------------------|
 //! | Plain | [`translate`]       | [`translate_ann`]       |
 
-use crate::{AnnIR, AnnOpRef, Annotation, Dialect, IR, OpId, OpRef, ValId, ValMap};
+use crate::{AnnIR, AnnOpRef, Annotation, AsValId, Dialect, IR, OpId, OpRef, ValId, ValMap};
 use std::marker::PhantomData;
 use zhc_utils::{
     iter::{CollectInSmallVec, MultiZip},
@@ -50,8 +50,8 @@ impl<ID: Dialect, OD: Dialect> Translator<ID, OD> {
     /// # Panics
     ///
     /// Panics if no translation has been registered for `old`.
-    pub fn translate_val(&self, old: ValId) -> ValId {
-        self.valmap.get(&old).unwrap().clone()
+    pub fn translate_val(&self, old: impl AsValId) -> ValId {
+        self.valmap.get(old).unwrap().clone()
     }
 
     /// Emits an operation in the output [`IR`] and returns its newly created return values.
@@ -64,8 +64,8 @@ impl<ID: Dialect, OD: Dialect> Translator<ID, OD> {
     }
 
     /// Returns whether a translation has been registered for `old`.
-    pub fn has_translation(&self, old: ValId) -> bool {
-        self.valmap.contains_key(&old)
+    pub fn has_translation(&self, old: impl AsValId) -> bool {
+        self.valmap.contains_key(old)
     }
 
     /// Records a mapping from source value `old` to output value `new`.
@@ -73,7 +73,9 @@ impl<ID: Dialect, OD: Dialect> Translator<ID, OD> {
     /// # Panics
     ///
     /// Panics if a translation has already been registered for `old`.
-    pub fn register_translation(&mut self, old: ValId, new: ValId) {
+    pub fn register_translation(&mut self, old: impl AsValId, new: impl AsValId) {
+        let old = old.val_id();
+        let new = new.val_id();
         assert!(
             self.valmap.insert(old, new).is_none(),
             "Tried to register a translation twice for {old}"

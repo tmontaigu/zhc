@@ -8,7 +8,7 @@
 
 use zhc_utils::iter::CollectInSmallVec;
 
-use crate::OpMap;
+use crate::{AsOpId, OpMap};
 
 use super::{Dialect, IR, OpId};
 use std::ops::Index;
@@ -38,13 +38,13 @@ impl DeadCodeAnalysis {
 
         let mut worklist = Vec::new();
         for effect in ir.raw_walk_ops_linear().filter(|op| op.is_effect()) {
-            states.insert(effect.get_id(), Liveness::Live);
+            states.insert(&effect, Liveness::Live);
             worklist.push(effect);
         }
         while let Some(op) = worklist.pop() {
             for pred in op.get_predecessors_iter() {
-                if states[pred.get_id()] == Liveness::Dead {
-                    states.insert(pred.get_id(), Liveness::Live);
+                if states[&pred] == Liveness::Dead {
+                    states.insert(&pred, Liveness::Live);
                     worklist.push(pred);
                 }
             }
@@ -63,10 +63,10 @@ impl DeadCodeAnalysis {
     }
 }
 
-impl Index<OpId> for DeadCodeAnalysis {
+impl<I: AsOpId> Index<I> for DeadCodeAnalysis {
     type Output = Liveness;
 
-    fn index(&self, index: OpId) -> &Self::Output {
+    fn index(&self, index: I) -> &Self::Output {
         &self.states[index]
     }
 }

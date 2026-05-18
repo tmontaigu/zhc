@@ -2,7 +2,9 @@ use std::{fmt::Debug, ops::Deref};
 
 use zhc_utils::Dumpable;
 
-use crate::{AnnValRef, Annotation, Dialect, Formatted, OpRef, annotation::view::AnnIRView};
+use crate::{
+    AnnValRef, Annotation, AsOpId, Dialect, Formatted, OpId, OpRef, annotation::view::AnnIRView,
+};
 
 /// Operation reference with attached annotation data.
 #[derive(Debug, Clone)]
@@ -27,7 +29,7 @@ impl<'ir, 'ann, D: Dialect, OpAnn: Annotation, ValAnn: Annotation>
     {
         let local_ir = self.ir.clone();
         self.opref.get_args_iter().map(move |valref| {
-            let ann = &local_ir.val_annotations[*valref];
+            let ann = &local_ir.val_annotations[&valref];
             AnnValRef {
                 ir: local_ir.clone(),
                 valref,
@@ -43,7 +45,7 @@ impl<'ir, 'ann, D: Dialect, OpAnn: Annotation, ValAnn: Annotation>
     {
         let local_ir = self.ir.clone();
         self.opref.get_returns_iter().map(move |valref| {
-            let ann = &local_ir.val_annotations[*valref];
+            let ann = &local_ir.val_annotations[&valref];
             AnnValRef {
                 ir: local_ir.clone(),
                 valref,
@@ -59,7 +61,7 @@ impl<'ir, 'ann, D: Dialect, OpAnn: Annotation, ValAnn: Annotation>
     {
         let local_ir = self.ir.clone();
         self.opref.get_users_iter().map(move |opref| {
-            let ann = &local_ir.op_annotations[*opref];
+            let ann = &local_ir.op_annotations[&opref];
             AnnOpRef {
                 ir: local_ir.clone(),
                 opref,
@@ -75,7 +77,7 @@ impl<'ir, 'ann, D: Dialect, OpAnn: Annotation, ValAnn: Annotation>
     {
         let local_ir = self.ir.clone();
         self.opref.get_predecessors_iter().map(move |opref| {
-            let ann = &local_ir.op_annotations[*opref];
+            let ann = &local_ir.op_annotations[&opref];
             AnnOpRef {
                 ir: local_ir.clone(),
                 opref,
@@ -91,7 +93,7 @@ impl<'ir, 'ann, D: Dialect, OpAnn: Annotation, ValAnn: Annotation>
     {
         let local_ir = self.ir.clone();
         self.opref.get_reaching_iter().map(move |opref| {
-            let ann = &local_ir.op_annotations[*opref];
+            let ann = &local_ir.op_annotations[&opref];
             AnnOpRef {
                 ir: local_ir.clone(),
                 opref,
@@ -108,7 +110,7 @@ impl<'ir, 'ann, D: Dialect, OpAnn: Annotation, ValAnn: Annotation>
     {
         let local_ir = self.ir.clone();
         self.opref.get_reached_iter().map(move |opref| {
-            let ann = &local_ir.op_annotations[*opref];
+            let ann = &local_ir.op_annotations[&opref];
             AnnOpRef {
                 ir: local_ir.clone(),
                 opref,
@@ -130,6 +132,22 @@ impl<'ir, 'ann, D: Dialect, OpAnn: Annotation, ValAnn: Annotation> Deref
 
     fn deref(&self) -> &Self::Target {
         &self.opref
+    }
+}
+
+impl<D: Dialect, OpAnn: Annotation, ValAnn: Annotation> AsOpId
+    for AnnOpRef<'_, '_, D, OpAnn, ValAnn>
+{
+    fn op_id(&self) -> OpId {
+        self.opref.op_id()
+    }
+}
+
+impl<D: Dialect, OpAnn: Annotation, ValAnn: Annotation> AsOpId
+    for &AnnOpRef<'_, '_, D, OpAnn, ValAnn>
+{
+    fn op_id(&self) -> OpId {
+        self.opref.op_id()
     }
 }
 

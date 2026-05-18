@@ -3,8 +3,8 @@ use std::{fmt::Debug, ops::Deref};
 use zhc_utils::Dumpable;
 
 use crate::{
-    AnnOpRef, AnnValOriginRef, AnnValUseRef, Annotation, Dialect, Formatted, ValRef,
-    annotation::view::AnnIRView,
+    AnnOpRef, AnnValOriginRef, AnnValUseRef, Annotation, AsValId, Dialect, Formatted, ValId,
+    ValRef, annotation::view::AnnIRView,
 };
 
 /// Value reference with attached annotation data.
@@ -26,7 +26,7 @@ impl<'ir, 'ann, D: Dialect, OpAnn: Annotation, ValAnn: Annotation>
     /// Returns the operation that produces this value with its annotation.
     pub fn get_origin(&self) -> AnnValOriginRef<'ir, 'ann, D, OpAnn, ValAnn> {
         let origin = self.valref.get_origin();
-        let ann = &self.ir.op_annotations[*origin.opref];
+        let ann = &self.ir.op_annotations[&origin.opref];
         AnnValOriginRef {
             opref: AnnOpRef {
                 ir: self.ir.clone(),
@@ -44,7 +44,7 @@ impl<'ir, 'ann, D: Dialect, OpAnn: Annotation, ValAnn: Annotation>
     {
         let local_ir = self.ir.clone();
         self.valref.get_uses_iter().map(move |user| {
-            let ann = &local_ir.op_annotations[*user.opref];
+            let ann = &local_ir.op_annotations[&user.opref];
             AnnValUseRef {
                 opref: AnnOpRef {
                     ir: local_ir.clone(),
@@ -63,7 +63,7 @@ impl<'ir, 'ann, D: Dialect, OpAnn: Annotation, ValAnn: Annotation>
     {
         let local_ir = self.ir.clone();
         self.valref.get_users_iter().map(move |user| {
-            let ann = &local_ir.op_annotations[*user];
+            let ann = &local_ir.op_annotations[&user];
             AnnOpRef {
                 ir: local_ir.clone(),
                 opref: user,
@@ -85,6 +85,22 @@ impl<'ir, 'ann, D: Dialect, OpAnn: Annotation, ValAnn: Annotation> Deref
 
     fn deref(&self) -> &Self::Target {
         &self.valref
+    }
+}
+
+impl<D: Dialect, OpAnn: Annotation, ValAnn: Annotation> AsValId
+    for AnnValRef<'_, '_, D, OpAnn, ValAnn>
+{
+    fn val_id(&self) -> ValId {
+        self.valref.val_id()
+    }
+}
+
+impl<D: Dialect, OpAnn: Annotation, ValAnn: Annotation> AsValId
+    for &AnnValRef<'_, '_, D, OpAnn, ValAnn>
+{
+    fn val_id(&self) -> ValId {
+        self.valref.val_id()
     }
 }
 

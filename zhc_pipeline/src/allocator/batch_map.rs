@@ -1,6 +1,6 @@
 use std::ops::Index;
 
-use zhc_ir::{OpRef, ValId};
+use zhc_ir::{AsValId, OpRef, ValId};
 use zhc_langs::hpulang::{HpuInstructionSet, HpuLang};
 use zhc_utils::{
     iter::{CollectInVec, MultiZip},
@@ -61,10 +61,10 @@ impl BatchMap {
     }
 }
 
-impl Index<ValId> for BatchMap {
+impl<I: AsValId> Index<I> for BatchMap {
     type Output = ValId;
 
-    fn index(&self, index: ValId) -> &Self::Output {
-        self.0.get(&index).unwrap()
+    fn index(&self, index: I) -> &Self::Output {
+        self.0.get(&index.val_id()).unwrap()
     }
 }

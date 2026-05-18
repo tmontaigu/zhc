@@ -3,7 +3,7 @@ use std::ops::Index;
 
 use zhc_utils::{Dumpable, Store};
 
-use crate::{OpIdRaw, OpRef};
+use crate::{AsOpId, OpIdRaw, OpRef};
 
 use super::{Dialect, IR, OpId, State};
 
@@ -21,8 +21,9 @@ pub struct OpMap<T> {
 }
 
 impl<T> OpMap<T> {
-    fn may_store(&self, k: &OpId) -> bool {
-        k.0 < self.store.len() && self.store[k].is_active()
+    fn may_store(&self, k: impl AsOpId) -> bool {
+        let k = k.op_id();
+        k.0 < self.store.len() && self.store[&k].is_active()
     }
 
     /// Creates an empty operation map with the same structure as the IR.
@@ -132,9 +133,10 @@ impl<T> OpMap<T> {
     /// # Panics
     ///
     /// Panics if the operation ID is out of bounds or refers to an inactive operation.
-    pub fn contains_key(&self, k: &OpId) -> bool {
+    pub fn contains_key(&self, k: impl AsOpId) -> bool {
+        let k = k.op_id();
         assert!(self.may_store(k));
-        self.store[k].as_ref().unwrap_active().is_some()
+        self.store[&k].as_ref().unwrap_active().is_some()
     }
 
     /// Returns a reference to the value for the specified operation.
@@ -144,9 +146,10 @@ impl<T> OpMap<T> {
     /// # Panics
     ///
     /// Panics if the operation ID is out of bounds or refers to an inactive operation.
-    pub fn get(&self, k: &OpId) -> Option<&T> {
+    pub fn get(&self, k: impl AsOpId) -> Option<&T> {
+        let k = k.op_id();
         assert!(self.may_store(k));
-        self.store[k].as_ref().unwrap_active().as_ref()
+        self.store[&k].as_ref().unwrap_active().as_ref()
     }
 
     /// Returns a mutable guard for the data at the specified operation.
@@ -157,9 +160,10 @@ impl<T> OpMap<T> {
     /// # Panics
     ///
     /// Panics if the operation ID is out of bounds or refers to an inactive operation.
-    pub fn get_mut(&mut self, k: &OpId) -> Option<&mut T> {
+    pub fn get_mut(&mut self, k: impl AsOpId) -> Option<&mut T> {
+        let k = k.op_id();
         assert!(self.may_store(k));
-        self.store[k].as_mut_ref().unwrap_active().as_mut()
+        self.store[&k].as_mut_ref().unwrap_active().as_mut()
     }
 
     /// Stores a value for the specified operation.
@@ -169,13 +173,14 @@ impl<T> OpMap<T> {
     /// # Panics
     ///
     /// Panics if the operation ID is out of bounds or refers to an inactive operation.
-    pub fn insert(&mut self, k: OpId, v: T) -> Option<T>
+    pub fn insert(&mut self, k: impl AsOpId, v: T) -> Option<T>
     where
         T: PartialEq,
     {
-        assert!(self.may_store(&k));
+        let k = k.op_id();
+        assert!(self.may_store(k));
         let v = State::Active(Some(v));
-        let out = std::mem::replace(&mut self.store[k], v).unwrap_active();
+        let out = std::mem::replace(&mut self.store[&k], v).unwrap_active();
         if out.is_none() {
             self.n_stored += 1;
         }
@@ -189,10 +194,11 @@ impl<T> OpMap<T> {
     /// # Panics
     ///
     /// Panics if the operation ID is out of bounds or refers to an inactive operation.
-    pub fn remove(&mut self, k: &OpId) -> Option<T> {
-        assert!(self.may_store(&k));
+    pub fn remove(&mut self, k: impl AsOpId) -> Option<T> {
+        let k = k.op_id();
+        assert!(self.may_store(k));
         let v = State::Active(None);
-        let out = std::mem::replace(&mut self.store[k], v).unwrap_active();
+        let out = std::mem::replace(&mut self.store[&k], v).unwrap_active();
         if out.is_some() {
             self.n_stored -= 1;
         }
@@ -243,13 +249,13 @@ impl<T> OpMap<T> {
     }
 }
 
-impl<T> Index<OpId> for OpMap<T> {
+impl<I: AsOpId, T> Index<I> for OpMap<T> {
     type Output = T;
 
-    fn index(&self, index: OpId) -> &Self::Output {
-        match self.get(&index) {
+    fn index(&self, index: I) -> &Self::Output {
+        match self.get(index) {
             Some(a) => a,
-            None => panic!("Tried to get unmapped index {:?}", index),
+            None => panic!("Tried to get unmapped index"),
         }
     }
 }

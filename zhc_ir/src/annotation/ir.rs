@@ -1,6 +1,6 @@
 use super::*;
 use crate::{
-    AnnOpRef, AnnValRef, Dialect, Formatted, IR, OpId, OpMap, ValId, ValMap,
+    AnnOpRef, AnnValRef, AsOpId, AsValId, Dialect, Formatted, IR, OpId, OpMap, ValId, ValMap,
     annotation::view::AnnIRView,
 };
 use std::ops::Deref;
@@ -74,7 +74,8 @@ impl<'ir, D: Dialect, OpAnn: Annotation, ValAnn: Annotation> AnnIR<'ir, D, OpAnn
     /// # Panics
     ///
     /// Panics if the operation ID does not exist or refers to an inactive operation.
-    pub fn get_op(&self, opid: OpId) -> AnnOpRef<'ir, '_, D, OpAnn, ValAnn> {
+    pub fn get_op(&self, opid: impl AsOpId) -> AnnOpRef<'ir, '_, D, OpAnn, ValAnn> {
+        let opid = opid.op_id();
         let opref = self.ir.get_op(opid);
         let ann = &self.op_annotations[opid];
         AnnOpRef {
@@ -89,7 +90,8 @@ impl<'ir, D: Dialect, OpAnn: Annotation, ValAnn: Annotation> AnnIR<'ir, D, OpAnn
     /// # Panics
     ///
     /// Panics if the value ID does not exist, refers to an inactive value.
-    pub fn get_val(&self, valid: ValId) -> AnnValRef<'ir, '_, D, OpAnn, ValAnn> {
+    pub fn get_val(&self, valid: impl AsValId) -> AnnValRef<'ir, '_, D, OpAnn, ValAnn> {
+        let valid = valid.val_id();
         let valref = self.ir.get_val(valid);
         let ann = &self.val_annotations[valid];
         AnnValRef {
@@ -104,7 +106,7 @@ impl<'ir, D: Dialect, OpAnn: Annotation, ValAnn: Annotation> AnnIR<'ir, D, OpAnn
         &self,
     ) -> impl DoubleEndedIterator<Item = AnnOpRef<'ir, '_, D, OpAnn, ValAnn>> {
         self.ir.walk_ops_linear().map(|opref| {
-            let ann = &self.op_annotations[*opref];
+            let ann = &self.op_annotations[&opref];
             AnnOpRef {
                 ir: self.view(),
                 opref,
@@ -118,7 +120,7 @@ impl<'ir, D: Dialect, OpAnn: Annotation, ValAnn: Annotation> AnnIR<'ir, D, OpAnn
         &self,
     ) -> impl DoubleEndedIterator<Item = AnnOpRef<'ir, '_, D, OpAnn, ValAnn>> {
         self.ir.walk_ops_topological().map(|opref| {
-            let ann = &self.op_annotations[*opref];
+            let ann = &self.op_annotations[&opref];
             AnnOpRef {
                 ir: self.view(),
                 opref,
@@ -133,7 +135,7 @@ impl<'ir, D: Dialect, OpAnn: Annotation, ValAnn: Annotation> AnnIR<'ir, D, OpAnn
         walker: impl Iterator<Item = OpId>,
     ) -> impl Iterator<Item = AnnOpRef<'ir, '_, D, OpAnn, ValAnn>> {
         self.ir.walk_ops_with(walker).map(|opref| {
-            let ann = &self.op_annotations[*opref];
+            let ann = &self.op_annotations[&opref];
             AnnOpRef {
                 ir: self.view(),
                 opref,
@@ -147,7 +149,7 @@ impl<'ir, D: Dialect, OpAnn: Annotation, ValAnn: Annotation> AnnIR<'ir, D, OpAnn
         &self,
     ) -> impl DoubleEndedIterator<Item = AnnValRef<'ir, '_, D, OpAnn, ValAnn>> {
         self.ir.walk_vals_linear().map(|valref| {
-            let ann = &self.val_annotations[*valref];
+            let ann = &self.val_annotations[&valref];
             AnnValRef {
                 ir: self.view(),
                 valref,
@@ -162,7 +164,7 @@ impl<'ir, D: Dialect, OpAnn: Annotation, ValAnn: Annotation> AnnIR<'ir, D, OpAnn
         walker: impl Iterator<Item = ValId>,
     ) -> impl Iterator<Item = AnnValRef<'ir, '_, D, OpAnn, ValAnn>> {
         self.ir.walk_vals_with(walker).map(|valref| {
-            let ann = &self.val_annotations[*valref];
+            let ann = &self.val_annotations[&valref];
             AnnValRef {
                 ir: self.view(),
                 valref,
@@ -195,19 +197,19 @@ impl<'ir, D: Dialect, OpAnn: Annotation, ValAnn: Annotation> AnnIR<'ir, D, OpAnn
             ir: self.ir,
         };
         for opref in self.walk_ops_topological().rev() {
-            let (opann, valanns) = f(ann_ir.get_op(**opref), &opref);
+            let (opann, valanns) = f(ann_ir.get_op(&opref), &opref);
             assert_eq!(valanns.len(), opref.get_return_valids().len());
             assert!(matches!(
                 ann_ir
                     .op_annotations
-                    .insert(**opref, Analysing::Analyzed(opann)),
+                    .insert(&opref, Analysing::Analyzed(opann)),
                 Some(Analysing::Pending)
             ));
             for (valann, valref) in (valanns.into_iter(), opref.get_return_valids().iter()).mzip() {
                 assert!(matches!(
                     ann_ir
                         .val_annotations
-                        .insert(*valref, Analysing::Analyzed(valann)),
+                        .insert(valref, Analysing::Analyzed(valann)),
                     Some(Analysing::Pending)
                 ));
             }
@@ -243,19 +245,19 @@ impl<'ir, D: Dialect, OpAnn: Annotation, ValAnn: Annotation> AnnIR<'ir, D, OpAnn
             ir: self.ir,
         };
         for opref in self.walk_ops_topological() {
-            let (opann, valanns) = f(ann_ir.get_op(**opref), &opref);
+            let (opann, valanns) = f(ann_ir.get_op(&opref), &opref);
             assert_eq!(valanns.len(), opref.get_return_valids().len());
             assert!(matches!(
                 ann_ir
                     .op_annotations
-                    .insert(**opref, Analysing::Analyzed(opann)),
+                    .insert(&opref, Analysing::Analyzed(opann)),
                 Some(Analysing::Pending)
             ));
             for (valann, valref) in (valanns.into_iter(), opref.get_return_valids().iter()).mzip() {
                 assert!(matches!(
                     ann_ir
                         .val_annotations
-                        .insert(*valref, Analysing::Analyzed(valann)),
+                        .insert(valref, Analysing::Analyzed(valann)),
                     Some(Analysing::Pending)
                 ));
             }
@@ -275,7 +277,7 @@ impl<'ir, D: Dialect, OpAnn: Annotation, ValAnn: Annotation> AnnIR<'ir, D, OpAnn
         let mut opmap = self.empty_opmap();
         for opref in self.walk_ops_linear() {
             let new_opann = f(&opref);
-            assert!(opmap.insert(**opref, new_opann).is_none());
+            assert!(opmap.insert(&opref, new_opann).is_none());
         }
         AnnIR::new(self.ir, opmap, self.val_annotations.clone())
     }
@@ -288,7 +290,7 @@ impl<'ir, D: Dialect, OpAnn: Annotation, ValAnn: Annotation> AnnIR<'ir, D, OpAnn
         let mut valmap = self.empty_valmap();
         for valref in self.walk_vals_linear() {
             let new_valann = f(&valref);
-            assert!(valmap.insert(**valref, new_valann).is_none());
+            assert!(valmap.insert(&valref, new_valann).is_none());
         }
         AnnIR::new(self.ir, self.op_annotations.clone(), valmap)
     }

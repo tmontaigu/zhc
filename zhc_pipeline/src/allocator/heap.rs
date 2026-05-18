@@ -1,5 +1,5 @@
 use std::fmt::Display;
-use zhc_ir::ValId;
+use zhc_ir::{AsValId, ValId};
 use zhc_utils::{SafeAs, StoreIndex, small::SmallMap};
 
 /// A unique identifier to a slot on the heap.
@@ -22,25 +22,26 @@ impl Heap {
         }
     }
 
-    fn push(&mut self, valid: ValId) -> HeapSlot {
-        self.slots.insert(valid, self.last);
+    fn push(&mut self, valid: impl AsValId) -> HeapSlot {
+        self.slots.insert(valid.val_id(), self.last);
         let next = HeapSlot(self.last.0.strict_add(1));
         std::mem::replace(&mut self.last, next)
     }
 
     /// Check whether a value is on the heap.
-    pub fn contains(&self, valid: &ValId) -> bool {
-        self.slots.get(valid).is_some()
+    pub fn contains(&self, valid: impl AsValId) -> bool {
+        self.slots.get(&valid.val_id()).is_some()
     }
 
     /// Get a heap slot for a value.
     ///
     /// Creates a slot if the value is not already stored, and return the slot otherwise.
-    pub fn get(&mut self, valid: &ValId) -> HeapSlot {
+    pub fn get(&mut self, valid: impl AsValId) -> HeapSlot {
+        let valid = valid.val_id();
         if !self.contains(valid) {
-            self.push(*valid)
+            self.push(valid)
         } else {
-            *self.slots.get(valid).unwrap()
+            *self.slots.get(&valid).unwrap()
         }
     }
 

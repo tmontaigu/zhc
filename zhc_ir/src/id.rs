@@ -5,6 +5,26 @@ use std::{
 
 use zhc_utils::{Dumpable, SafeAs, StoreIndex};
 
+/// Trait for types that can provide an [`OpId`].
+///
+/// Implemented by [`OpId`] itself, as well as reference types like
+/// [`OpRef`](crate::OpRef) and [`AnnOpRef`](crate::AnnOpRef), enabling
+/// functions to accept any of these types when only the underlying
+/// identifier is needed.
+pub trait AsOpId {
+    fn op_id(&self) -> OpId;
+}
+
+/// Trait for types that can provide a [`ValId`].
+///
+/// Implemented by [`ValId`] itself, as well as reference types like
+/// [`ValRef`](crate::ValRef) and [`AnnValRef`](crate::AnnValRef), enabling
+/// functions to accept any of these types when only the underlying
+/// identifier is needed.
+pub trait AsValId {
+    fn val_id(&self) -> ValId;
+}
+
 /// Generates a typed identifier with arithmetic operations and store indexing support.
 ///
 /// Creates a strongly-typed wrapper around a raw numeric type that can be used
@@ -72,6 +92,42 @@ impl_index!(
     "Identifier for operations within an IR."
 );
 impl_index!(ValId, ValIdRaw, u32, "Identifier for values within an IR.");
+
+impl AsOpId for OpId {
+    fn op_id(&self) -> OpId {
+        *self
+    }
+}
+
+impl AsOpId for &OpId {
+    fn op_id(&self) -> OpId {
+        **self
+    }
+}
+
+impl AsOpId for &mut OpId {
+    fn op_id(&self) -> OpId {
+        **self
+    }
+}
+
+impl AsValId for ValId {
+    fn val_id(&self) -> ValId {
+        *self
+    }
+}
+
+impl AsValId for &ValId {
+    fn val_id(&self) -> ValId {
+        **self
+    }
+}
+
+impl AsValId for &mut ValId {
+    fn val_id(&self) -> ValId {
+        **self
+    }
+}
 impl_index!(
     ValueNumber,
     ValueNumberRaw,

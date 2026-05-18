@@ -5,7 +5,7 @@ use std::{
 
 use zhc_utils::{Dumpable, Store};
 
-use crate::{ValIdRaw, val_ref::ValRef};
+use crate::{AsValId, ValIdRaw, val_ref::ValRef};
 
 use super::{Dialect, IR, State, ValId};
 
@@ -23,8 +23,9 @@ pub struct ValMap<T> {
 }
 
 impl<T> ValMap<T> {
-    fn may_store(&self, k: &ValId) -> bool {
-        k.0 < self.store.len() && self.store[k].is_active()
+    fn may_store(&self, k: impl AsValId) -> bool {
+        let k = k.val_id();
+        k.0 < self.store.len() && self.store[&k].is_active()
     }
 
     /// Creates an empty value map with the same structure as the IR.
@@ -134,9 +135,10 @@ impl<T> ValMap<T> {
     /// # Panics
     ///
     /// Panics if the value ID is out of bounds or refers to an inactive value.
-    pub fn contains_key(&self, k: &ValId) -> bool {
+    pub fn contains_key(&self, k: impl AsValId) -> bool {
+        let k = k.val_id();
         assert!(self.may_store(k));
-        self.store[k].as_ref().unwrap_active().is_some()
+        self.store[&k].as_ref().unwrap_active().is_some()
     }
 
     /// Returns a reference to the data for the specified value.
@@ -146,9 +148,10 @@ impl<T> ValMap<T> {
     /// # Panics
     ///
     /// Panics if the value ID is out of bounds or refers to an inactive value.
-    pub fn get(&self, k: &ValId) -> Option<&T> {
+    pub fn get(&self, k: impl AsValId) -> Option<&T> {
+        let k = k.val_id();
         assert!(self.may_store(k));
-        self.store[k].as_ref().unwrap_active().as_ref()
+        self.store[&k].as_ref().unwrap_active().as_ref()
     }
 
     /// Returns a mutable guard for the data at the specified value.
@@ -159,9 +162,10 @@ impl<T> ValMap<T> {
     /// # Panics
     ///
     /// Panics if the value ID is out of bounds or refers to an inactive value.
-    pub fn get_mut(&mut self, k: &ValId) -> Option<&mut T> {
+    pub fn get_mut(&mut self, k: impl AsValId) -> Option<&mut T> {
+        let k = k.val_id();
         assert!(self.may_store(k));
-        self.store[k].as_mut_ref().unwrap_active().as_mut()
+        self.store[&k].as_mut_ref().unwrap_active().as_mut()
     }
 
     /// Stores data for the specified value.
@@ -171,13 +175,14 @@ impl<T> ValMap<T> {
     /// # Panics
     ///
     /// Panics if the value ID is out of bounds or refers to an inactive value.
-    pub fn insert(&mut self, k: ValId, v: T) -> Option<T>
+    pub fn insert(&mut self, k: impl AsValId, v: T) -> Option<T>
     where
         T: PartialEq,
     {
-        assert!(self.may_store(&k));
+        let k = k.val_id();
+        assert!(self.may_store(k));
         let v = State::Active(Some(v));
-        let out = std::mem::replace(&mut self.store[k], v).unwrap_active();
+        let out = std::mem::replace(&mut self.store[&k], v).unwrap_active();
         if out.is_none() {
             self.n_stored += 1;
         }
@@ -191,10 +196,11 @@ impl<T> ValMap<T> {
     /// # Panics
     ///
     /// Panics if the value ID is out of bounds or refers to an inactive value.
-    pub fn remove(&mut self, k: &ValId) -> Option<T> {
-        assert!(self.may_store(&k));
+    pub fn remove(&mut self, k: impl AsValId) -> Option<T> {
+        let k = k.val_id();
+        assert!(self.may_store(k));
         let v = State::Active(None);
-        let out = std::mem::replace(&mut self.store[k], v).unwrap_active();
+        let out = std::mem::replace(&mut self.store[&k], v).unwrap_active();
         if out.is_some() {
             self.n_stored -= 1;
         }
@@ -255,22 +261,22 @@ impl<T> ValMap<T> {
     }
 }
 
-impl<T> Index<ValId> for ValMap<T> {
+impl<I: AsValId, T> Index<I> for ValMap<T> {
     type Output = T;
 
-    fn index(&self, index: ValId) -> &Self::Output {
-        match self.get(&index) {
+    fn index(&self, index: I) -> &Self::Output {
+        match self.get(index) {
             Some(a) => a,
-            None => panic!("Tried to get unmapped index {:?}", index),
+            None => panic!("Tried to get unmapped index"),
         }
     }
 }
 
-impl<T> IndexMut<ValId> for ValMap<T> {
-    fn index_mut(&mut self, index: ValId) -> &mut Self::Output {
-        match self.get_mut(&index) {
+impl<I: AsValId, T> IndexMut<I> for ValMap<T> {
+    fn index_mut(&mut self, index: I) -> &mut Self::Output {
+        match self.get_mut(index) {
             Some(a) => a,
-            None => panic!("Tried to get unmapped index {:?}", index),
+            None => panic!("Tried to get unmapped index"),
         }
     }
 }

@@ -9,7 +9,7 @@ use zhc_builder::CiphertextSpec;
 use zhc_pipeline::compat::Iop;
 use zhc_sim::MHz;
 
-const BITS: &[u16] = &[8, 16, 32, 64, 128];
+const ALL_BITS: &[u16] = &[8, 16, 32, 64, 128];
 const RESULTS_DIR: &str = "zhc_bench/results";
 const SITE_DIR: &str = "zhc_bench/site";
 const DELTA_COL_WIDTH: usize = 8;
@@ -19,6 +19,67 @@ const DELTA_THRESHOLD: f64 = 0.5;
 const RED: &str = "\x1b[31m";
 const GREEN: &str = "\x1b[32m";
 const RESET: &str = "\x1b[0m";
+
+/// Parsed filter options from CLI arguments.
+struct Filters {
+    iops: Vec<Iop>,
+    bits: Vec<u16>,
+}
+
+impl Filters {
+    /// Parse filters from CLI args. Returns filters and remaining args.
+    fn parse(args: &[String]) -> (Self, Vec<String>) {
+        let mut iop_patterns: Vec<String> = vec![];
+        let mut bit_values: Vec<u16> = vec![];
+        let mut remaining = vec![];
+        let mut iter = args.iter().peekable();
+
+        while let Some(arg) = iter.next() {
+            if arg == "-i" || arg == "--iops" {
+                if let Some(val) = iter.next() {
+                    iop_patterns.extend(val.split(',').map(|s| s.trim().to_lowercase()));
+                }
+            } else if let Some(val) = arg.strip_prefix("--iops=") {
+                iop_patterns.extend(val.split(',').map(|s| s.trim().to_lowercase()));
+            } else if arg == "-b" || arg == "--bits" {
+                if let Some(val) = iter.next() {
+                    bit_values.extend(val.split(',').filter_map(|s| s.trim().parse::<u16>().ok()));
+                }
+            } else if let Some(val) = arg.strip_prefix("--bits=") {
+                bit_values.extend(val.split(',').filter_map(|s| s.trim().parse::<u16>().ok()));
+            } else {
+                remaining.push(arg.clone());
+            }
+        }
+
+        // Filter iops by case-insensitive substring match
+        let iops: Vec<Iop> = if iop_patterns.is_empty() {
+            Iop::ALL.to_vec()
+        } else {
+            Iop::ALL
+                .iter()
+                .filter(|iop| {
+                    let name = format!("{:?}", iop).to_lowercase();
+                    iop_patterns.iter().any(|p| name.contains(p))
+                })
+                .cloned()
+                .collect()
+        };
+
+        // Filter bits, defaulting to all if none specified
+        let bits: Vec<u16> = if bit_values.is_empty() {
+            ALL_BITS.to_vec()
+        } else {
+            ALL_BITS
+                .iter()
+                .filter(|b| bit_values.contains(b))
+                .copied()
+                .collect()
+        };
+
+        (Self { iops, bits }, remaining)
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct BenchResult {
@@ -71,9 +132,14 @@ fn check_git_clean() {
     }
 }
 
-fn bench_iop(iop: &Iop, config: &zhc_sim::hpu::HpuConfig, freq: MHz) -> BTreeMap<u16, f64> {
+fn bench_iop(
+    iop: &Iop,
+    config: &zhc_sim::hpu::HpuConfig,
+    freq: MHz,
+    bits_filter: &[u16],
+) -> BTreeMap<u16, f64> {
     let mut bits_results = BTreeMap::new();
-    for &bits in BITS {
+    for &bits in bits_filter {
         let spec = CiphertextSpec::new(bits, 2, 2);
         let builder = iop.to_builder(spec);
         let latency = zhc_pipeline::compute_latency(&builder, config.clone(), freq);
@@ -90,7 +156,7 @@ fn run_benchmarks() -> BenchResult {
     for iop in Iop::ALL {
         let iop_name = format!("{:?}", iop);
         println!("Benchmarking {}", iop_name);
-        let bits_results = bench_iop(iop, &config, freq);
+        let bits_results = bench_iop(iop, &config, freq, ALL_BITS);
         for (&bits, &latency) in &bits_results {
             println!("  {}b: {:.2}us", bits, latency);
         }
@@ -227,31 +293,35 @@ fn format_diff_cell(curr: Option<&f64>, base: Option<&f64>, use_color: bool) -> 
     }
 }
 
-fn run_diff_incremental(baseline: &BenchResult, use_color: bool) {
+fn run_diff_incremental(baseline: &BenchResult, use_color: bool, filters: &Filters) {
     let baseline_short = &baseline.commit[..7.min(baseline.commit.len())];
     let baseline_date = &baseline.timestamp[..10.min(baseline.timestamp.len())];
     println!("vs {} ({})\n", baseline_short, baseline_date);
 
-    let iop_names: Vec<_> = Iop::ALL.iter().map(|iop| format!("{:?}", iop)).collect();
+    let iop_names: Vec<_> = filters
+        .iops
+        .iter()
+        .map(|iop| format!("{:?}", iop))
+        .collect();
     let op_width = iop_names.iter().map(|s| s.len()).max().unwrap_or(9).max(9) + 2;
 
     // Top border
     print!("┌{:─<w$}", "", w = op_width);
-    for _ in BITS {
+    for _ in &filters.bits {
         print!("┬{:─<w$}", "", w = DELTA_COL_WIDTH);
     }
     println!("┐");
 
     // Header
     print!("│{:^w$}", "Operation", w = op_width);
-    for bits in BITS {
+    for bits in &filters.bits {
         print!("│{:^w$}", format!("{}b", bits), w = DELTA_COL_WIDTH);
     }
     println!("│");
 
     // Header separator
     print!("├{:─<w$}", "", w = op_width);
-    for _ in BITS {
+    for _ in &filters.bits {
         print!("┼{:─<w$}", "", w = DELTA_COL_WIDTH);
     }
     println!("┤");
@@ -260,14 +330,14 @@ fn run_diff_incremental(baseline: &BenchResult, use_color: bool) {
     let freq = MHz(400);
 
     // Data rows - benchmark and print each row as it completes
-    for iop in Iop::ALL {
+    for iop in &filters.iops {
         let iop_name = format!("{:?}", iop);
         print!("│ {:<w$}", iop_name, w = op_width - 1);
         io::stdout().flush().unwrap();
 
-        let bits_results = bench_iop(iop, &config, freq);
+        let bits_results = bench_iop(iop, &config, freq, &filters.bits);
 
-        for bits in BITS {
+        for bits in &filters.bits {
             let curr = bits_results.get(bits);
             let base = baseline.results.get(&iop_name).and_then(|m| m.get(bits));
             let cell = format_diff_cell(curr, base, use_color);
@@ -279,30 +349,34 @@ fn run_diff_incremental(baseline: &BenchResult, use_color: bool) {
 
     // Bottom border
     print!("└{:─<w$}", "", w = op_width);
-    for _ in BITS {
+    for _ in &filters.bits {
         print!("┴{:─<w$}", "", w = DELTA_COL_WIDTH);
     }
     println!("┘");
 }
 
-fn run_latency_table() {
-    let iop_names: Vec<_> = Iop::ALL.iter().map(|iop| format!("{:?}", iop)).collect();
+fn run_latency_table(filters: &Filters) {
+    let iop_names: Vec<_> = filters
+        .iops
+        .iter()
+        .map(|iop| format!("{:?}", iop))
+        .collect();
     let op_width = iop_names.iter().map(|s| s.len()).max().unwrap_or(9).max(9) + 2;
 
     print!("┌{:─<w$}", "", w = op_width);
-    for _ in BITS {
+    for _ in &filters.bits {
         print!("┬{:─<w$}", "", w = LATENCY_COL_WIDTH);
     }
     println!("┐");
 
     print!("│{:^w$}", "Operation", w = op_width);
-    for bits in BITS {
+    for bits in &filters.bits {
         print!("│{:^w$}", format!("{}b", bits), w = LATENCY_COL_WIDTH);
     }
     println!("│");
 
     print!("├{:─<w$}", "", w = op_width);
-    for _ in BITS {
+    for _ in &filters.bits {
         print!("┼{:─<w$}", "", w = LATENCY_COL_WIDTH);
     }
     println!("┤");
@@ -310,14 +384,14 @@ fn run_latency_table() {
     let config = zhc_sim::hpu::HpuConfig::default();
     let freq = MHz(400);
 
-    for iop in Iop::ALL {
+    for iop in &filters.iops {
         let iop_name = format!("{:?}", iop);
         print!("│ {:<w$}", iop_name, w = op_width - 1);
         io::stdout().flush().unwrap();
 
-        let bits_results = bench_iop(iop, &config, freq);
+        let bits_results = bench_iop(iop, &config, freq, &filters.bits);
 
-        for bits in BITS {
+        for bits in &filters.bits {
             let cell = format_latency_cell(bits_results.get(bits));
             print!("│{}", cell);
             io::stdout().flush().unwrap();
@@ -326,7 +400,7 @@ fn run_latency_table() {
     }
 
     print!("└{:─<w$}", "", w = op_width);
-    for _ in BITS {
+    for _ in &filters.bits {
         print!("┴{:─<w$}", "", w = LATENCY_COL_WIDTH);
     }
     println!("┘");
@@ -448,11 +522,21 @@ fn generate_html(results: &[BenchResult]) {
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
-    let cmd = args.get(1).map(|s| s.as_str()).unwrap_or("run");
+    let (filters, remaining) = Filters::parse(&args[1..]);
+    let cmd = remaining.first().map(|s| s.as_str()).unwrap_or("run");
+
+    if filters.iops.is_empty() {
+        eprintln!("Error: no iops match the filter");
+        std::process::exit(1);
+    }
+    if filters.bits.is_empty() {
+        eprintln!("Error: no bits match the filter");
+        std::process::exit(1);
+    }
 
     match cmd {
         "run" => {
-            run_latency_table();
+            run_latency_table(&filters);
         }
         "export" => {
             check_git_clean();
@@ -462,8 +546,8 @@ fn main() {
             generate_html(&all);
         }
         "diff" => {
-            let use_color = !args.iter().any(|a| a == "--no-color");
-            let rev_arg = args.iter().skip(2).find(|a| !a.starts_with("--"));
+            let use_color = !remaining.iter().any(|a| a == "--no-color");
+            let rev_arg = remaining.iter().skip(1).find(|a| !a.starts_with("--"));
             let baseline = if let Some(rev) = rev_arg {
                 match load_result_by_rev(rev) {
                     Some(b) => b,
@@ -489,10 +573,12 @@ fn main() {
                     }
                 }
             };
-            run_diff_incremental(&baseline, use_color);
+            run_diff_incremental(&baseline, use_color, &filters);
         }
         _ => {
-            eprintln!("Usage: zhc_bench [run|export|diff]");
+            eprintln!("Usage: zhc_bench [run|export|diff] [OPTIONS]");
+            eprintln!();
+            eprintln!("Commands:");
             eprintln!("  run                     - Run benchmarks and display latency table");
             eprintln!(
                 "  export                  - Run benchmarks, save results, and regenerate site"
@@ -500,6 +586,16 @@ fn main() {
             eprintln!(
                 "  diff [REV] [--no-color] - Compare current against REV (default: latest baseline)"
             );
+            eprintln!();
+            eprintln!("Filter options (for run and diff):");
+            eprintln!(
+                "  -i, --iops=PATTERNS     - Comma-separated iop name patterns (case-insensitive substring match)"
+            );
+            eprintln!("  -b, --bits=VALUES       - Comma-separated bit widths (8,16,32,64,128)");
+            eprintln!();
+            eprintln!("Examples:");
+            eprintln!("  zhc_bench run -i mul,div -b 8,16");
+            eprintln!("  zhc_bench diff --iops=cmp --bits=64");
         }
     }
 }

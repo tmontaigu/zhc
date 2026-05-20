@@ -428,6 +428,58 @@ impl EmulatedCiphertext {
         }
     }
 
+    pub fn shift_right(self, amount: Self) -> EmulatedCiphertext {
+        assert_eq!(self.spec, amount.spec(), "Spec mismatch.");
+        let w = self.spec.int_size() as u32;
+        let n = (amount.storage as u32) % w;
+        let storage = (self.storage >> n) & self.spec.int_mask();
+        EmulatedCiphertext {
+            storage,
+            spec: self.spec,
+        }
+    }
+
+    pub fn shift_left(self, amount: Self) -> EmulatedCiphertext {
+        assert_eq!(self.spec, amount.spec(), "Spec mismatch.");
+        let w = self.spec.int_size() as u32;
+        let n = (amount.storage as u32) % w;
+        let storage = (self.storage << n) & self.spec.int_mask();
+        EmulatedCiphertext {
+            storage,
+            spec: self.spec,
+        }
+    }
+
+    pub fn rotate_right(self, amount: Self) -> EmulatedCiphertext {
+        assert_eq!(self.spec, amount.spec(), "Spec mismatch.");
+        let w = self.spec.int_size() as u32;
+        let n = (amount.storage as u32) % w;
+        let storage = if n == 0 {
+            self.storage
+        } else {
+            ((self.storage >> n) | (self.storage << (w - n))) & self.spec.int_mask()
+        };
+        EmulatedCiphertext {
+            storage,
+            spec: self.spec,
+        }
+    }
+
+    pub fn rotate_left(self, amount: Self) -> EmulatedCiphertext {
+        assert_eq!(self.spec, amount.spec(), "Spec mismatch.");
+        let w = self.spec.int_size() as u32;
+        let n = (amount.storage as u32) % w;
+        let storage = if n == 0 {
+            self.storage
+        } else {
+            ((self.storage << n) | (self.storage >> (w - n))) & self.spec.int_mask()
+        };
+        EmulatedCiphertext {
+            storage,
+            spec: self.spec,
+        }
+    }
+
     /// Describe multiplication behavior when MSB are dropped
     pub fn mul_lsb(self, other: Self) -> EmulatedCiphertext {
         assert_eq!(self.spec, other.spec(), "Spec mismatch.");

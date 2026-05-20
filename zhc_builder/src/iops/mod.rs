@@ -50,6 +50,7 @@ mod if_then_else;
 mod if_then_zero;
 mod lead_trail;
 mod mul;
+mod shiftrot;
 
 pub use add::*;
 pub use bitwise::*;
@@ -60,6 +61,7 @@ pub use if_then_else::*;
 pub use if_then_zero::*;
 pub use lead_trail::*;
 pub use mul::*;
+pub use shiftrot::*;
 
 // SUB
 // ADDS

@@ -1,9 +1,9 @@
 use std::str::FromStr;
 
 use zhc_builder::{
-    CiphertextSpec, add, cmp_eq, cmp_gt, cmp_gte, cmp_lt, cmp_lte, cmp_neq, count_0, count_1, div,
-    if_then_else, if_then_zero, ilog2, lead0, lead1, mul_lsb, rem, sub, trail0, trail1,
-    bitwise_and, bitwise_or, bitwise_xor, shift_right, shift_left, rotate_right, rotate_left,
+    Builder, CiphertextSpec, add, bitwise_and, bitwise_or, bitwise_xor, cmp_eq, cmp_gt, cmp_gte,
+    cmp_lt, cmp_lte, cmp_neq, count_0, count_1, div, if_then_else, if_then_zero, ilog2, lead0,
+    lead1, mul_lsb, rem, rotate_left, rotate_right, shift_left, shift_right, sub, trail0, trail1,
 };
 use zhc_sim::hpu::HpuConfig;
 
@@ -150,6 +150,13 @@ impl Iop {
         Iop::TrailingOnes,
         Iop::Div,
         Iop::Mod,
+        Iop::BwAnd,
+        Iop::BwOr,
+        Iop::BwXor,
+        Iop::RightShift,
+        Iop::LeftShift,
+        Iop::RightRot,
+        Iop::LeftRot,
     ];
 
     /// Returns the builder for this operation with the given ciphertext spec.
@@ -175,6 +182,13 @@ impl Iop {
             Iop::TrailingOnes => trail1(spec),
             Iop::Div => div(spec),
             Iop::Mod => rem(spec),
+            Iop::BwAnd => bitwise_and(spec),
+            Iop::BwOr => bitwise_or(spec),
+            Iop::BwXor => bitwise_xor(spec),
+            Iop::RightShift => shift_right(spec),
+            Iop::LeftShift => shift_left(spec),
+            Iop::RightRot => rotate_right(spec),
+            Iop::LeftRot => rotate_left(spec),
         }
     }
 

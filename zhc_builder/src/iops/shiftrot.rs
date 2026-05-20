@@ -72,12 +72,12 @@ impl Builder {
     /// Shifts or rotates an encrypted integer by an encrypted amount.
     ///
     /// Implements a barrel shifter with three stages:
-    /// 1. **Inner shift** — handles bit 0 of the amount (intra-block shift by
-    ///    0 or 1 position within each block's message bits).
-    /// 2. **Merge** — combines each block's shifted message with the overflow
-    ///    from the neighboring block (direction depends on shift kind).
-    /// 3. **Block swap** — log₂ butterfly stages that conditionally swap whole
-    ///    blocks based on higher bits of the amount.
+    /// 1. **Inner shift** — handles bit 0 of the amount (intra-block shift by 0 or 1 position
+    ///    within each block's message bits).
+    /// 2. **Merge** — combines each block's shifted message with the overflow from the neighboring
+    ///    block (direction depends on shift kind).
+    /// 3. **Block swap** — log₂ butterfly stages that conditionally swap whole blocks based on
+    ///    higher bits of the amount.
     ///
     /// The effective shift amount is `amount mod int_size` (for power-of-two
     /// integer sizes).
@@ -164,9 +164,7 @@ impl Builder {
                             }
                         }
                         ShiftRotKind::RotateRight => Some(&prev[(i + stride) % blk_w]),
-                        ShiftRotKind::RotateLeft => {
-                            Some(&prev[(i + blk_w - stride) % blk_w])
-                        }
+                        ShiftRotKind::RotateLeft => Some(&prev[(i + blk_w - stride) % blk_w]),
                     };
                     self.shiftrot_block_swap(&prev[i], swap, cond_block, cond_pos)
                 })

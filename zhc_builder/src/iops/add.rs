@@ -178,7 +178,9 @@ pub fn overflow_add(spec: CiphertextSpec) -> Builder {
             let lhs = builder.ciphertext_split(&src_a);
             let rhs = builder.ciphertext_split(&src_b);
             let (blocks, co) = builder.iop_add_kogge_stone_raw(lhs, rhs, None, par_w, false);
-            (builder.comment("Join").ciphertext_join(blocks, None), co)
+            // in KS case the output carry is in bit 1 (PG carry) so adding a PBS
+            let co_issome = builder.block_lookup(&co, Lut1Def::IsSome);
+            (builder.comment("Join").ciphertext_join(blocks, None), co_issome)
         }
         _ => todo!(),
     };
@@ -741,7 +743,7 @@ impl Builder {
         }
 
         // Carry-out: the final PG entry spans cin through all blocks.
-        // After full resolution, PG is {0=kill, 1=generate} — directly 0 or 1.
+        // Because it is a PG carry the carry is really in bit 1
         let carry_out = cin_pg_kogge_entry.fresh;
 
         if clean {

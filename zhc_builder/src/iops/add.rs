@@ -41,7 +41,7 @@ pub fn add(spec: CiphertextSpec) -> Builder {
         _ => 1,
     };
     let res = match spec.int_size() {
-        0..8 => builder.iop_ripple_carry_add(&src_a, &src_b, None),
+        0..8 => builder.iop_ripple_carry_add(&src_a, &src_b, None).0,
         8..17 => builder.iop_add_hillis_steele(&src_a, &src_b, None),
         17..256 => builder.iop_add_kogge_stone(&src_a, &src_b, None, par_w),
         _ => todo!(),
@@ -78,7 +78,7 @@ pub fn sub(spec: CiphertextSpec) -> Builder {
     let one = builder.block_let_ciphertext(1);
     let b_inv = builder.iop_bitwise_inv(&src_b);
     let res = match spec.int_size() {
-        0..8 => builder.iop_ripple_carry_add(&src_a, &b_inv, Some(&one)),
+        0..8 => builder.iop_ripple_carry_add(&src_a, &b_inv, Some(&one)).0,
         8..17 => builder.iop_add_hillis_steele(&src_a, &b_inv, Some(&one)),
         17..256 => builder.iop_add_kogge_stone(&src_a, &b_inv, Some(&one), par_w),
         _ => todo!(),
@@ -146,8 +146,93 @@ pub fn add_ripple(spec: CiphertextSpec) -> Builder {
     let builder = Builder::new(spec.block_spec());
     let src_a = builder.ciphertext_input(spec.int_size());
     let src_b = builder.ciphertext_input(spec.int_size());
-    let res = builder.iop_ripple_carry_add(&src_a, &src_b, None);
+    let (res, _carry_out) = builder.iop_ripple_carry_add(&src_a, &src_b, None);
     builder.ciphertext_output(res);
+    builder
+}
+
+/// Creates an IR for the addition of two encrypted integers with overflow detection.
+///
+/// The returned [`Builder`] declares two ciphertext inputs and two ciphertext outputs.
+/// The first output is the wrapping sum.
+/// The second output is an overflow flag in a bool ciphertext (1 block)
+pub fn overflow_add(spec: CiphertextSpec) -> Builder {
+    let builder = Builder::new(spec.block_spec());
+    let src_a = builder.ciphertext_input(spec.int_size());
+    let src_b = builder.ciphertext_input(spec.int_size());
+    let par_w = match spec.int_size() {
+        8..16 => 1,
+        16..24 => 7,
+        24..256 => 12,
+        _ => 1,
+    };
+    let (res, carry_out) = match spec.int_size() {
+        0..8 => builder.iop_ripple_carry_add(&src_a, &src_b, None),
+        8..17 => {
+            let lhs = builder.ciphertext_split(&src_a);
+            let rhs = builder.ciphertext_split(&src_b);
+            let (blocks, co) = builder.iop_add_hillis_steele_raw(lhs, rhs, None, true);
+            (builder.comment("Join").ciphertext_join(blocks, None), co)
+        }
+        17..256 => {
+            let lhs = builder.ciphertext_split(&src_a);
+            let rhs = builder.ciphertext_split(&src_b);
+            let (blocks, co) = builder.iop_add_kogge_stone_raw(lhs, rhs, None, par_w, false);
+            (builder.comment("Join").ciphertext_join(blocks, None), co)
+        }
+        _ => todo!(),
+    };
+
+    let flag = builder.ciphertext_join(&[carry_out], None);
+
+    builder.ciphertext_output(res);
+    builder.ciphertext_output(flag);
+    builder
+}
+
+/// Creates an IR for the subtraction of two encrypted integers with overflow detection.
+///
+/// The returned [`Builder`] declares two ciphertext inputs and two ciphertext outputs.
+/// The first output is the wrapping difference `a - b`.
+/// The second output is an overflow (borrow) flag in a bool ciphertext (1 block)
+///
+/// Overflow means `b > a` (unsigned underflow). Internally computes `a + (!b) + 1` and
+/// inverts the carry-out: carry=1 means no borrow, carry=0 means borrow.
+pub fn overflow_sub(spec: CiphertextSpec) -> Builder {
+    let builder = Builder::new(spec.block_spec());
+    let src_a = builder.ciphertext_input(spec.int_size());
+    let src_b = builder.ciphertext_input(spec.int_size());
+    let par_w = match spec.int_size() {
+        8..16 => 1,
+        16..24 => 7,
+        24..256 => 12,
+        _ => 1,
+    };
+    let one = builder.block_let_ciphertext(1);
+    let b_inv = builder.iop_bitwise_inv(&src_b);
+    let (res, carry_out) = match spec.int_size() {
+        0..8 => builder.iop_ripple_carry_add(&src_a, &b_inv, Some(&one)),
+        8..17 => {
+            let lhs = builder.ciphertext_split(&src_a);
+            let rhs = builder.ciphertext_split(&b_inv);
+            let (blocks, co) = builder.iop_add_hillis_steele_raw(lhs, rhs, Some(&one), true);
+            (builder.comment("Join").ciphertext_join(blocks, None), co)
+        }
+        17..256 => {
+            let lhs = builder.ciphertext_split(&src_a);
+            let rhs = builder.ciphertext_split(&b_inv);
+            let (blocks, co) = builder.iop_add_kogge_stone_raw(lhs, rhs, Some(&one), par_w, false);
+            (builder.comment("Join").ciphertext_join(blocks, None), co)
+        }
+        _ => todo!(),
+    };
+
+    // For sub: carry_out=1 means NO overflow (a >= b), carry_out=0 means overflow (a < b).
+    let overflow_flag = builder.block_lookup(&carry_out, Lut1Def::IsNull);
+    let flag = builder.ciphertext_join(&[overflow_flag], None);
+
+    builder.ciphertext_output(res);
+    builder.ciphertext_output(flag);
     builder
 }
 
@@ -167,14 +252,14 @@ impl Builder {
     /// # let builder = Builder::new(spec.block_spec());
     /// # let a = builder.ciphertext_input(spec.int_size());
     /// # let b = builder.ciphertext_input(spec.int_size());
-    /// let sum = builder.iop_ripple_carry_add(&a, &b, None);
+    /// let (sum, carry_out) = builder.iop_ripple_carry_add(&a, &b, None);
     /// ```
     pub fn iop_ripple_carry_add(
         &self,
         lhs: &Ciphertext,
         rhs: &Ciphertext,
         cin: Option<&CiphertextBlock>,
-    ) -> Ciphertext {
+    ) -> (Ciphertext, CiphertextBlock) {
         let lhs_blocks = self.ciphertext_split(lhs);
         let rhs_blocks = self.ciphertext_split(rhs);
 
@@ -190,7 +275,9 @@ impl Builder {
             self.pop_comment();
         }
 
-        self.comment("Join").ciphertext_join(output_blocks, None)
+        // carry is now the carry-out of the last block (clean 0/1 via CarryInMsg)
+        let joined = self.comment("Join").ciphertext_join(output_blocks, None);
+        (joined, carry)
     }
 
     /// Adds two encrypted integers using Hillis-Steele carry propagation.
@@ -219,18 +306,19 @@ impl Builder {
         let lhs_blocks = self.ciphertext_split(lhs);
         let rhs_blocks = self.ciphertext_split(rhs);
 
-        let output_blocks = self.iop_add_hillis_steele_raw(lhs_blocks, rhs_blocks, cin, true);
+        let (output_blocks, _carry_out) =
+            self.iop_add_hillis_steele_raw(lhs_blocks, rhs_blocks, cin, true);
 
         self.comment("Join").ciphertext_join(output_blocks, None)
     }
 
-    pub(super) fn iop_add_hillis_steele_raw(
+    pub fn iop_add_hillis_steele_raw(
         &self,
         lhs_blocks: impl AsRef<[CiphertextBlock]>,
         rhs_blocks: impl AsRef<[CiphertextBlock]>,
         cin: Option<&CiphertextBlock>,
         clean: bool,
-    ) -> Vec<CiphertextBlock> {
+    ) -> (Vec<CiphertextBlock>, CiphertextBlock) {
         // Implements the addition with carry-propagation using the hillis-steele resolution and
         // group of size 4. The encoding of propagation status is the same as the one used
         // in TFHE-RS. The carry is resolved as soon as possible.
@@ -430,6 +518,10 @@ impl Builder {
         );
         self.pop_comment();
 
+        // Carry-out: the last result block (before cleanup) has the carry-out
+        // in its carry field. Extract it before MsgOnly strips carry info.
+        let carry_out = self.block_lookup(&result[output_size - 1], Lut1Def::CarryIsSome);
+
         if clean {
             self.push_comment("Cleanup");
             result = result
@@ -439,7 +531,7 @@ impl Builder {
             self.pop_comment();
         }
 
-        result.as_slice()[..output_size].into()
+        (result.as_slice()[..output_size].into(), carry_out)
     }
 }
 
@@ -598,7 +690,8 @@ impl Builder {
     ) -> Ciphertext {
         let lhs_blocks = self.ciphertext_split(lhs);
         let rhs_blocks = self.ciphertext_split(rhs);
-        let output_blocks = self.iop_add_kogge_stone_raw(lhs_blocks, rhs_blocks, cin, par_w, false);
+        let (output_blocks, _carry_out) =
+            self.iop_add_kogge_stone_raw(lhs_blocks, rhs_blocks, cin, par_w, false);
         self.comment("Join").ciphertext_join(output_blocks, None)
     }
 
@@ -611,7 +704,7 @@ impl Builder {
         cin: Option<&CiphertextBlock>,
         par_w: usize,
         clean: bool,
-    ) -> Vec<CiphertextBlock> {
+    ) -> (Vec<CiphertextBlock>, CiphertextBlock) {
         let sums = self.comment("Raw sum").vector_add(
             &lhs_blocks,
             &rhs_blocks,
@@ -647,6 +740,10 @@ impl Builder {
             pos = end;
         }
 
+        // Carry-out: the final PG entry spans cin through all blocks.
+        // After full resolution, PG is {0=kill, 1=generate} — directly 0 or 1.
+        let carry_out = cin_pg_kogge_entry.fresh;
+
         if clean {
             self.push_comment("Cleanup");
             result = result
@@ -656,7 +753,7 @@ impl Builder {
             self.pop_comment();
         }
 
-        result
+        (result, carry_out)
     }
 
     /// Propagates carries through a slice of carry-save sums using a Kogge
@@ -900,10 +997,39 @@ mod test {
             let b = builder.ciphertext_input(spec.int_size());
             let a_blocks = builder.ciphertext_split(&a);
             let b_blocks = builder.ciphertext_split(&b);
-            let res = builder.iop_add_kogge_stone_raw(a_blocks, b_blocks, None, par_w, true);
+            let (res, _carry_out) =
+                builder.iop_add_kogge_stone_raw(a_blocks, b_blocks, None, par_w, true);
             let out = builder.ciphertext_join(res, None);
             builder.ciphertext_output(out);
             builder.test_random(100, semantic);
+        }
+    }
+
+    #[test]
+    fn correctness_overflow_add() {
+        fn semantic(inp: &[IopValue]) -> Option<Vec<IopValue>> {
+            let [IopValue::Ciphertext(lhs), IopValue::Ciphertext(rhs)] = inp else {
+                unreachable!()
+            };
+            let (sum, flag) = lhs.overflow_add(*rhs);
+            Some(vec![IopValue::Ciphertext(sum), IopValue::Ciphertext(flag)])
+        }
+        for size in (2..128).step_by(2) {
+            overflow_add(CiphertextSpec::new(size, 2, 2)).test_random(100, semantic);
+        }
+    }
+
+    #[test]
+    fn correctness_overflow_sub() {
+        fn semantic(inp: &[IopValue]) -> Option<Vec<IopValue>> {
+            let [IopValue::Ciphertext(lhs), IopValue::Ciphertext(rhs)] = inp else {
+                unreachable!()
+            };
+            let (diff, flag) = lhs.overflow_sub(*rhs);
+            Some(vec![IopValue::Ciphertext(diff), IopValue::Ciphertext(flag)])
+        }
+        for size in (2..128).step_by(2) {
+            overflow_sub(CiphertextSpec::new(size, 2, 2)).test_random(100, semantic);
         }
     }
 }

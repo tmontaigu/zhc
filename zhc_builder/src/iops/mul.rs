@@ -34,7 +34,7 @@ pub fn mul_lsb(spec: CiphertextSpec) -> Builder {
     let cut_off = spec.block_count();
 
     // Call inner function and construct results
-    let (_flag, output) = builder.iop_mul_raw(&src_a_blocks, &src_b_blocks, cut_off);
+    let (output, _flag) = builder.iop_mul_raw(&src_a_blocks, &src_b_blocks, cut_off);
     let lsb_output = builder.ciphertext_join(&output, Some(spec.int_size()));
     builder.ciphertext_output(lsb_output);
     builder
@@ -71,12 +71,12 @@ pub fn overflow_mul_lsb(spec: CiphertextSpec) -> Builder {
     let cut_off = spec.block_count();
 
     // Call inner function and construct results
-    let (flag_block, output) = builder.iop_mul_raw(&src_a_blocks, &src_b_blocks, cut_off);
-    let flag = builder.ciphertext_join(&[flag_block], Some(1)); // NB: This is a boolean flag
+    let (output, flag_block) = builder.iop_mul_raw(&src_a_blocks, &src_b_blocks, cut_off);
     let lsb_output = builder.ciphertext_join(&output, Some(spec.int_size()));
+    let flag = builder.ciphertext_join(&[flag_block], None);
 
-    builder.ciphertext_output(flag);
     builder.ciphertext_output(lsb_output);
+    builder.ciphertext_output(flag);
     builder
 }
 
@@ -104,14 +104,14 @@ impl Builder {
     /// # let b = builder.ciphertext_input(spec.int_size());
     /// # let a = builder.ciphertext_split(&a);
     /// # let b = builder.ciphertext_split(&b);
-    /// let (flag, res) = builder.iop_mul_raw(&a, &b, spec.block_count());
+    /// let (res, flag) = builder.iop_mul_raw(&a, &b, spec.block_count());
     /// ```
     pub fn iop_mul_raw(
         &self,
         src_a_blocks: &Vec<CiphertextBlock>,
         src_b_blocks: &Vec<CiphertextBlock>,
         cut_off_block: u8,
-    ) -> (CiphertextBlock, Vec<CiphertextBlock>) {
+    ) -> (Vec<CiphertextBlock>, CiphertextBlock) {
         // Phase 1 expand:
         // It's a cartesien product of a and b for each terms we sort them by degree
         // (i.e. ai +bi) and kept assocatied nu for the later reduction
@@ -238,7 +238,7 @@ impl Builder {
         self.pop_comment();
         self.pop_comment();
 
-        (overflow_flag, dst_blk)
+        (dst_blk, overflow_flag)
     }
 }
 
@@ -268,10 +268,14 @@ mod test {
             let [IopValue::Ciphertext(lhs), IopValue::Ciphertext(rhs)] = inp else {
                 unreachable!()
             };
-            Some(vec![IopValue::Ciphertext(lhs.mul_lsb(*rhs))])
+            let (product, flag) = lhs.overflow_mul_lsb(*rhs);
+            Some(vec![
+                IopValue::Ciphertext(product),
+                IopValue::Ciphertext(flag),
+            ])
         }
         for size in (2..128).step_by(2) {
-            mul_lsb(CiphertextSpec::new(size, 2, 2)).test_random(100, semantic);
+            overflow_mul_lsb(CiphertextSpec::new(size, 2, 2)).test_random(100, semantic);
         }
     }
 

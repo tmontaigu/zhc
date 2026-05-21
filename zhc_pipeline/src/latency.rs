@@ -186,7 +186,7 @@ mod test {
         assert_display_is!(
             format!("{}us", lat.as_ts(MHz(400).period())),
             r#"
-                12741.692500000001us
+                12741.87us
             "#
         );
     }

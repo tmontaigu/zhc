@@ -3,7 +3,8 @@ use std::str::FromStr;
 use zhc_builder::{
     Builder, CiphertextSpec, add, bitwise_and, bitwise_or, bitwise_xor, cmp_eq, cmp_gt, cmp_gte,
     cmp_lt, cmp_lte, cmp_neq, count_0, count_1, div, if_then_else, if_then_zero, ilog2, lead0,
-    lead1, mul_lsb, rem, rotate_left, rotate_right, shift_left, shift_right, sub, trail0, trail1,
+    lead1, mul_lsb, overflow_add, overflow_mul_lsb, overflow_sub, rem, rotate_left, rotate_right,
+    shift_left, shift_right, sub, trail0, trail1,
 };
 use zhc_sim::hpu::HpuConfig;
 
@@ -54,9 +55,9 @@ pub enum Iop {
     // LeftShiftPt,
     // RightRotPt,
     // LeftRotPt,
-    // OvfAdd,
-    // OvfSub,
-    // OvfMul,
+    OvfAdd,
+    OvfSub,
+    OvfMul,
     BwAnd,
     BwOr,
     BwXor,
@@ -109,9 +110,9 @@ impl FromStr for Iop {
             // "SHIFTS_L" => Ok(Iop::LeftShiftPt),
             // "ROTS_R" => Ok(Iop::RightRotPt),
             // "ROTS_L" => Ok(Iop::LeftRotPt),
-            // "OVF_ADD" => Ok(Iop::OvfAdd),
-            // "OVF_SUB" => Ok(Iop::OvfSub),
-            // "OVF_MUL" => Ok(Iop::OvfMul),
+            "OVF_ADD" => Ok(Iop::OvfAdd),
+            "OVF_SUB" => Ok(Iop::OvfSub),
+            "OVF_MUL" => Ok(Iop::OvfMul),
             "BW_AND" => Ok(Iop::BwAnd),
             "BW_OR" => Ok(Iop::BwOr),
             "BW_XOR" => Ok(Iop::BwXor),
@@ -157,6 +158,9 @@ impl Iop {
         Iop::LeftShift,
         Iop::RightRot,
         Iop::LeftRot,
+        Iop::OvfAdd,
+        Iop::OvfSub,
+        Iop::OvfMul,
     ];
 
     /// Returns the builder for this operation with the given ciphertext spec.
@@ -189,6 +193,9 @@ impl Iop {
             Iop::LeftShift => shift_left(spec),
             Iop::RightRot => rotate_right(spec),
             Iop::LeftRot => rotate_left(spec),
+            Iop::OvfAdd => overflow_add(spec),
+            Iop::OvfSub => overflow_sub(spec),
+            Iop::OvfMul => overflow_mul_lsb(spec),
         }
     }
 
@@ -236,9 +243,9 @@ impl Iop {
             // Iop::LeftShiftPt => todo!(),
             // Iop::RightRotPt => todo!(),
             // Iop::LeftRotPt => todo!(),
-            // Iop::OvfAdd => todo!(),
-            // Iop::OvfSub => todo!(),
-            // Iop::OvfMul => todo!(),
+            Iop::OvfAdd => overflow_add(spec).optimize_ir(),
+            Iop::OvfSub => overflow_sub(spec).optimize_ir(),
+            Iop::OvfMul => overflow_mul_lsb(spec).optimize_ir(),
             Iop::BwAnd => bitwise_and(spec).optimize_ir(),
             Iop::BwOr => bitwise_or(spec).optimize_ir(),
             Iop::BwXor => bitwise_xor(spec).optimize_ir(),

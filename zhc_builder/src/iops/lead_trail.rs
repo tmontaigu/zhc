@@ -348,7 +348,6 @@ impl Builder {
 mod test {
     use super::*;
     use zhc_langs::ioplang::IopValue;
-    use zhc_utils::n_bits_to_encode;
 
     #[test]
     fn correctness_lead0() {

@@ -168,7 +168,7 @@ impl Builder {
                 // Step2
                 // Compute remain - div
                 // Here, do not clean the last block, which is the carry
-                let diff_x_a =
+                let (diff_x_a, _carry_out) =
                     self.iop_add_hillis_steele_raw(&remain_a, &ext_mdiv_x_a, None, false);
 
                 // Step3
@@ -371,7 +371,7 @@ impl Builder {
         x2_a.push(last_msb.unwrap());
 
         // Second step compute x3
-        let x3_a = self.iop_add_hillis_steele_raw(&x2_a, src, None, true);
+        let (x3_a, _carry_out) = self.iop_add_hillis_steele_raw(&x2_a, src, None, true);
 
         (x2_a, x3_a)
     }

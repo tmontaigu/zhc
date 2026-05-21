@@ -180,7 +180,10 @@ pub fn overflow_add(spec: CiphertextSpec) -> Builder {
             let (blocks, co) = builder.iop_add_kogge_stone_raw(lhs, rhs, None, par_w, false);
             // in KS case the output carry is in bit 1 (PG carry) so adding a PBS
             let co_issome = builder.block_lookup(&co, Lut1Def::IsSome);
-            (builder.comment("Join").ciphertext_join(blocks, None), co_issome)
+            (
+                builder.comment("Join").ciphertext_join(blocks, None),
+                co_issome,
+            )
         }
         _ => todo!(),
     };

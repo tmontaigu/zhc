@@ -403,7 +403,7 @@ pub fn lower_iop_to_hpu(ir: &IR<IopLang>) -> IR<HpuLang> {
             | IopInstructionSet::TemperAddCt => {
                 translator.direct_translation(op, HpuInstructionSet::AddCt);
             }
-            IopInstructionSet::SubCt => {
+            IopInstructionSet::SubCt | IopInstructionSet::WrappingSubCt => {
                 translator.direct_translation(op, HpuInstructionSet::SubCt);
             }
             IopInstructionSet::PackCt { mul } => {

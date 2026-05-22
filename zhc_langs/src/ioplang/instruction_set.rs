@@ -77,6 +77,10 @@ pub enum IopInstructionSet {
     /// Protected subtraction of two ciphertext blocks.
     /// `(CiphertextBlock, CiphertextBlock) → (CiphertextBlock)`
     SubCt,
+    /// Wrapping (modular) subtraction of two ciphertext blocks. No underflow
+    /// check; borrow beyond the complete block width wraps around.
+    /// `(CiphertextBlock, CiphertextBlock) → (CiphertextBlock)`
+    WrappingSubCt,
     /// Packs two ciphertext blocks by shifting the first left by the
     /// message width and adding the second. `mul` equals
     /// `2^message_size`, guaranteed by construction.
@@ -145,6 +149,7 @@ impl Format for IopInstructionSet {
             IopInstructionSet::WrappingAddCt => write!(f, "wrapping_add_ct"),
             IopInstructionSet::TemperAddCt => write!(f, "temper_add_ct"),
             IopInstructionSet::SubCt => write!(f, "sub_ct"),
+            IopInstructionSet::WrappingSubCt => write!(f, "wrapping_sub_ct"),
             IopInstructionSet::AddPt => write!(f, "add_pt"),
             IopInstructionSet::WrappingAddPt => write!(f, "wrapping_add_pt"),
             IopInstructionSet::SubPt => write!(f, "sub_pt"),
@@ -188,6 +193,9 @@ impl DialectInstructionSet for IopInstructionSet {
                 sig![(CiphertextBlock, CiphertextBlock) -> (CiphertextBlock)]
             }
             IopInstructionSet::SubCt => {
+                sig![(CiphertextBlock, CiphertextBlock) -> (CiphertextBlock)]
+            }
+            IopInstructionSet::WrappingSubCt => {
                 sig![(CiphertextBlock, CiphertextBlock) -> (CiphertextBlock)]
             }
             IopInstructionSet::PackCt { .. } => {

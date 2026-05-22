@@ -937,6 +937,38 @@ impl Builder {
         }
     }
 
+    /// Subtracts two ciphertext blocks (wrapping flavor).
+    ///
+    /// Computes `src_a - src_b` at the block level. Uses wrapping semantics — see
+    /// [Operation Flavors](super::super#operation-flavors). Underflow wraps
+    /// modulo the complete block width instead of panicking.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # use zhc_builder::*;
+    /// let builder = Builder::new(CiphertextBlockSpec(2, 2));
+    /// let ct = builder.ciphertext_input(4);
+    /// let blocks = builder.ciphertext_split(&ct);
+    /// let diff = builder.block_wrapping_sub(&blocks[0], &blocks[1]);
+    /// ```
+    pub fn block_wrapping_sub(
+        &self,
+        src_a: impl AsRef<CiphertextBlock>,
+        src_b: impl AsRef<CiphertextBlock>,
+    ) -> CiphertextBlock {
+        let (src_a, src_b) = (src_a.as_ref(), src_b.as_ref());
+        let (_node, ret) = self.inner_mut().insert_op(
+            IopInstructionSet::WrappingSubCt,
+            svec![src_a.valid, src_b.valid],
+            self.current_hierarchy(),
+        );
+        CiphertextBlock {
+            valid: ret[0],
+            spec: self.spec,
+        }
+    }
+
     /// Subtracts a plaintext block from a ciphertext block (protect flavor).
     ///
     /// Computes `src_a - src_b` where `src_a` is encrypted and `src_b` is plaintext.

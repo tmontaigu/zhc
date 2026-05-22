@@ -237,6 +237,17 @@ impl Interpretable<IopValue> for super::IopInstructionSet {
                 };
                 svec![IopValue::CiphertextBlock(left.protect_sub(right))]
             }
+            WrappingSubCt => {
+                let (IopValue::CiphertextBlock(left), IopValue::CiphertextBlock(right)) =
+                    (arguments[0].clone(), arguments[1].clone())
+                else {
+                    panic!(
+                        "Expected (CiphertextBlock, CiphertextBlock), got:\n{:#?}",
+                        arguments
+                    )
+                };
+                svec![IopValue::CiphertextBlock(left.wrapping_sub(right))]
+            }
             PackCt { mul } => {
                 let (IopValue::CiphertextBlock(left), IopValue::CiphertextBlock(right)) =
                     (arguments[0].clone(), arguments[1].clone())

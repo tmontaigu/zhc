@@ -376,6 +376,15 @@ impl EmulatedPlaintextBlock {
 }
 
 impl EmulatedCiphertext {
+    pub fn gte(self, other: Self) -> EmulatedCiphertext {
+        assert_eq!(self.spec, other.spec(), "Spec mismatch.");
+        let storage = self.storage.ge(&other.storage);
+        EmulatedCiphertext {
+            storage: storage as u128,
+            spec: self.spec,
+        }
+    }
+
     pub fn add(self, other: Self) -> EmulatedCiphertext {
         assert_eq!(self.spec, other.spec(), "Spec mismatch.");
         let storage = (self.storage + other.storage) & self.spec.int_mask();

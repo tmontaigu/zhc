@@ -254,10 +254,10 @@ impl Builder {
             .enumerate()
             .map(|(i, (l, r))| {
                 self.with_comment(format!("{i}-th"), || {
-                    let sub_lr = self.block_sub(l, r);
-                    let pbsed = self.block_lookup(&sub_lr, Lut1Def::CmpSign);
+                    let sub_lr = self.block_wrapping_sub(l, r);
+                    let pbsed = self.block_wrapping_lookup(&sub_lr, Lut1Def::CmpSign);
                     let cst = self.block_let_plaintext(1);
-                    self.block_add_plaintext(&pbsed, &cst)
+                    self.block_wrapping_add_plaintext(&pbsed, &cst)
                 })
             })
             .cosvec();
@@ -292,6 +292,8 @@ impl Builder {
 
 #[cfg(test)]
 mod test {
+    use super::*;
+    use zhc_langs::ioplang::IopValue;
     use zhc_crypto::integer_semantics::CiphertextSpec;
     use zhc_utils::assert_display_is;
 
@@ -343,18 +345,18 @@ mod test {
                 %31 = pbs<Protect, Lut1("None")>(%30);
                 %32 = pack_ct<4>(%17, %16);
                 %33 = pbs<Protect, Lut1("None")>(%32);
-                %34 = sub_ct(%19, %27);
-                %35 = pbs<Protect, Lut1("CmpSign")>(%34);
+                %34 = wrapping_sub_ct(%19, %27);
+                %35 = pbs<AllowBothPadding, Lut1("CmpSign")>(%34);
                 %36 = let_pt_block<1>();
                 %37 = add_pt(%35, %36);
-                %38 = sub_ct(%21, %29);
-                %39 = pbs<Protect, Lut1("CmpSign")>(%38);
+                %38 = wrapping_sub_ct(%21, %29);
+                %39 = pbs<AllowBothPadding, Lut1("CmpSign")>(%38);
                 %41 = add_pt(%39, %36);
-                %42 = sub_ct(%23, %31);
-                %43 = pbs<Protect, Lut1("CmpSign")>(%42);
+                %42 = wrapping_sub_ct(%23, %31);
+                %43 = pbs<AllowBothPadding, Lut1("CmpSign")>(%42);
                 %45 = add_pt(%43, %36);
-                %46 = sub_ct(%25, %33);
-                %47 = pbs<Protect, Lut1("CmpSign")>(%46);
+                %46 = wrapping_sub_ct(%25, %33);
+                %47 = pbs<AllowBothPadding, Lut1("CmpSign")>(%46);
                 %49 = add_pt(%47, %36);
                 %50 = pack_ct<4>(%41, %37);
                 %51 = pack_ct<4>(%49, %45);
@@ -387,5 +389,19 @@ mod test {
         let res = builder.ciphertext_join(res, None);
         builder.ciphertext_output(res);
         builder.draw("testttttt.html");
+    }
+    
+    #[test]
+    fn correctness_cmp_gte() {
+        fn semantic(inp: &[IopValue]) -> Option<Vec<IopValue>> {
+            let [IopValue::Ciphertext(lhs), IopValue::Ciphertext(rhs)] = inp else {
+                unreachable!()
+            };
+            let res = lhs.gte(*rhs);
+            Some(vec![IopValue::Ciphertext(res)])
+        }
+        for size in (2..128).step_by(2) {
+            cmp_gte(CiphertextSpec::new(size, 2, 2)).test_random(100, semantic);
+        }
     }
 }

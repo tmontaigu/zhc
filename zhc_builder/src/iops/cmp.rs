@@ -1,7 +1,7 @@
 use crate::{Ciphertext, builder::Builder};
 use zhc_crypto::integer_semantics::CiphertextSpec;
 use zhc_langs::ioplang::Lut1Def;
-use zhc_utils::iter::{CollectInSmallVec, MultiZip};
+use zhc_utils::iter::MultiZip;
 
 /// Creates an IR for a *greater-than* comparison of two encrypted integers.
 ///
@@ -260,19 +260,15 @@ impl Builder {
                     self.block_wrapping_add_plaintext(&pbsed, &cst)
                 })
             })
-            .cosvec();
+            .collect::<Vec<_>>();
         self.pop_comment();
 
         // reduce (tree-based reduce)
         self.push_comment("Reduce comparison");
         while merged.len() > 2 {
-            let packed = self.vector_pack(merged.as_slice());
-            let reduced = packed
-                .iter()
-                .map(|x| self.block_lookup(x, Lut1Def::CmpReduce))
-                .cosvec();
-            // prepare next iter
-            merged = reduced;
+            // use vector_pack_then_lookup instead of vector_pack to handle odd number
+            // of elements and not apply Reduce to a single element out of CmpSign
+            merged = self.vector_pack_then_lookup(merged.as_slice(), Lut1Def::CmpReduce);
         }
         self.pop_comment();
 
@@ -348,21 +344,21 @@ mod test {
                 %34 = wrapping_sub_ct(%19, %27);
                 %35 = pbs<AllowBothPadding, Lut1("CmpSign")>(%34);
                 %36 = let_pt_block<1>();
-                %37 = add_pt(%35, %36);
+                %37 = wrapping_add_pt(%35, %36);
                 %38 = wrapping_sub_ct(%21, %29);
                 %39 = pbs<AllowBothPadding, Lut1("CmpSign")>(%38);
-                %41 = add_pt(%39, %36);
+                %41 = wrapping_add_pt(%39, %36);
                 %42 = wrapping_sub_ct(%23, %31);
                 %43 = pbs<AllowBothPadding, Lut1("CmpSign")>(%42);
-                %45 = add_pt(%43, %36);
+                %45 = wrapping_add_pt(%43, %36);
                 %46 = wrapping_sub_ct(%25, %33);
                 %47 = pbs<AllowBothPadding, Lut1("CmpSign")>(%46);
-                %49 = add_pt(%47, %36);
+                %49 = wrapping_add_pt(%47, %36);
                 %50 = pack_ct<4>(%41, %37);
-                %51 = pack_ct<4>(%49, %45);
-                %52 = pbs<Protect, Lut1("CmpReduce")>(%50);
-                %53 = pbs<Protect, Lut1("CmpReduce")>(%51);
-                %54 = pack_ct<4>(%53, %52);
+                %51 = pbs<Protect, Lut1("CmpReduce")>(%50);
+                %52 = pack_ct<4>(%49, %45);
+                %53 = pbs<Protect, Lut1("CmpReduce")>(%52);
+                %54 = pack_ct<4>(%53, %51);
                 %55 = pbs<Protect, Lut1("CmpEqMrg")>(%54);
                 %56 = decl_ct<2>();
                 %59 = store_ct_block<0>(%55, %56);
@@ -390,18 +386,88 @@ mod test {
         builder.ciphertext_output(res);
         builder.draw("testttttt.html");
     }
-    
+
+    #[test]
+    fn correctness_cmp_gt() {
+        fn semantic(inp: &[IopValue]) -> Option<Vec<IopValue>> {
+            let [IopValue::Ciphertext(lhs), IopValue::Ciphertext(rhs)] = inp else {
+                unreachable!()
+            };
+            let res = lhs.cgt(*rhs);
+            Some(vec![IopValue::Ciphertext(res)])
+        }
+        for size in (2..128).step_by(2) {
+            cmp_gt(CiphertextSpec::new(size, 2, 2)).test_random(100, semantic);
+        }
+    }
+
     #[test]
     fn correctness_cmp_gte() {
         fn semantic(inp: &[IopValue]) -> Option<Vec<IopValue>> {
             let [IopValue::Ciphertext(lhs), IopValue::Ciphertext(rhs)] = inp else {
                 unreachable!()
             };
-            let res = lhs.gte(*rhs);
+            let res = lhs.cgte(*rhs);
             Some(vec![IopValue::Ciphertext(res)])
         }
         for size in (2..128).step_by(2) {
             cmp_gte(CiphertextSpec::new(size, 2, 2)).test_random(100, semantic);
+        }
+    }
+
+    #[test]
+    fn correctness_cmp_lt() {
+        fn semantic(inp: &[IopValue]) -> Option<Vec<IopValue>> {
+            let [IopValue::Ciphertext(lhs), IopValue::Ciphertext(rhs)] = inp else {
+                unreachable!()
+            };
+            let res = lhs.clt(*rhs);
+            Some(vec![IopValue::Ciphertext(res)])
+        }
+        for size in (2..128).step_by(2) {
+            cmp_lt(CiphertextSpec::new(size, 2, 2)).test_random(100, semantic);
+        }
+    }
+
+    #[test]
+    fn correctness_cmp_lte() {
+        fn semantic(inp: &[IopValue]) -> Option<Vec<IopValue>> {
+            let [IopValue::Ciphertext(lhs), IopValue::Ciphertext(rhs)] = inp else {
+                unreachable!()
+            };
+            let res = lhs.clte(*rhs);
+            Some(vec![IopValue::Ciphertext(res)])
+        }
+        for size in (2..128).step_by(2) {
+            cmp_lte(CiphertextSpec::new(size, 2, 2)).test_random(100, semantic);
+        }
+    }
+
+    #[test]
+    fn correctness_cmp_eq() {
+        fn semantic(inp: &[IopValue]) -> Option<Vec<IopValue>> {
+            let [IopValue::Ciphertext(lhs), IopValue::Ciphertext(rhs)] = inp else {
+                unreachable!()
+            };
+            let res = lhs.equal(*rhs);
+            Some(vec![IopValue::Ciphertext(res)])
+        }
+        for size in (2..128).step_by(2) {
+            cmp_eq(CiphertextSpec::new(size, 2, 2)).test_random(100, semantic);
+        }
+    }
+
+    #[test]
+    fn correctness_cmp_neq() {
+        fn semantic(inp: &[IopValue]) -> Option<Vec<IopValue>> {
+            let [IopValue::Ciphertext(lhs), IopValue::Ciphertext(rhs)] = inp else {
+                unreachable!()
+            };
+            let res = lhs.not_equal(*rhs);
+            Some(vec![IopValue::Ciphertext(res)])
+        }
+        for size in (2..128).step_by(2) {
+            cmp_neq(CiphertextSpec::new(size, 2, 2)).test_random(100, semantic);
         }
     }
 }

@@ -376,12 +376,81 @@ impl EmulatedPlaintextBlock {
 }
 
 impl EmulatedCiphertext {
-    pub fn gte(self, other: Self) -> EmulatedCiphertext {
+    pub fn cgt(self, other: Self) -> EmulatedCiphertext {
+        assert_eq!(self.spec, other.spec(), "Spec mismatch.");
+        let storage = (self.storage > other.storage) as u128;
+        EmulatedCiphertext {
+            storage,
+            spec: CiphertextSpec::new(
+                self.spec.block_spec().message_size() as u16,
+                self.spec.block_spec().message_size(),
+                self.spec.block_spec().carry_size(),
+            ),
+        }
+    }
+
+    pub fn cgte(self, other: Self) -> EmulatedCiphertext {
         assert_eq!(self.spec, other.spec(), "Spec mismatch.");
         let storage = self.storage.ge(&other.storage);
         EmulatedCiphertext {
             storage: storage as u128,
-            spec: self.spec,
+            spec: CiphertextSpec::new(
+                self.spec.block_spec().message_size() as u16,
+                self.spec.block_spec().message_size(),
+                self.spec.block_spec().carry_size(),
+            ),
+        }
+    }
+
+    pub fn clt(self, other: Self) -> EmulatedCiphertext {
+        assert_eq!(self.spec, other.spec(), "Spec mismatch.");
+        let storage = (self.storage < other.storage) as u128;
+        EmulatedCiphertext {
+            storage,
+            spec: CiphertextSpec::new(
+                self.spec.block_spec().message_size() as u16,
+                self.spec.block_spec().message_size(),
+                self.spec.block_spec().carry_size(),
+            ),
+        }
+    }
+
+    pub fn clte(self, other: Self) -> EmulatedCiphertext {
+        assert_eq!(self.spec, other.spec(), "Spec mismatch.");
+        let storage = (self.storage <= other.storage) as u128;
+        EmulatedCiphertext {
+            storage,
+            spec: CiphertextSpec::new(
+                self.spec.block_spec().message_size() as u16,
+                self.spec.block_spec().message_size(),
+                self.spec.block_spec().carry_size(),
+            ),
+        }
+    }
+
+    pub fn equal(self, other: Self) -> EmulatedCiphertext {
+        assert_eq!(self.spec, other.spec(), "Spec mismatch.");
+        let storage = (self.storage == other.storage) as u128;
+        EmulatedCiphertext {
+            storage,
+            spec: CiphertextSpec::new(
+                self.spec.block_spec().message_size() as u16,
+                self.spec.block_spec().message_size(),
+                self.spec.block_spec().carry_size(),
+            ),
+        }
+    }
+
+    pub fn not_equal(self, other: Self) -> EmulatedCiphertext {
+        assert_eq!(self.spec, other.spec(), "Spec mismatch.");
+        let storage = (self.storage != other.storage) as u128;
+        EmulatedCiphertext {
+            storage,
+            spec: CiphertextSpec::new(
+                self.spec.block_spec().message_size() as u16,
+                self.spec.block_spec().message_size(),
+                self.spec.block_spec().carry_size(),
+            ),
         }
     }
 

@@ -289,8 +289,8 @@ impl Builder {
 #[cfg(test)]
 mod test {
     use super::*;
-    use zhc_langs::ioplang::IopValue;
     use zhc_crypto::integer_semantics::CiphertextSpec;
+    use zhc_langs::ioplang::IopValue;
     use zhc_utils::assert_display_is;
 
     use super::cmp_eq;

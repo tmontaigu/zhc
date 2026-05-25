@@ -4,7 +4,7 @@ use zhc_builder::{
     Builder, CiphertextSpec, add, bitwise_and, bitwise_or, bitwise_xor, cmp_eq, cmp_gt, cmp_gte,
     cmp_lt, cmp_lte, cmp_neq, count_0, count_1, div, if_then_else, if_then_zero, ilog2, lead0,
     lead1, mul_lsb, overflow_add, overflow_mul_lsb, overflow_sub, rem, rotate_left, rotate_right,
-    shift_left, shift_right, sub, trail0, trail1,
+    shift_left, shift_right, sub, trail0, trail1, erc7984, erc7984_simd,
 };
 use zhc_sim::hpu::HpuConfig;
 
@@ -65,9 +65,9 @@ pub enum Iop {
     LeftShift,
     RightRot,
     LeftRot,
-    // Erc20,
+    Erc7984,
+    Erc7984Simd,
     // AddSimd,
-    // Erc20Simd,
     // MemCpy,
 }
 
@@ -120,9 +120,9 @@ impl FromStr for Iop {
             "SHIFT_L" => Ok(Iop::LeftShift),
             "ROT_R" => Ok(Iop::RightRot),
             "ROT_L" => Ok(Iop::LeftRot),
-            // "ERC_20" => Ok(Iop::Erc20),
+            "ERC_7984" => Ok(Iop::Erc7984),
+            "ERC_7984_SIMD" => Ok(Iop::Erc7984Simd),
             // "ADD_SIMD" => Ok(Iop::AddSimd),
-            // "ERC_20_SIMD" => Ok(Iop::Erc20Simd),
             // "MEMCPY" => Ok(Iop::MemCpy),
             _ => Err(()),
         }
@@ -161,6 +161,8 @@ impl Iop {
         Iop::OvfAdd,
         Iop::OvfSub,
         Iop::OvfMul,
+        Iop::Erc7984,
+        Iop::Erc7984Simd,
     ];
 
     /// Returns the builder for this operation with the given ciphertext spec.
@@ -196,6 +198,8 @@ impl Iop {
             Iop::OvfAdd => overflow_add(spec),
             Iop::OvfSub => overflow_sub(spec),
             Iop::OvfMul => overflow_mul_lsb(spec),
+            Iop::Erc7984 => erc7984(spec),
+            Iop::Erc7984Simd => erc7984_simd(spec),
         }
     }
 
@@ -253,9 +257,9 @@ impl Iop {
             Iop::LeftShift => shift_left(spec).optimize_ir(),
             Iop::RightRot => rotate_right(spec).optimize_ir(),
             Iop::LeftRot => rotate_left(spec).optimize_ir(),
-            // Iop::Erc20 => todo!(),
+            Iop::Erc7984 => erc7984(spec).optimize_ir(),
+            Iop::Erc7984Simd => erc7984_simd(spec).optimize_ir(),
             // Iop::AddSimd => todo!(),
-            // Iop::Erc20Simd => todo!(),
             // Iop::MemCpy => todo!(),
         };
         let allocated = regular_pipeline(ir, hpu_config);

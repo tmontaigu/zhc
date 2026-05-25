@@ -1,6 +1,6 @@
 use zhc_crypto::integer_semantics::CiphertextSpec;
 
-use crate::{CmpKind, builder::Builder, Ciphertext};
+use crate::{Ciphertext, CmpKind, builder::Builder};
 
 /// Creates an IR for a homomorphic encrypted fund transfer (ERC-7984).
 ///
@@ -123,10 +123,7 @@ impl Builder {
                 self.iop_ripple_carry_add(src_from, &actual_amount_inv, Some(&one))
                     .0
             }
-            8..17 => self.iop_add_hillis_steele(src_from, &actual_amount_inv, Some(&one)),
-            17..256 => {
-                self.iop_add_kogge_stone(src_from, &actual_amount_inv, Some(&one), par_w)
-            }
+            8..256 => self.iop_add_kogge_stone(src_from, &actual_amount_inv, Some(&one), par_w),
             _ => todo!(),
         };
 
@@ -169,8 +166,11 @@ mod test {
     use zhc_langs::ioplang::IopValue;
 
     fn erc7984_semantic(inp: &[IopValue]) -> Option<Vec<IopValue>> {
-        let [IopValue::Ciphertext(from), IopValue::Ciphertext(to), IopValue::Ciphertext(amount)] =
-            inp
+        let [
+            IopValue::Ciphertext(from),
+            IopValue::Ciphertext(to),
+            IopValue::Ciphertext(amount),
+        ] = inp
         else {
             unreachable!()
         };
@@ -180,10 +180,7 @@ mod test {
                 IopValue::Ciphertext(to.add(*amount)),
             ])
         } else {
-            Some(vec![
-                IopValue::Ciphertext(*from),
-                IopValue::Ciphertext(*to),
-            ])
+            Some(vec![IopValue::Ciphertext(*from), IopValue::Ciphertext(*to)])
         }
     }
 
@@ -194,30 +191,30 @@ mod test {
         }
     }
 
-    //#[test]
-    //fn correctness_erc7984_simd() {
-    //    fn semantic(inp: &[IopValue]) -> Option<Vec<IopValue>> {
-    //        inp.chunks(3).flat_map(|chunk| {
-    //            let [IopValue::Ciphertext(from), IopValue::Ciphertext(to), IopValue::Ciphertext(amount)] =
-    //                chunk
-    //            else {
-    //                unreachable!()
-    //            };
-    //            if from >= amount {
-    //                vec![
-    //                    IopValue::Ciphertext(from.sub(*amount)),
-    //                    IopValue::Ciphertext(to.add(*amount)),
-    //                ]
-    //            } else {
-    //                vec![
-    //                    IopValue::Ciphertext(*from),
-    //                    IopValue::Ciphertext(*to),
-    //                ]
-    //            }
-    //        }).collect::<Vec<_>>().into()
-    //    }
-    //    for size in (2..64).step_by(2) {
-    //        erc7984_simd(CiphertextSpec::new(size, 2, 2)).test_random(100, semantic);
-    //    }
-    //}
+    #[test]
+     fn correctness_erc7984_simd() {
+        fn semantic(inp: &[IopValue]) -> Option<Vec<IopValue>> {
+            inp.chunks(3).flat_map(|chunk| {
+                let [IopValue::Ciphertext(from), IopValue::Ciphertext(to),
+     IopValue::Ciphertext(amount)] =                chunk
+                else {
+                    unreachable!()
+                };
+                if from >= amount {
+                    vec![
+                        IopValue::Ciphertext(from.sub(*amount)),
+                        IopValue::Ciphertext(to.add(*amount)),
+                    ]
+                } else {
+                    vec![
+                        IopValue::Ciphertext(*from),
+                        IopValue::Ciphertext(*to),
+                    ]
+                }
+            }).collect::<Vec<_>>().into()
+        }
+        for size in (2..64).step_by(2) {
+            erc7984_simd(CiphertextSpec::new(size, 2, 2)).test_random(100, semantic);
+        }
+    }
 }

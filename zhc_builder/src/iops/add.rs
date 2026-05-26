@@ -274,8 +274,8 @@ impl Builder {
             self.push_comment(format!("{i}-th"));
             let raw_sum = self.block_add(lhs_blocks[i], rhs_blocks[i]);
             let sum = self.block_add(raw_sum, carry);
-            let message = self.block_lookup(sum, Lut1Def::MsgOnly);
-            carry = self.block_lookup(sum, Lut1Def::CarryInMsg);
+            let (message, carry_tmp) = self.block_lookup2(sum, Lut2Def::ManyCarryMsg);
+            carry = carry_tmp;
             output_blocks.push(message);
             self.pop_comment();
         }

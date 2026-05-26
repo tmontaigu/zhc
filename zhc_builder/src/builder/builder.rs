@@ -1035,6 +1035,38 @@ impl Builder {
         }
     }
 
+    /// Muls a ciphertext block by a plaintext block (protect flavor).
+    ///
+    /// Computes `src_a * src_b` where `src_a` is encrypted and `src_b` is plaintext.
+    /// Uses protect semantics — see [Operation Flavors](super::super#operation-flavors).
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # use zhc_builder::*;
+    /// let builder = Builder::new(CiphertextBlockSpec(2, 2));
+    /// let ct = builder.ciphertext_input(1);
+    /// let blocks = builder.ciphertext_split(&ct);
+    /// let two = builder.block_let_plaintext(2);
+    /// let incremented = builder.block_add_plaintext(&blocks[0], &two);
+    /// ```
+    pub fn block_mul_plaintext(
+        &self,
+        src_a: impl AsRef<CiphertextBlock>,
+        src_b: impl AsRef<PlaintextBlock>,
+    ) -> CiphertextBlock {
+        let (src_a, src_b) = (src_a.as_ref(), src_b.as_ref());
+        let (_node, ret) = self.inner_mut().insert_op(
+            IopInstructionSet::MulPt,
+            svec![src_a.valid, src_b.valid],
+            self.current_hierarchy(),
+        );
+        CiphertextBlock {
+            valid: ret[0],
+            spec: self.spec,
+        }
+    }
+
     /// Packs two ciphertext blocks into one.
     ///
     /// Computes `src_a * 2^message_size + src_b`, placing `src_a` in the high (carry)

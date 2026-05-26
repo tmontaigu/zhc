@@ -543,6 +543,10 @@ pub fn lower_iop_to_hpu(ir: &IR<IopLang>) -> IR<HpuLang> {
                 );
             }
             IopInstructionSet::Pbs { lut, .. } => {
+                // as matching is done using LUT fct, we have
+                // 10 CmpSign = 40 NotNull
+                // 11 CmpReduce = 51 SolveProp
+                // ...
                 let lut = match GIDS1.get(&lut) {
                     Some(v) => *v,
                     None => {

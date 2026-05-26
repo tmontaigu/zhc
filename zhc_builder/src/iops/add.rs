@@ -718,7 +718,13 @@ impl Builder {
 
         // Convert cin to PG encoding (or zero if absent).
         let cin_pg = match cin {
-            Some(c) => self.block_lookup(c, Lut1Def::Ripple2GenProp),
+            Some(c) => {
+                // this is only working if carry is in fact a plaintext block
+                // which is the case for subtraction
+                // TODO: find a way to support ciphertext carry in if needed
+                let two = self.block_let_plaintext(2);
+                self.block_mul_plaintext(c, &two)
+            }
             None => self.block_let_ciphertext(0),
         };
         let mut cin_pg_kogge_entry = KoggeEntry {

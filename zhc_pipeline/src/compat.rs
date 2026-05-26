@@ -2,9 +2,9 @@ use std::str::FromStr;
 
 use zhc_builder::{
     Builder, CiphertextSpec, add, bitwise_and, bitwise_or, bitwise_xor, cmp_eq, cmp_gt, cmp_gte,
-    cmp_lt, cmp_lte, cmp_neq, count_0, count_1, div, if_then_else, if_then_zero, ilog2, lead0,
-    lead1, mul_lsb, overflow_add, overflow_mul_lsb, overflow_sub, rem, rotate_left, rotate_right,
-    shift_left, shift_right, sub, trail0, trail1, erc7984, erc7984_simd,
+    cmp_lt, cmp_lte, cmp_neq, count_0, count_1, div, erc7984, erc7984_simd, if_then_else,
+    if_then_zero, ilog2, lead0, lead1, mul_lsb, overflow_add, overflow_mul_lsb, overflow_sub, rem,
+    rotate_left, rotate_right, shift_left, shift_right, sub, trail0, trail1,
 };
 use zhc_sim::hpu::HpuConfig;
 

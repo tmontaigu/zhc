@@ -79,12 +79,11 @@ impl Builder {
     /// Computes a homomorphic encrypted fund transfer (latency-optimised).
     ///
     /// Selects the best carry-propagation strategy based on integer size:
-    /// ripple carry for small integers, Hillis-Steele for medium, and
-    /// Kogge-Stone for large.
+    /// ripple carry for small integers, and Kogge-Stone for large.
     ///
     /// See [`iop_erc_7984_ripple`](Self::iop_erc_7984_ripple) for
     /// throughput-oriented variant.
-    fn iop_erc_7984_impl(
+    pub fn iop_erc_7984_impl(
         &self,
         src_from: &Ciphertext,
         src_to: &Ciphertext,
@@ -101,10 +100,15 @@ impl Builder {
         let actual_amount = self.iop_if_then_zero(src_amount, &enough_fund);
 
         // Step 3: Arithmetic strategy selection (matching add.rs / sub.rs).
+        // when KS ADD/SUB (32b or 64b, over 24b) are standalone the par_w is 12
+        // as it was determine to maximize usage of pe-pbs batches
+        // but here manual exploration at LLT implementation time (~2025) showed
+        // that par_w 10 was generating a smaller carry reduction tree which meant
+        // a bit less PBS (-4 ReduceCarryPad)
         let par_w = match spec.int_size() {
             8..16 => 1,
-            16..24 => 7,
-            24..256 => 12,
+            16..24 => 5,
+            24..256 => 10,
             _ => 1,
         };
 
@@ -192,26 +196,29 @@ mod test {
     }
 
     #[test]
-     fn correctness_erc7984_simd() {
+    fn correctness_erc7984_simd() {
         fn semantic(inp: &[IopValue]) -> Option<Vec<IopValue>> {
-            inp.chunks(3).flat_map(|chunk| {
-                let [IopValue::Ciphertext(from), IopValue::Ciphertext(to),
-     IopValue::Ciphertext(amount)] =                chunk
-                else {
-                    unreachable!()
-                };
-                if from >= amount {
-                    vec![
-                        IopValue::Ciphertext(from.sub(*amount)),
-                        IopValue::Ciphertext(to.add(*amount)),
-                    ]
-                } else {
-                    vec![
-                        IopValue::Ciphertext(*from),
-                        IopValue::Ciphertext(*to),
-                    ]
-                }
-            }).collect::<Vec<_>>().into()
+            inp.chunks(3)
+                .flat_map(|chunk| {
+                    let [
+                        IopValue::Ciphertext(from),
+                        IopValue::Ciphertext(to),
+                        IopValue::Ciphertext(amount),
+                    ] = chunk
+                    else {
+                        unreachable!()
+                    };
+                    if from >= amount {
+                        vec![
+                            IopValue::Ciphertext(from.sub(*amount)),
+                            IopValue::Ciphertext(to.add(*amount)),
+                        ]
+                    } else {
+                        vec![IopValue::Ciphertext(*from), IopValue::Ciphertext(*to)]
+                    }
+                })
+                .collect::<Vec<_>>()
+                .into()
         }
         for size in (2..64).step_by(2) {
             erc7984_simd(CiphertextSpec::new(size, 2, 2)).test_random(100, semantic);

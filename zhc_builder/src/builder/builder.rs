@@ -1048,7 +1048,7 @@ impl Builder {
     /// let ct = builder.ciphertext_input(1);
     /// let blocks = builder.ciphertext_split(&ct);
     /// let two = builder.block_let_plaintext(2);
-    /// let incremented = builder.block_add_plaintext(&blocks[0], &two);
+    /// let doubled = builder.block_mul_plaintext(&blocks[0], &two);
     /// ```
     pub fn block_mul_plaintext(
         &self,

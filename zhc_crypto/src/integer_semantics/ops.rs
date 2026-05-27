@@ -391,9 +391,9 @@ impl EmulatedCiphertext {
 
     pub fn cgte(self, other: Self) -> EmulatedCiphertext {
         assert_eq!(self.spec, other.spec(), "Spec mismatch.");
-        let storage = self.storage.ge(&other.storage);
+        let storage = (self.storage >= other.storage) as u128;
         EmulatedCiphertext {
-            storage: storage as u128,
+            storage,
             spec: CiphertextSpec::new(
                 self.spec.block_spec().message_size() as u16,
                 self.spec.block_spec().message_size(),

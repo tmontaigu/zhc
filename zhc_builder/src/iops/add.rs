@@ -16,7 +16,9 @@ use crate::{
 ///
 /// The returned [`Builder`] declares two ciphertext inputs and one ciphertext
 /// output representing the wrapping sum of the operands. Internally the
-/// addition uses [`Builder::iop_add_hillis_steele`] for carry propagation.
+/// addition uses [`Builder::iop_add_hillis_steele`],
+/// [`Builder::iop_add_kogge_stone`] or [`Builder::iop_ripple_carry_add`]
+/// for carry propagation.
 ///
 /// The `spec` parameter describes the integer encoding (bit-width, message
 /// bits, carry bits) and determines the number of blocks in the
@@ -47,6 +49,35 @@ pub fn add(spec: CiphertextSpec) -> Builder {
         _ => todo!(),
     };
     builder.ciphertext_output(res);
+    builder
+}
+
+/// Creates an IR for the SIMD addition of SIMD_N couple of encrypted integers.
+///
+/// The returned [`Builder`] declares SIMD_N * 2 ciphertext inputs and SIMD_N ciphertext
+/// output, each representing the wrapping sum of the operands. Internally the
+/// addition uses [`Builder::iop_ripple_carry_add`] for carry propagation.
+///
+/// The `spec` parameter describes the integer encoding (bit-width, message
+/// bits, carry bits) and determines the number of blocks in the
+/// decomposition.
+///
+/// # Examples
+///
+/// ```rust,no_run
+/// # use zhc_builder::{CiphertextSpec, add};
+/// # let spec = CiphertextSpec::new(16, 2, 2);
+/// let builder = add(spec);
+/// let ir = builder.optimize_ir();
+/// ```
+pub fn add_simd(spec: CiphertextSpec) -> Builder {
+    let builder = Builder::new(spec.block_spec());
+    for _ in 0..crate::SIMD_N {
+        let src_a = builder.ciphertext_input(spec.int_size());
+        let src_b = builder.ciphertext_input(spec.int_size());
+        let res = builder.iop_ripple_carry_add(&src_a, &src_b, None).0;
+        builder.ciphertext_output(res);
+    }
     builder
 }
 
@@ -964,6 +995,24 @@ mod test {
         }
         for size in (2..128).step_by(2) {
             add(CiphertextSpec::new(size, 2, 2)).test_random(100, semantic);
+        }
+    }
+
+    #[test]
+    fn correctness_add_simd() {
+        fn semantic(inp: &[IopValue]) -> Option<Vec<IopValue>> {
+            inp.chunks(2)
+                .flat_map(|chunk| {
+                    let [IopValue::Ciphertext(lhs), IopValue::Ciphertext(rhs)] = chunk else {
+                        unreachable!()
+                    };
+                    vec![IopValue::Ciphertext(lhs.add(*rhs))]
+                })
+                .collect::<Vec<_>>()
+                .into()
+        }
+        for size in (2..128).step_by(2) {
+            add_simd(CiphertextSpec::new(size, 2, 2)).test_random(100, semantic);
         }
     }
 

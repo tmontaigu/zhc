@@ -1,8 +1,8 @@
 use std::str::FromStr;
 
 use zhc_builder::{
-    Builder, CiphertextSpec, add, bitwise_and, bitwise_or, bitwise_xor, cmp_eq, cmp_gt, cmp_gte,
-    cmp_lt, cmp_lte, cmp_neq, count_0, count_1, div, erc7984, erc7984_simd, if_then_else,
+    Builder, CiphertextSpec, add, add_simd, bitwise_and, bitwise_or, bitwise_xor, cmp_eq, cmp_gt,
+    cmp_gte, cmp_lt, cmp_lte, cmp_neq, count_0, count_1, div, erc7984, erc7984_simd, if_then_else,
     if_then_zero, ilog2, lead0, lead1, mul_lsb, overflow_add, overflow_mul_lsb, overflow_sub, rem,
     rotate_left, rotate_right, shift_left, shift_right, sub, trail0, trail1,
 };
@@ -67,7 +67,7 @@ pub enum Iop {
     LeftRot,
     Erc7984,
     Erc7984Simd,
-    // AddSimd,
+    AddSimd,
     // MemCpy,
 }
 
@@ -122,7 +122,7 @@ impl FromStr for Iop {
             "ROT_L" => Ok(Iop::LeftRot),
             "ERC_7984" => Ok(Iop::Erc7984),
             "ERC_7984_SIMD" => Ok(Iop::Erc7984Simd),
-            // "ADD_SIMD" => Ok(Iop::AddSimd),
+            "ADD_SIMD" => Ok(Iop::AddSimd),
             // "MEMCPY" => Ok(Iop::MemCpy),
             _ => Err(()),
         }
@@ -140,6 +140,7 @@ impl Iop {
         Iop::IfThenElse,
         Iop::IfThenZero,
         Iop::Add,
+        Iop::AddSimd,
         Iop::Sub,
         Iop::Mul,
         Iop::Ilog2,
@@ -177,6 +178,7 @@ impl Iop {
             Iop::IfThenElse => if_then_else(spec),
             Iop::IfThenZero => if_then_zero(spec),
             Iop::Add => add(spec),
+            Iop::AddSimd => add_simd(spec),
             Iop::Sub => sub(spec),
             Iop::Mul => mul_lsb(spec),
             Iop::Ilog2 => ilog2(spec),
@@ -259,7 +261,7 @@ impl Iop {
             Iop::LeftRot => rotate_left(spec).optimize_ir(),
             Iop::Erc7984 => erc7984(spec).optimize_ir(),
             Iop::Erc7984Simd => erc7984_simd(spec).optimize_ir(),
-            // Iop::AddSimd => todo!(),
+            Iop::AddSimd => add_simd(spec).optimize_ir(),
             // Iop::MemCpy => todo!(),
         };
         let allocated = regular_pipeline(ir, hpu_config);

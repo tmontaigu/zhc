@@ -41,6 +41,9 @@ pub enum PropagationDirection {
     LsbToMsb,
 }
 
+/// Number of parallel transfers in a SIMD batch.
+pub const SIMD_N: usize = 12;
+
 mod add;
 mod bitwise;
 mod cmp;

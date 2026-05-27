@@ -39,9 +39,6 @@ pub fn erc7984(spec: CiphertextSpec) -> Builder {
     builder
 }
 
-/// Number of parallel transfers in a SIMD batch.
-const SIMD_N: usize = 12;
-
 /// Creates an IR for a batched homomorphic encrypted fund transfer (ERC-7984 SIMD).
 ///
 /// The returned [`Builder`] declares `SIMD_N` (12) independent transfer
@@ -63,7 +60,7 @@ const SIMD_N: usize = 12;
 pub fn erc7984_simd(spec: CiphertextSpec) -> Builder {
     let builder = Builder::new(spec.block_spec());
 
-    for _ in 0..SIMD_N {
+    for _ in 0..crate::SIMD_N {
         let src_from = builder.ciphertext_input(spec.int_size());
         let src_to = builder.ciphertext_input(spec.int_size());
         let src_amount = builder.ciphertext_input(spec.int_size());

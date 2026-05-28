@@ -6,5 +6,5 @@ pub struct AnnValOriginRef<'s, 'ann, D: Dialect, OpAnn: Annotation, ValAnn: Anno
     /// Annotated reference to the operation that produces this value.
     pub opref: AnnOpRef<'s, 'ann, D, OpAnn, ValAnn>,
     /// Zero-based index into the producing operation's return values.
-    pub position: u8,
+    pub position: u16,
 }

@@ -6,7 +6,7 @@ pub struct ValUse {
     /// The operation that consumes this value.
     pub opid: OpId,
     /// Zero-based index into the consuming operation's argument list.
-    pub position: u8,
+    pub position: u16,
 }
 
 /// A consuming operation and argument position for a value (borrowed references).
@@ -15,5 +15,5 @@ pub struct ValUseRef<'s, D: Dialect> {
     /// Reference to the operation that consumes this value.
     pub opref: OpRef<'s, D>,
     /// Zero-based index into the consuming operation's argument list.
-    pub position: u8,
+    pub position: u16,
 }

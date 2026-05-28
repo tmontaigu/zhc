@@ -6,7 +6,7 @@ pub struct ValOrigin {
     /// The operation that produces this value.
     pub opid: OpId,
     /// Zero-based index into the producing operation's return values.
-    pub position: u8,
+    pub position: u16,
 }
 
 /// The producing operation and return position of a value (borrowed references).
@@ -15,5 +15,5 @@ pub struct ValOriginRef<'s, D: Dialect> {
     /// Reference to the operation that produces this value.
     pub opref: OpRef<'s, D>,
     /// Zero-based index into the producing operation's return values.
-    pub position: u8,
+    pub position: u16,
 }

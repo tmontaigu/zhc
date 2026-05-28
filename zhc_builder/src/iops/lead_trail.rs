@@ -6,6 +6,19 @@ use crate::{
     BitType, Ciphertext, CiphertextBlock, NU, NU_BOOL, PropagationDirection, builder::Builder,
 };
 
+/// Creates an IR that counts leading zero bits in an encrypted integer.
+///
+/// Convenience wrapper that calls [`Builder::iop_lead0`].
+/// See that method for algorithm details.
+///
+/// # Examples
+///
+/// ```rust,no_run
+/// # use zhc_builder::{CiphertextSpec, lead0};
+/// # let spec = CiphertextSpec::new(16, 2, 2);
+/// let builder = lead0(spec);
+/// let ir = builder.optimize_ir();
+/// ```
 pub fn lead0(spec: CiphertextSpec) -> Builder {
     let builder = Builder::new(spec.block_spec());
     let src_a = builder.ciphertext_input(spec.int_size());
@@ -14,6 +27,19 @@ pub fn lead0(spec: CiphertextSpec) -> Builder {
     builder
 }
 
+/// Creates an IR that counts leading one bits in an encrypted integer.
+///
+/// Convenience wrapper that calls [`Builder::iop_lead1`].
+/// See that method for algorithm details.
+///
+/// # Examples
+///
+/// ```rust,no_run
+/// # use zhc_builder::{CiphertextSpec, lead1};
+/// # let spec = CiphertextSpec::new(16, 2, 2);
+/// let builder = lead1(spec);
+/// let ir = builder.optimize_ir();
+/// ```
 pub fn lead1(spec: CiphertextSpec) -> Builder {
     let builder = Builder::new(spec.block_spec());
     let src_a = builder.ciphertext_input(spec.int_size());
@@ -22,6 +48,19 @@ pub fn lead1(spec: CiphertextSpec) -> Builder {
     builder
 }
 
+/// Creates an IR that counts trailing zero bits in an encrypted integer.
+///
+/// Convenience wrapper that calls [`Builder::iop_trail0`].
+/// See that method for algorithm details.
+///
+/// # Examples
+///
+/// ```rust,no_run
+/// # use zhc_builder::{CiphertextSpec, trail0};
+/// # let spec = CiphertextSpec::new(16, 2, 2);
+/// let builder = trail0(spec);
+/// let ir = builder.optimize_ir();
+/// ```
 pub fn trail0(spec: CiphertextSpec) -> Builder {
     let builder = Builder::new(spec.block_spec());
     let src_a = builder.ciphertext_input(spec.int_size());
@@ -30,6 +69,19 @@ pub fn trail0(spec: CiphertextSpec) -> Builder {
     builder
 }
 
+/// Creates an IR that counts trailing one bits in an encrypted integer.
+///
+/// Convenience wrapper that calls [`Builder::iop_trail1`].
+/// See that method for algorithm details.
+///
+/// # Examples
+///
+/// ```rust,no_run
+/// # use zhc_builder::{CiphertextSpec, trail1};
+/// # let spec = CiphertextSpec::new(16, 2, 2);
+/// let builder = trail1(spec);
+/// let ir = builder.optimize_ir();
+/// ```
 pub fn trail1(spec: CiphertextSpec) -> Builder {
     let builder = Builder::new(spec.block_spec());
     let src_a = builder.ciphertext_input(spec.int_size());
@@ -38,6 +90,19 @@ pub fn trail1(spec: CiphertextSpec) -> Builder {
     builder
 }
 
+/// Creates an IR that computes the integer base-2 logarithm of an encrypted integer.
+///
+/// Convenience wrapper that calls [`Builder::iop_ilog2`].
+/// See that method for algorithm details.
+///
+/// # Examples
+///
+/// ```rust,no_run
+/// # use zhc_builder::{CiphertextSpec, ilog2};
+/// # let spec = CiphertextSpec::new(16, 2, 2);
+/// let builder = ilog2(spec);
+/// let ir = builder.optimize_ir();
+/// ```
 pub fn ilog2(spec: CiphertextSpec) -> Builder {
     let builder = Builder::new(spec.block_spec());
     let src_a = builder.ciphertext_input(spec.int_size());
@@ -47,6 +112,21 @@ pub fn ilog2(spec: CiphertextSpec) -> Builder {
 }
 
 impl Builder {
+    /// Computes the integer base-2 logarithm of an encrypted integer.
+    ///
+    /// For nonzero input, returns `⌊log₂(src)⌋` — the bit position of the highest set
+    /// bit (zero-indexed). For zero input, returns 0. Internally propagates a "seen a
+    /// one" flag from MSB to LSB, then counts the propagated bits.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # use zhc_builder::{CiphertextSpec, Builder};
+    /// # let spec = CiphertextSpec::new(16, 2, 2);
+    /// # let builder = Builder::new(spec.block_spec());
+    /// # let a = builder.ciphertext_input(spec.int_size());
+    /// let log = builder.iop_ilog2(&a);
+    /// ```
     pub fn iop_ilog2(&self, src: impl AsRef<Ciphertext>) -> Ciphertext {
         let src = src.as_ref();
         assert!(
@@ -65,6 +145,21 @@ impl Builder {
             .ciphertext_join(&output_blocks[..n_blocks], Some(src.spec().int_size()))
     }
 
+    /// Counts trailing zero bits in an encrypted integer.
+    ///
+    /// Returns the number of consecutive zero bits starting from the LSB. If all bits
+    /// are zero, returns `int_size`. Internally propagates a "seen a one" flag from
+    /// LSB to MSB, then counts the zero bits in the propagated result.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # use zhc_builder::{CiphertextSpec, Builder};
+    /// # let spec = CiphertextSpec::new(16, 2, 2);
+    /// # let builder = Builder::new(spec.block_spec());
+    /// # let a = builder.ciphertext_input(spec.int_size());
+    /// let tz = builder.iop_trail0(&a);
+    /// ```
     pub fn iop_trail0(&self, src: impl AsRef<Ciphertext>) -> Ciphertext {
         let src = src.as_ref();
         assert!(
@@ -83,6 +178,21 @@ impl Builder {
             .ciphertext_join(&output_blocks[..n_blocks], Some(src.spec().int_size()))
     }
 
+    /// Counts trailing one bits in an encrypted integer.
+    ///
+    /// Returns the number of consecutive one bits starting from the LSB. If all bits
+    /// are one, returns `int_size`. Internally propagates a "seen a zero" flag from
+    /// LSB to MSB, then counts the one bits in the propagated result.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # use zhc_builder::{CiphertextSpec, Builder};
+    /// # let spec = CiphertextSpec::new(16, 2, 2);
+    /// # let builder = Builder::new(spec.block_spec());
+    /// # let a = builder.ciphertext_input(spec.int_size());
+    /// let to = builder.iop_trail1(&a);
+    /// ```
     pub fn iop_trail1(&self, src: impl AsRef<Ciphertext>) -> Ciphertext {
         let src = src.as_ref();
         assert!(
@@ -101,6 +211,21 @@ impl Builder {
             .ciphertext_join(&output_blocks[..n_blocks], Some(src.spec().int_size()))
     }
 
+    /// Counts leading zero bits in an encrypted integer.
+    ///
+    /// Returns the number of consecutive zero bits starting from the MSB. If all bits
+    /// are zero, returns `int_size`. Internally propagates a "seen a one" flag from
+    /// MSB to LSB, then counts the zero bits in the propagated result.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # use zhc_builder::{CiphertextSpec, Builder};
+    /// # let spec = CiphertextSpec::new(16, 2, 2);
+    /// # let builder = Builder::new(spec.block_spec());
+    /// # let a = builder.ciphertext_input(spec.int_size());
+    /// let lz = builder.iop_lead0(&a);
+    /// ```
     pub fn iop_lead0(&self, src: impl AsRef<Ciphertext>) -> Ciphertext {
         let src = src.as_ref();
         assert!(
@@ -119,6 +244,21 @@ impl Builder {
             .ciphertext_join(&output_blocks[..n_blocks], Some(src.spec().int_size()))
     }
 
+    /// Counts leading one bits in an encrypted integer.
+    ///
+    /// Returns the number of consecutive one bits starting from the MSB. If all bits
+    /// are one, returns `int_size`. Internally propagates a "seen a zero" flag from
+    /// MSB to LSB, then counts the one bits in the propagated result.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # use zhc_builder::{CiphertextSpec, Builder};
+    /// # let spec = CiphertextSpec::new(16, 2, 2);
+    /// # let builder = Builder::new(spec.block_spec());
+    /// # let a = builder.ciphertext_input(spec.int_size());
+    /// let lo = builder.iop_lead1(&a);
+    /// ```
     pub fn iop_lead1(&self, src: impl AsRef<Ciphertext>) -> Ciphertext {
         let src = src.as_ref();
         assert!(

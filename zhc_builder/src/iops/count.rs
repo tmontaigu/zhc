@@ -11,16 +11,10 @@ use crate::{
     builder::{Builder, Ciphertext},
 };
 
-/// Creates an IR that counts the number of **zero** bits in an encrypted integer.
+/// Creates an IR that counts zero bits in an encrypted integer.
 ///
-/// The returned [`Builder`] declares one ciphertext input of `spec.int_size()`
-/// bits and one ciphertext output whose width is `⌈log₂(int_size + 1)⌉` bits
-/// — just enough to represent every possible count from 0 to `int_size`.
-/// Internally delegates to [`Builder::iop_count`] with [`BitType::Zero`].
-///
-/// The `spec` parameter describes the integer encoding (bit-width, message
-/// bits, carry bits) and determines the number of blocks in the
-/// decomposition.
+/// Convenience wrapper that calls [`Builder::iop_count`] with [`BitType::Zero`].
+/// See that method for algorithm details.
 ///
 /// # Examples
 ///
@@ -38,16 +32,10 @@ pub fn count_0(spec: CiphertextSpec) -> Builder {
     builder
 }
 
-/// Creates an IR that counts the number of **one** bits in an encrypted integer.
+/// Creates an IR that counts one bits (popcount) in an encrypted integer.
 ///
-/// The returned [`Builder`] declares one ciphertext input of `spec.int_size()`
-/// bits and one ciphertext output whose width is `⌈log₂(int_size + 1)⌉` bits
-/// — just enough to represent every possible count from 0 to `int_size`.
-/// Internally delegates to [`Builder::iop_count`] with [`BitType::One`].
-///
-/// The `spec` parameter describes the integer encoding (bit-width, message
-/// bits, carry bits) and determines the number of blocks in the
-/// decomposition.
+/// Convenience wrapper that calls [`Builder::iop_count`] with [`BitType::One`].
+/// See that method for algorithm details.
 ///
 /// # Examples
 ///

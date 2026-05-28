@@ -4,30 +4,9 @@ use crate::{Ciphertext, CmpKind, builder::Builder};
 
 /// Creates an IR for a homomorphic encrypted fund transfer (ERC-7984).
 ///
-/// The returned [`Builder`] declares three ciphertext inputs — `from` (sender
-/// balance), `to` (receiver balance), and `amount` (transfer amount) — and two
-/// ciphertext outputs: the updated sender balance and the updated receiver
-/// balance.
-///
-/// When the sender has sufficient funds (`from >= amount`), the transfer
-/// proceeds: `new_from = from - amount` and `new_to = to + amount`. When funds
-/// are insufficient, both balances remain unchanged.
-///
-/// Uses Kogge-Stone carry propagation for the arithmetic, optimised for
-/// single-transfer latency. For throughput-oriented batched transfers see
-/// [`erc7984_simd`].
-///
-/// The `spec` parameter describes the integer encoding (bit-width, message
-/// bits, carry bits) and determines the number of blocks in the decomposition.
-///
-/// # Examples
-///
-/// ```rust,no_run
-/// # use zhc_builder::{CiphertextSpec, erc7984};
-/// # let spec = CiphertextSpec::new(16, 2, 2);
-/// let builder = erc7984(spec);
-/// let ir = builder.optimize_ir();
-/// ```
+/// Convenience wrapper that calls [`Builder::iop_erc_7984_impl`]. Declares three
+/// inputs (from, to, amount) and two outputs (new_from, new_to). For batched
+/// transfers see [`erc7984_simd`]. See the builder method for algorithm details.
 pub fn erc7984(spec: CiphertextSpec) -> Builder {
     let builder = Builder::new(spec.block_spec());
     let src_from = builder.ciphertext_input(spec.int_size());
@@ -39,24 +18,11 @@ pub fn erc7984(spec: CiphertextSpec) -> Builder {
     builder
 }
 
-/// Creates an IR for a batched homomorphic encrypted fund transfer (ERC-7984 SIMD).
+/// Creates an IR for batched (SIMD) homomorphic fund transfers (ERC-7984).
 ///
-/// The returned [`Builder`] declares `SIMD_N` (12) independent transfer
-/// triplets as inputs — `(from_0, to_0, amount_0, from_1, to_1, amount_1,
-/// …)` — and `SIMD_N` output pairs `(new_from_0, new_to_0, …)`.
-///
-/// Each transfer is independent and uses ripple-carry arithmetic, trading
-/// per-transfer latency for maximum throughput when many transfers are
-/// processed in parallel. For single-transfer latency see [`erc7984`].
-///
-/// # Examples
-///
-/// ```rust,no_run
-/// # use zhc_builder::{CiphertextSpec, erc7984_simd};
-/// # let spec = CiphertextSpec::new(16, 2, 2);
-/// let builder = erc7984_simd(spec);
-/// let ir = builder.optimize_ir();
-/// ```
+/// Declares `SIMD_N` independent transfer triplets as inputs and output pairs.
+/// Each transfer uses [`Builder::iop_erc_7984_ripple`] — optimized for throughput.
+/// For single-transfer latency see [`erc7984`].
 pub fn erc7984_simd(spec: CiphertextSpec) -> Builder {
     let builder = Builder::new(spec.block_spec());
 
@@ -111,8 +77,11 @@ impl Builder {
 
         // Step 4: new_to = src_to + actual_amount
         let new_to = match spec.int_size() {
-            0..8 => self.iop_ripple_carry_add(src_to, &actual_amount, None).0,
-            8..256 => self.iop_add_kogge_stone(src_to, &actual_amount, None, par_w),
+            0..8 => self.iop_add_ripple_carry(src_to, &actual_amount, None).0,
+            8..256 => {
+                self.iop_add_kogge_stone(src_to, &actual_amount, None, par_w)
+                    .0
+            }
             _ => todo!(),
         };
 
@@ -121,10 +90,13 @@ impl Builder {
         let one = self.block_let_ciphertext(1);
         let new_from = match spec.int_size() {
             0..8 => {
-                self.iop_ripple_carry_add(src_from, &actual_amount_inv, Some(&one))
+                self.iop_add_ripple_carry(src_from, &actual_amount_inv, Some(&one))
                     .0
             }
-            8..256 => self.iop_add_kogge_stone(src_from, &actual_amount_inv, Some(&one), par_w),
+            8..256 => {
+                self.iop_add_kogge_stone(src_from, &actual_amount_inv, Some(&one), par_w)
+                    .0
+            }
             _ => todo!(),
         };
 
@@ -150,12 +122,12 @@ impl Builder {
         let actual_amount = self.iop_if_then_zero(src_amount, &enough_fund);
 
         // Step 3: new_to = src_to + actual_amount (ripple carry)
-        let (new_to, _) = self.iop_ripple_carry_add(src_to, &actual_amount, None);
+        let (new_to, _) = self.iop_add_ripple_carry(src_to, &actual_amount, None);
 
         // Step 4: new_from = src_from - actual_amount (two's complement, ripple carry)
         let actual_amount_inv = self.iop_bitwise_inv(&actual_amount);
         let one = self.block_let_ciphertext(1);
-        let (new_from, _) = self.iop_ripple_carry_add(src_from, &actual_amount_inv, Some(&one));
+        let (new_from, _) = self.iop_add_ripple_carry(src_from, &actual_amount_inv, Some(&one));
 
         (new_from, new_to)
     }

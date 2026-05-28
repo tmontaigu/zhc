@@ -3,16 +3,10 @@ use zhc_crypto::integer_semantics::CiphertextSpec;
 use zhc_langs::ioplang::Lut1Def;
 use zhc_utils::iter::MultiZip;
 
-/// Creates an IR for a *greater-than* comparison of two encrypted integers.
+/// Creates an IR for greater-than comparison of two encrypted integers.
 ///
-/// The returned [`Builder`] declares two ciphertext inputs and one
-/// single-block ciphertext output encoding the boolean result (1 when the
-/// first operand is strictly greater than the second, 0 otherwise).
-/// Internally delegates to [`Builder::iop_cmp`] with [`CmpKind::Greater`].
-///
-/// The `spec` parameter describes the integer encoding (bit-width, message
-/// bits, carry bits) and determines the number of blocks in the
-/// decomposition.
+/// Convenience wrapper that calls [`Builder::iop_cmp`] with [`CmpKind::Greater`].
+/// See that method for algorithm details.
 ///
 /// # Examples
 ///
@@ -31,17 +25,10 @@ pub fn cmp_gt(spec: CiphertextSpec) -> Builder {
     builder
 }
 
-/// Creates an IR for a *greater-or-equal* comparison of two encrypted integers.
+/// Creates an IR for greater-or-equal comparison of two encrypted integers.
 ///
-/// The returned [`Builder`] declares two ciphertext inputs and one
-/// single-block ciphertext output encoding the boolean result (1 when the
-/// first operand is greater than or equal to the second, 0 otherwise).
-/// Internally delegates to [`Builder::iop_cmp`] with
-/// [`CmpKind::GreaterOrEqual`].
-///
-/// The `spec` parameter describes the integer encoding (bit-width, message
-/// bits, carry bits) and determines the number of blocks in the
-/// decomposition.
+/// Convenience wrapper that calls [`Builder::iop_cmp`] with [`CmpKind::GreaterOrEqual`].
+/// See that method for algorithm details.
 ///
 /// # Examples
 ///
@@ -60,16 +47,10 @@ pub fn cmp_gte(spec: CiphertextSpec) -> Builder {
     builder
 }
 
-/// Creates an IR for a *less-than* comparison of two encrypted integers.
+/// Creates an IR for less-than comparison of two encrypted integers.
 ///
-/// The returned [`Builder`] declares two ciphertext inputs and one
-/// single-block ciphertext output encoding the boolean result (1 when the
-/// first operand is strictly less than the second, 0 otherwise).
-/// Internally delegates to [`Builder::iop_cmp`] with [`CmpKind::Lower`].
-///
-/// The `spec` parameter describes the integer encoding (bit-width, message
-/// bits, carry bits) and determines the number of blocks in the
-/// decomposition.
+/// Convenience wrapper that calls [`Builder::iop_cmp`] with [`CmpKind::Lower`].
+/// See that method for algorithm details.
 ///
 /// # Examples
 ///
@@ -88,17 +69,10 @@ pub fn cmp_lt(spec: CiphertextSpec) -> Builder {
     builder
 }
 
-/// Creates an IR for a *less-or-equal* comparison of two encrypted integers.
+/// Creates an IR for less-or-equal comparison of two encrypted integers.
 ///
-/// The returned [`Builder`] declares two ciphertext inputs and one
-/// single-block ciphertext output encoding the boolean result (1 when the
-/// first operand is less than or equal to the second, 0 otherwise).
-/// Internally delegates to [`Builder::iop_cmp`] with
-/// [`CmpKind::LowerOrEqual`].
-///
-/// The `spec` parameter describes the integer encoding (bit-width, message
-/// bits, carry bits) and determines the number of blocks in the
-/// decomposition.
+/// Convenience wrapper that calls [`Builder::iop_cmp`] with [`CmpKind::LowerOrEqual`].
+/// See that method for algorithm details.
 ///
 /// # Examples
 ///
@@ -117,16 +91,10 @@ pub fn cmp_lte(spec: CiphertextSpec) -> Builder {
     builder
 }
 
-/// Creates an IR for an *equality* comparison of two encrypted integers.
+/// Creates an IR for equality comparison of two encrypted integers.
 ///
-/// The returned [`Builder`] declares two ciphertext inputs and one
-/// single-block ciphertext output encoding the boolean result (1 when the
-/// two operands are equal, 0 otherwise). Internally delegates to
-/// [`Builder::iop_cmp`] with [`CmpKind::Equal`].
-///
-/// The `spec` parameter describes the integer encoding (bit-width, message
-/// bits, carry bits) and determines the number of blocks in the
-/// decomposition.
+/// Convenience wrapper that calls [`Builder::iop_cmp`] with [`CmpKind::Equal`].
+/// See that method for algorithm details.
 ///
 /// # Examples
 ///
@@ -145,16 +113,10 @@ pub fn cmp_eq(spec: CiphertextSpec) -> Builder {
     builder
 }
 
-/// Creates an IR for an *inequality* comparison of two encrypted integers.
+/// Creates an IR for inequality comparison of two encrypted integers.
 ///
-/// The returned [`Builder`] declares two ciphertext inputs and one
-/// single-block ciphertext output encoding the boolean result (1 when the
-/// two operands differ, 0 otherwise). Internally delegates to
-/// [`Builder::iop_cmp`] with [`CmpKind::NotEqual`].
-///
-/// The `spec` parameter describes the integer encoding (bit-width, message
-/// bits, carry bits) and determines the number of blocks in the
-/// decomposition.
+/// Convenience wrapper that calls [`Builder::iop_cmp`] with [`CmpKind::NotEqual`].
+/// See that method for algorithm details.
 ///
 /// # Examples
 ///

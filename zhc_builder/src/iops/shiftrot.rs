@@ -9,9 +9,13 @@ use crate::{
 /// The kind of shift or rotate operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ShiftRotKind {
+    /// Logical right shift — zeros fill vacated MSB positions.
     ShiftRight,
+    /// Logical left shift — zeros fill vacated LSB positions.
     ShiftLeft,
+    /// Right rotation — bits shifted out of LSB re-enter at MSB.
     RotateRight,
+    /// Left rotation — bits shifted out of MSB re-enter at LSB.
     RotateLeft,
 }
 
@@ -24,8 +28,10 @@ enum CondPos {
     Pos1,
 }
 
-/// Creates an IR for logical right shift of an encrypted integer by an
-/// encrypted amount.
+/// Creates an IR for logical right shift of an encrypted integer.
+///
+/// Convenience wrapper that calls [`Builder::iop_shiftrot`] with
+/// [`ShiftRotKind::ShiftRight`]. See that method for algorithm details.
 pub fn shift_right(spec: CiphertextSpec) -> Builder {
     let builder = Builder::new(spec.block_spec());
     let src = builder.ciphertext_input(spec.int_size());
@@ -35,8 +41,10 @@ pub fn shift_right(spec: CiphertextSpec) -> Builder {
     builder
 }
 
-/// Creates an IR for logical left shift of an encrypted integer by an
-/// encrypted amount.
+/// Creates an IR for logical left shift of an encrypted integer.
+///
+/// Convenience wrapper that calls [`Builder::iop_shiftrot`] with
+/// [`ShiftRotKind::ShiftLeft`]. See that method for algorithm details.
 pub fn shift_left(spec: CiphertextSpec) -> Builder {
     let builder = Builder::new(spec.block_spec());
     let src = builder.ciphertext_input(spec.int_size());
@@ -46,8 +54,10 @@ pub fn shift_left(spec: CiphertextSpec) -> Builder {
     builder
 }
 
-/// Creates an IR for right rotation of an encrypted integer by an encrypted
-/// amount.
+/// Creates an IR for right rotation of an encrypted integer.
+///
+/// Convenience wrapper that calls [`Builder::iop_shiftrot`] with
+/// [`ShiftRotKind::RotateRight`]. See that method for algorithm details.
 pub fn rotate_right(spec: CiphertextSpec) -> Builder {
     let builder = Builder::new(spec.block_spec());
     let src = builder.ciphertext_input(spec.int_size());
@@ -57,8 +67,10 @@ pub fn rotate_right(spec: CiphertextSpec) -> Builder {
     builder
 }
 
-/// Creates an IR for left rotation of an encrypted integer by an encrypted
-/// amount.
+/// Creates an IR for left rotation of an encrypted integer.
+///
+/// Convenience wrapper that calls [`Builder::iop_shiftrot`] with [`ShiftRotKind::RotateLeft`]. See
+/// that method for algorithm details.
 pub fn rotate_left(spec: CiphertextSpec) -> Builder {
     let builder = Builder::new(spec.block_spec());
     let src = builder.ciphertext_input(spec.int_size());
@@ -81,6 +93,17 @@ impl Builder {
     ///
     /// The effective shift amount is `amount mod int_size` (for power-of-two
     /// integer sizes).
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # use zhc_builder::{CiphertextSpec, Builder, ShiftRotKind};
+    /// # let spec = CiphertextSpec::new(16, 2, 2);
+    /// # let builder = Builder::new(spec.block_spec());
+    /// # let val = builder.ciphertext_input(spec.int_size());
+    /// # let amt = builder.ciphertext_input(spec.int_size());
+    /// let shifted = builder.iop_shiftrot(&val, &amt, ShiftRotKind::ShiftLeft);
+    /// ```
     pub fn iop_shiftrot(
         &self,
         src: &Ciphertext,

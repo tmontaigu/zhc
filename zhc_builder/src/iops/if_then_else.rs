@@ -7,27 +7,11 @@ use zhc_utils::{
 
 use crate::{Ciphertext, builder::Builder};
 
-/// Creates an IR for a conditional select between two encrypted integers.
+/// Creates an IR for conditional select between two encrypted integers.
 ///
-/// The returned [`Builder`] declares three ciphertext inputs — two integer
-/// operands and one single-block boolean condition — and one ciphertext
-/// output. When the condition is zero (false) the output equals the first
-/// operand; when it is non-zero (true) the output equals the second.
-/// Internally delegates to [`Builder::iop_if_then_else`].
-///
-/// The `spec` parameter describes the integer encoding (bit-width, message
-/// bits, carry bits) and determines the number of blocks in the
-/// decomposition. The condition input is automatically sized to a single
-/// message block.
-///
-/// # Examples
-///
-/// ```rust,no_run
-/// # use zhc_builder::{CiphertextSpec, if_then_else};
-/// # let spec = CiphertextSpec::new(16, 2, 2);
-/// let builder = if_then_else(spec);
-/// let ir = builder.optimize_ir();
-/// ```
+/// Convenience wrapper that calls [`Builder::iop_if_then_else`]. Declares two
+/// integer inputs, one boolean condition input, and one output.
+/// See the builder method for details.
 pub fn if_then_else(spec: CiphertextSpec) -> Builder {
     let builder = Builder::new(spec.block_spec());
     let src_a = builder.ciphertext_input(spec.int_size());

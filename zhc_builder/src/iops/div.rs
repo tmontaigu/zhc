@@ -8,9 +8,8 @@ use crate::{
 
 /// Creates an IR for unsigned division of two encrypted integers.
 ///
-/// The returned [`Builder`] declares two ciphertext inputs (dividend and divisor) and
-/// two ciphertext outputs (quotient and remainder). Division by zero produces an
-/// unspecified result without trapping.
+/// Convenience wrapper that calls [`Builder::iop_divx`] and outputs both quotient
+/// and remainder. See that method for algorithm details.
 ///
 /// # Examples
 ///
@@ -30,11 +29,51 @@ pub fn div(spec: CiphertextSpec) -> Builder {
     builder
 }
 
-/// Creates an IR for the unsigned remainder of two encrypted integers.
+impl Builder {
+    /// Computes the unsigned quotient of two encrypted integers.
+    ///
+    /// Returns `lhs / rhs` (integer division, rounding toward zero). Division by zero
+    /// produces an unspecified result without trapping. Internally delegates to
+    /// [`iop_divx`](Self::iop_divx) and discards the remainder.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # use zhc_builder::{CiphertextSpec, Builder};
+    /// # let spec = CiphertextSpec::new(16, 2, 2);
+    /// # let builder = Builder::new(spec.block_spec());
+    /// # let a = builder.ciphertext_input(spec.int_size());
+    /// # let b = builder.ciphertext_input(spec.int_size());
+    /// let quotient = builder.iop_div(&a, &b);
+    /// ```
+    pub fn iop_div(&self, lhs: &Ciphertext, rhs: &Ciphertext) -> Ciphertext {
+        self.iop_divx(&lhs, &rhs).0
+    }
+
+    /// Computes the unsigned remainder of two encrypted integers.
+    ///
+    /// Returns `lhs % rhs` (Euclidean remainder). Remainder by zero produces an
+    /// unspecified result without trapping. Internally delegates to
+    /// [`iop_divx`](Self::iop_divx) and discards the quotient.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # use zhc_builder::{CiphertextSpec, Builder};
+    /// # let spec = CiphertextSpec::new(16, 2, 2);
+    /// # let builder = Builder::new(spec.block_spec());
+    /// # let a = builder.ciphertext_input(spec.int_size());
+    /// # let b = builder.ciphertext_input(spec.int_size());
+    /// let remainder = builder.iop_rem(&a, &b);
+    /// ```
+    pub fn iop_rem(&self, lhs: &Ciphertext, rhs: &Ciphertext) -> Ciphertext {
+        self.iop_divx(&lhs, &rhs).1
+    }
+}
+
+/// Creates an IR for unsigned remainder of two encrypted integers.
 ///
-/// The returned [`Builder`] declares two ciphertext inputs (dividend and divisor) and
-/// one ciphertext output (remainder). Internally this delegates to [`div`] and discards
-/// the quotient. Remainder by zero produces an unspecified result without trapping.
+/// Convenience wrapper that calls [`Builder::iop_rem`]. See that method for details.
 ///
 /// # Examples
 ///
@@ -86,6 +125,23 @@ enum IfThenElse0Select {
 }
 
 impl Builder {
+    /// Computes both quotient and remainder of two encrypted integers.
+    ///
+    /// Returns `(quotient, remainder)` for unsigned division `lhs / rhs`. This is the
+    /// core division routine; use [`iop_div`](Self::iop_div) or [`iop_rem`](Self::iop_rem)
+    /// if only one result is needed (dead-code elimination removes the unused output).
+    /// Division by zero produces an unspecified result without trapping.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # use zhc_builder::{CiphertextSpec, Builder};
+    /// # let spec = CiphertextSpec::new(16, 2, 2);
+    /// # let builder = Builder::new(spec.block_spec());
+    /// # let a = builder.ciphertext_input(spec.int_size());
+    /// # let b = builder.ciphertext_input(spec.int_size());
+    /// let (quotient, remainder) = builder.iop_divx(&a, &b);
+    /// ```
     pub fn iop_divx(&self, lhs: &Ciphertext, rhs: &Ciphertext) -> (Ciphertext, Ciphertext) {
         let lhs_blocks = self.ciphertext_split(lhs);
         let rhs_blocks = self.ciphertext_split(rhs);
@@ -330,7 +386,7 @@ impl Builder {
         }
     }
 
-    pub fn iop_opposite_nopropv(&self, src: impl AsRef<[CiphertextBlock]>) -> Vec<CiphertextBlock> {
+    fn iop_opposite_nopropv(&self, src: impl AsRef<[CiphertextBlock]>) -> Vec<CiphertextBlock> {
         let src = src.as_ref();
         let cst_msg = self.block_let_plaintext(1 << self.spec().1);
         let cst_msg_m1 = self.block_let_plaintext((1 << self.spec().1) - 1);

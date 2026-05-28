@@ -107,7 +107,7 @@ mod test {
         allocator::allocate_registers, batch_scheduler::schedule, batcher::batch,
         translation::lower_iop_to_hpu,
     };
-    use zhc_builder::{CiphertextSpec, add, cmp_gt, count_0, lead0, mul_lsb, overflow_mul_lsb};
+    use zhc_builder::{CiphertextSpec, add, cmp_gt, count_0, lead0, mul, overflow_mul};
     use zhc_ir::IR;
     use zhc_langs::ioplang::IopLang;
     use zhc_sim::{
@@ -160,7 +160,7 @@ mod test {
 
     #[test]
     fn test_latency_mul_lsb_ir() {
-        let lat = pipeline(&mul_lsb(CiphertextSpec::new(64, 2, 2)).optimize_ir());
+        let lat = pipeline(&mul(CiphertextSpec::new(64, 2, 2)).optimize_ir());
         assert_display_is!(
             format!("{}us", lat.as_ts(MHz(400).period())),
             r#"
@@ -171,7 +171,7 @@ mod test {
 
     #[test]
     fn test_latency_overflow_mul_lsb_ir() {
-        let lat = pipeline(&overflow_mul_lsb(CiphertextSpec::new(64, 2, 2)).optimize_ir());
+        let lat = pipeline(&overflow_mul(CiphertextSpec::new(64, 2, 2)).optimize_ir());
         assert_display_is!(
             format!("{}us", lat.as_ts(MHz(400).period())),
             r#"

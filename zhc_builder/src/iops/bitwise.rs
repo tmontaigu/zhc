@@ -5,23 +5,8 @@ use crate::builder::{Builder, Ciphertext};
 
 /// Creates an IR for bitwise AND of two encrypted integers.
 ///
-/// The returned [`Builder`] declares two ciphertext inputs and one ciphertext
-/// output, where each output block is the bitwise AND of the corresponding
-/// input blocks. The operation is applied independently to every block pair,
-/// using a single programmable bootstrapping per block.
-///
-/// The `spec` parameter describes the integer encoding (bit-width, message
-/// bits, carry bits) and determines the number of blocks in the
-/// decomposition.
-///
-/// # Examples
-///
-/// ```rust,no_run
-/// # use zhc_builder::{CiphertextSpec, bitwise_and};
-/// # let spec = CiphertextSpec::new(16, 2, 2);
-/// let builder = bitwise_and(spec);
-/// let ir = builder.optimize_ir();
-/// ```
+/// Convenience wrapper that calls [`Builder::iop_bitwise`] with [`BwKind::And`].
+/// See that method for details.
 pub fn bitwise_and(spec: CiphertextSpec) -> Builder {
     let builder = Builder::new(spec.block_spec());
     let src_a = builder.ciphertext_input(spec.int_size());
@@ -33,23 +18,8 @@ pub fn bitwise_and(spec: CiphertextSpec) -> Builder {
 
 /// Creates an IR for bitwise OR of two encrypted integers.
 ///
-/// The returned [`Builder`] declares two ciphertext inputs and one ciphertext
-/// output, where each output block is the bitwise OR of the corresponding
-/// input blocks. The operation is applied independently to every block pair,
-/// using a single programmable bootstrapping per block.
-///
-/// The `spec` parameter describes the integer encoding (bit-width, message
-/// bits, carry bits) and determines the number of blocks in the
-/// decomposition.
-///
-/// # Examples
-///
-/// ```rust,no_run
-/// # use zhc_builder::{CiphertextSpec, bitwise_or};
-/// # let spec = CiphertextSpec::new(16, 2, 2);
-/// let builder = bitwise_or(spec);
-/// let ir = builder.optimize_ir();
-/// ```
+/// Convenience wrapper that calls [`Builder::iop_bitwise`] with [`BwKind::Or`].
+/// See that method for details.
 pub fn bitwise_or(spec: CiphertextSpec) -> Builder {
     let builder = Builder::new(spec.block_spec());
     let src_a = builder.ciphertext_input(spec.int_size());
@@ -61,14 +31,8 @@ pub fn bitwise_or(spec: CiphertextSpec) -> Builder {
 
 /// Creates an IR for bitwise XOR of two encrypted integers.
 ///
-/// The returned [`Builder`] declares two ciphertext inputs and one ciphertext
-/// output, where each output block is the bitwise XOR of the corresponding
-/// input blocks. The operation is applied independently to every block pair,
-/// using a single programmable bootstrapping per block.
-///
-/// The `spec` parameter describes the integer encoding (bit-width, message
-/// bits, carry bits) and determines the number of blocks in the
-/// decomposition.
+/// Convenience wrapper that calls [`Builder::iop_bitwise`] with [`BwKind::Xor`].
+/// See that method for details.
 ///
 /// # Examples
 ///
@@ -89,10 +53,8 @@ pub fn bitwise_xor(spec: CiphertextSpec) -> Builder {
 
 /// Creates an IR for bitwise NOT of an encrypted integer.
 ///
-/// The returned [`Builder`] declares one ciphertext input and one ciphertext output,
-/// where each output block is the bitwise complement of the corresponding input block.
-/// The operation is computed block-wise as `(2^message_size - 1) - block`, which flips
-/// all message bits without requiring a PBS.
+/// Convenience wrapper that calls [`Builder::iop_bitwise_inv`].
+/// See that method for details.
 ///
 /// # Examples
 ///

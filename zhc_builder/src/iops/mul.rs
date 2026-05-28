@@ -1,86 +1,94 @@
 use std::collections::HashMap;
 
-use crate::{CiphertextBlock, NU, NU_BOOL, builder::Builder};
+use crate::{Ciphertext, CiphertextBlock, NU, NU_BOOL, builder::Builder};
 use zhc_crypto::integer_semantics::CiphertextSpec;
 use zhc_langs::ioplang::Lut1Def;
 use zhc_utils::SafeAs;
 
-/// Creates an IR for a multiplication of two encrypted integers.
+/// Creates an IR for multiplication of two encrypted integers.
 ///
-/// The returned [`Builder`] declares two ciphertext inputs and one ciphertext output encoding LSB
-/// result of the product Internally delegates to [`Builder::iop_mul_raw`].
-///
-/// The `spec` parameter describes the integer encoding (bit-width, message
-/// bits, carry bits) and determines the number of blocks in the
-/// decomposition.
-///
-/// # Examples
-///
-/// ```rust,no_run
-/// # use zhc_builder::{CiphertextSpec, mul_lsb};
-/// # let spec = CiphertextSpec::new(16, 2, 2);
-/// let builder = mul_lsb(spec);
-/// let ir = builder.optimize_ir();
-/// ```
-pub fn mul_lsb(spec: CiphertextSpec) -> Builder {
+/// Convenience wrapper that calls [`Builder::iop_mul`]. Returns the low bits of
+/// the product (wrapping multiplication). See the builder method for algorithm details.
+pub fn mul(spec: CiphertextSpec) -> Builder {
     let builder = Builder::new(spec.block_spec());
     let src_a = builder.ciphertext_input(spec.int_size());
     let src_b = builder.ciphertext_input(spec.int_size());
-
-    // Get input as array of blk
-    let src_a_blocks = builder.ciphertext_split(&src_a);
-    let src_b_blocks = builder.ciphertext_split(&src_b);
-    // Only kept LSB to obtain a IxI -> I operations
-    let cut_off = spec.block_count();
-
-    // Call inner function and construct results
-    let (output, _flag) = builder.iop_mul_raw(&src_a_blocks, &src_b_blocks, cut_off);
-    let lsb_output = builder.ciphertext_join(&output, Some(spec.int_size()));
-    builder.ciphertext_output(lsb_output);
+    let res = builder.iop_mul(&src_a, &src_b);
+    builder.ciphertext_output(res);
     builder
 }
 
-/// Creates an IR for a multiplication of two encrypted integers.
+/// Creates an IR for multiplication with overflow detection.
 ///
-/// The returned [`Builder`] declares two ciphertext inputs and two ciphertext outputs.
-/// First output is an overflow flag, second one is the LSB part of the input product
-///
-/// Internally delegates to [`Builder::iop_mul_raw`].
-///
-/// The `spec` parameter describes the integer encoding (bit-width, message
-/// bits, carry bits) and determines the number of blocks in the
-/// decomposition.
-///
-/// # Examples
-///
-/// ```rust,no_run
-/// # use zhc_builder::{CiphertextSpec, overflow_mul_lsb};
-/// # let spec = CiphertextSpec::new(16, 2, 2);
-/// let builder = overflow_mul_lsb(spec);
-/// let ir = builder.optimize_ir();
-/// ```
-pub fn overflow_mul_lsb(spec: CiphertextSpec) -> Builder {
+/// Convenience wrapper that calls [`Builder::iop_overflow_mul`]. Returns the product
+/// and a single-block overflow flag. See the builder method for algorithm details.
+pub fn overflow_mul(spec: CiphertextSpec) -> Builder {
     let builder = Builder::new(spec.block_spec());
     let src_a = builder.ciphertext_input(spec.int_size());
     let src_b = builder.ciphertext_input(spec.int_size());
-
-    // Get input as array of blk
-    let src_a_blocks = builder.ciphertext_split(&src_a);
-    let src_b_blocks = builder.ciphertext_split(&src_b);
-    // Only kept LSB to obtain a IxI -> I operations
-    let cut_off = spec.block_count();
-
-    // Call inner function and construct results
-    let (output, flag_block) = builder.iop_mul_raw(&src_a_blocks, &src_b_blocks, cut_off);
-    let lsb_output = builder.ciphertext_join(&output, Some(spec.int_size()));
-    let flag = builder.ciphertext_join(&[flag_block], None);
-
-    builder.ciphertext_output(lsb_output);
+    let (res, flag) = builder.iop_overflow_mul(&src_a, &src_b);
+    builder.ciphertext_output(res);
     builder.ciphertext_output(flag);
     builder
 }
 
 impl Builder {
+    /// Multiplies two encrypted integers, returning the low bits of the product.
+    ///
+    /// Computes `(lhs * rhs) mod 2^n` where n is the integer bit-width. This is
+    /// wrapping multiplication that discards overflow. For overflow detection, use
+    /// [`iop_overflow_mul`](Self::iop_overflow_mul).
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # use zhc_builder::{CiphertextSpec, Builder};
+    /// # let spec = CiphertextSpec::new(16, 2, 2);
+    /// # let builder = Builder::new(spec.block_spec());
+    /// # let a = builder.ciphertext_input(spec.int_size());
+    /// # let b = builder.ciphertext_input(spec.int_size());
+    /// let product = builder.iop_mul(&a, &b);
+    /// ```
+    pub fn iop_mul(&self, lhs: &Ciphertext, rhs: &Ciphertext) -> Ciphertext {
+        let src_a_blocks = self.ciphertext_split(&lhs);
+        let src_b_blocks = self.ciphertext_split(&rhs);
+        // Only kept LSB to obtain a IxI -> I operations
+        let cut_off = lhs.spec().block_count();
+        // Call inner function and construct results
+        let (output, _flag) = self.iop_mul_raw(&src_a_blocks, &src_b_blocks, cut_off);
+        self.ciphertext_join(&output, Some(lhs.spec().int_size()))
+    }
+
+    /// Multiplies two encrypted integers with overflow detection.
+    ///
+    /// Returns `(product, overflow)` where `product` is the low bits of the
+    /// multiplication (wrapping) and `overflow` is a single-block ciphertext: 1 if
+    /// the full product exceeds the representable range, 0 otherwise.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # use zhc_builder::{CiphertextSpec, Builder};
+    /// # let spec = CiphertextSpec::new(16, 2, 2);
+    /// # let builder = Builder::new(spec.block_spec());
+    /// # let a = builder.ciphertext_input(spec.int_size());
+    /// # let b = builder.ciphertext_input(spec.int_size());
+    /// let (product, overflow) = builder.iop_overflow_mul(&a, &b);
+    /// ```
+    pub fn iop_overflow_mul(&self, lhs: &Ciphertext, rhs: &Ciphertext) -> (Ciphertext, Ciphertext) {
+        // Get input as array of blk
+        let src_a_blocks = self.ciphertext_split(&lhs);
+        let src_b_blocks = self.ciphertext_split(&rhs);
+        // Only kept LSB to obtain a IxI -> I operations
+        let cut_off = lhs.spec().block_count();
+        // Call inner function and construct results
+        let (output, flag_block) = self.iop_mul_raw(&src_a_blocks, &src_b_blocks, cut_off);
+        (
+            self.ciphertext_join(&output, Some(lhs.spec().int_size())),
+            self.ciphertext_join(&[flag_block], None),
+        )
+    }
+
     /// Multiply two ciphertext in a raw fashion.
     /// I.e. Compute all output up to cut-off point then only overflow flag status.
     /// This function should be wrapped specialized instances that select the desired
@@ -258,7 +266,7 @@ mod test {
             Some(vec![IopValue::Ciphertext(lhs.mul_lsb(*rhs))])
         }
         for size in (2..128).step_by(2) {
-            mul_lsb(CiphertextSpec::new(size, 2, 2)).test_random(100, semantic);
+            mul(CiphertextSpec::new(size, 2, 2)).test_random(100, semantic);
         }
     }
 
@@ -275,14 +283,14 @@ mod test {
             ])
         }
         for size in (2..128).step_by(2) {
-            overflow_mul_lsb(CiphertextSpec::new(size, 2, 2)).test_random(100, semantic);
+            overflow_mul(CiphertextSpec::new(size, 2, 2)).test_random(100, semantic);
         }
     }
 
     #[test]
     fn test_mul_lsb() {
         let spec = CiphertextSpec::new(8, 2, 2);
-        let ir = mul_lsb(spec).optimize_ir();
+        let ir = mul(spec).optimize_ir();
         assert_display_is!(
             ir.format()
                 .with_walker(zhc_ir::PrintWalker::Linear)

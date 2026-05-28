@@ -4,27 +4,11 @@ use zhc_utils::{SafeAs, iter::CollectInSmallVec};
 
 use crate::{Ciphertext, builder::Builder};
 
-/// Creates an IR for a conditional zeroing of an encrypted integer.
+/// Creates an IR for conditional zeroing of an encrypted integer.
 ///
-/// The returned [`Builder`] declares two ciphertext inputs — one integer
-/// operand and one single-block boolean condition — and one ciphertext
-/// output. When the condition is zero (false) the output equals the
-/// operand; when it is non-zero (true) the output is zero. Internally
-/// delegates to [`Builder::iop_if_then_zero`].
-///
-/// The `spec` parameter describes the integer encoding (bit-width, message
-/// bits, carry bits) and determines the number of blocks in the
-/// decomposition. The condition input is automatically sized to a single
-/// message block.
-///
-/// # Examples
-///
-/// ```rust,no_run
-/// # use zhc_builder::{CiphertextSpec, if_then_zero};
-/// # let spec = CiphertextSpec::new(16, 2, 2);
-/// let builder = if_then_zero(spec);
-/// let ir = builder.optimize_ir();
-/// ```
+/// Convenience wrapper that calls [`Builder::iop_if_then_zero`]. Declares one
+/// integer input, one boolean condition input, and one output.
+/// See the builder method for details.
 pub fn if_then_zero(spec: CiphertextSpec) -> Builder {
     let builder = Builder::new(spec.block_spec());
     let src = builder.ciphertext_input(spec.int_size());

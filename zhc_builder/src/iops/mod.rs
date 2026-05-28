@@ -24,20 +24,26 @@
 //! let mut builder = Builder::new(spec.block_spec());
 //! let a = builder.ciphertext_input(spec.int_size());
 //! let b = builder.ciphertext_input(spec.int_size());
-//! let sum = builder.iop_add_hillis_steele(&a, &b, None);
+//! let (sum, _carry) = builder.iop_add_hillis_steele(&a, &b, None);
 //! let is_gt = builder.iop_cmp(&sum, &b, CmpKind::Greater);
 //! builder.ciphertext_output(&is_gt);
 //! ```
 
+/// Selects which bit value to count or propagate in bit-scanning operations.
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
 pub enum BitType {
+    /// Count or propagate one-bits.
     One,
+    /// Count or propagate zero-bits.
     Zero,
 }
 
+/// Direction of bit propagation in leading/trailing bit operations.
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
 pub enum PropagationDirection {
+    /// Propagate from most-significant to least-significant bit.
     MsbToLsb,
+    /// Propagate from least-significant to most-significant bit.
     LsbToMsb,
 }
 
@@ -55,6 +61,7 @@ mod if_then_zero;
 mod lead_trail;
 mod mul;
 mod shiftrot;
+mod sub;
 
 pub use add::*;
 pub use bitwise::*;
@@ -67,36 +74,4 @@ pub use if_then_zero::*;
 pub use lead_trail::*;
 pub use mul::*;
 pub use shiftrot::*;
-
-// SUB
-// ADDS
-// SUBS
-// SSUB
-// OVF_ADD
-// OVF_SUB
-// OVF_ADDS
-// OVF_SUBS
-// OVF_SSUB
-
-// DIV
-// MOD
-
-// ROT_R
-// ROT_L
-// SHIFT_R
-// SHIFT_L
-
-// MULS
-// OVF_MULS
-// DIVS
-// MODS
-//
-// ROTS_R
-// ROTS_L
-// SHIFTS_R
-// SHIFTS_L
-
-// ERC_20
-// MEMCPY
-// ADD_SIMD
-// ERC_20_SIMD
+pub use sub::*;

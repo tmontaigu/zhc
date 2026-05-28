@@ -3,7 +3,7 @@ use std::str::FromStr;
 use zhc_builder::{
     Builder, CiphertextSpec, add, add_simd, bitwise_and, bitwise_or, bitwise_xor, cmp_eq, cmp_gt,
     cmp_gte, cmp_lt, cmp_lte, cmp_neq, count_0, count_1, div, erc7984, erc7984_simd, if_then_else,
-    if_then_zero, ilog2, lead0, lead1, mul_lsb, overflow_add, overflow_mul_lsb, overflow_sub, rem,
+    if_then_zero, ilog2, lead0, lead1, mul, overflow_add, overflow_mul, overflow_sub, rem,
     rotate_left, rotate_right, shift_left, shift_right, sub, trail0, trail1,
 };
 use zhc_sim::hpu::HpuConfig;
@@ -180,7 +180,7 @@ impl Iop {
             Iop::Add => add(spec),
             Iop::AddSimd => add_simd(spec),
             Iop::Sub => sub(spec),
-            Iop::Mul => mul_lsb(spec),
+            Iop::Mul => mul(spec),
             Iop::Ilog2 => ilog2(spec),
             Iop::CountZeros => count_0(spec),
             Iop::CountOnes => count_1(spec),
@@ -199,7 +199,7 @@ impl Iop {
             Iop::LeftRot => rotate_left(spec),
             Iop::OvfAdd => overflow_add(spec),
             Iop::OvfSub => overflow_sub(spec),
-            Iop::OvfMul => overflow_mul_lsb(spec),
+            Iop::OvfMul => overflow_mul(spec),
             Iop::Erc7984 => erc7984(spec),
             Iop::Erc7984Simd => erc7984_simd(spec),
         }
@@ -225,7 +225,7 @@ impl Iop {
             Iop::IfThenZero => if_then_zero(spec).optimize_ir(),
             Iop::Add => add(spec).optimize_ir(),
             Iop::Sub => sub(spec).optimize_ir(),
-            Iop::Mul => mul_lsb(spec).optimize_ir(),
+            Iop::Mul => mul(spec).optimize_ir(),
             Iop::Ilog2 => ilog2(spec).optimize_ir(),
             Iop::CountZeros => count_0(spec).optimize_ir(),
             Iop::CountOnes => count_1(spec).optimize_ir(),
@@ -251,7 +251,7 @@ impl Iop {
             // Iop::LeftRotPt => todo!(),
             Iop::OvfAdd => overflow_add(spec).optimize_ir(),
             Iop::OvfSub => overflow_sub(spec).optimize_ir(),
-            Iop::OvfMul => overflow_mul_lsb(spec).optimize_ir(),
+            Iop::OvfMul => overflow_mul(spec).optimize_ir(),
             Iop::BwAnd => bitwise_and(spec).optimize_ir(),
             Iop::BwOr => bitwise_or(spec).optimize_ir(),
             Iop::BwXor => bitwise_xor(spec).optimize_ir(),

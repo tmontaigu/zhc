@@ -46,7 +46,7 @@ impl EmulatedPlaintext {
     pub fn get_block(&self, ith: u8) -> EmulatedPlaintextBlock {
         assert!(ith < self.len(), "Tried to get nonexistent block.");
         let storage = (self.storage >> (ith * self.spec.block_spec().message_size()))
-            .sas::<EmulatedPlaintextBlockStorage>()
+            as EmulatedPlaintextBlockStorage
             & self.spec.block_spec().message_mask();
         EmulatedPlaintextBlock {
             storage,

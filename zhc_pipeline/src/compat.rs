@@ -1,10 +1,10 @@
 use std::str::FromStr;
 
 use zhc_builder::{
-    Builder, CiphertextSpec, add, add_simd, bitwise_and, bitwise_or, bitwise_xor, cmp_eq, cmp_gt,
-    cmp_gte, cmp_lt, cmp_lte, cmp_neq, count_0, count_1, div, erc7984, erc7984_simd, if_then_else,
-    if_then_zero, ilog2, lead0, lead1, mul, overflow_add, overflow_mul, overflow_sub, rem,
-    rotate_left, rotate_right, shift_left, shift_right, sub, trail0, trail1,
+    Builder, CiphertextSpec, add, add_simd, bitwise_and, bitwise_inv, bitwise_or, bitwise_xor,
+    cmp_eq, cmp_gt, cmp_gte, cmp_lt, cmp_lte, cmp_neq, count_0, count_1, div, erc7984,
+    erc7984_simd, if_then_else, if_then_zero, ilog2, lead0, lead1, mul, overflow_add, overflow_mul,
+    overflow_sub, rem, rotate_left, rotate_right, shift_left, shift_right, sub, trail0, trail1,
 };
 use zhc_sim::hpu::HpuConfig;
 
@@ -61,6 +61,7 @@ pub enum Iop {
     BwAnd,
     BwOr,
     BwXor,
+    BwNot,
     RightShift,
     LeftShift,
     RightRot,
@@ -116,6 +117,7 @@ impl FromStr for Iop {
             "BW_AND" => Ok(Iop::BwAnd),
             "BW_OR" => Ok(Iop::BwOr),
             "BW_XOR" => Ok(Iop::BwXor),
+            "BW_NOT" => Ok(Iop::BwNot),
             "SHIFT_R" => Ok(Iop::RightShift),
             "SHIFT_L" => Ok(Iop::LeftShift),
             "ROT_R" => Ok(Iop::RightRot),
@@ -155,6 +157,7 @@ impl Iop {
         Iop::BwAnd,
         Iop::BwOr,
         Iop::BwXor,
+        Iop::BwNot,
         Iop::RightShift,
         Iop::LeftShift,
         Iop::RightRot,
@@ -193,6 +196,7 @@ impl Iop {
             Iop::BwAnd => bitwise_and(spec),
             Iop::BwOr => bitwise_or(spec),
             Iop::BwXor => bitwise_xor(spec),
+            Iop::BwNot => bitwise_inv(spec),
             Iop::RightShift => shift_right(spec),
             Iop::LeftShift => shift_left(spec),
             Iop::RightRot => rotate_right(spec),
@@ -255,6 +259,7 @@ impl Iop {
             Iop::BwAnd => bitwise_and(spec).optimize_ir(),
             Iop::BwOr => bitwise_or(spec).optimize_ir(),
             Iop::BwXor => bitwise_xor(spec).optimize_ir(),
+            Iop::BwNot => bitwise_inv(spec).optimize_ir(),
             Iop::RightShift => shift_right(spec).optimize_ir(),
             Iop::LeftShift => shift_left(spec).optimize_ir(),
             Iop::RightRot => rotate_right(spec).optimize_ir(),

@@ -62,6 +62,7 @@ mod lead_trail;
 mod mul;
 mod shiftrot;
 mod sub;
+mod trivial_encrypt;
 
 pub use add::*;
 pub use bitwise::*;
@@ -75,3 +76,4 @@ pub use lead_trail::*;
 pub use mul::*;
 pub use shiftrot::*;
 pub use sub::*;
+pub use trivial_encrypt::*;

@@ -19,10 +19,10 @@ pub use visual_annotation::*;
 #[cfg(test)]
 mod test;
 
-fn draw_ir<D: Dialect>(ir: &IR<D>, hierarchy_ann: OpMap<Hierarchy>) -> Svg {
+fn draw_ir<D: Dialect>(ir: &IR<D>, hierarchy_ann: Option<OpMap<Hierarchy>>) -> Svg {
+    let hierarchy_ann = hierarchy_ann.unwrap_or(ir.filled_opmap(Hierarchy::new()));
     let ann_ir = AnnIR::new(ir, hierarchy_ann, ir.filled_valmap(()));
     let layout_ir = generate_layout_ir(&ann_ir);
-
     let placed_ir = placement::place(&layout_ir);
     let scene = composition::compose(&placed_ir);
     svg::draw(&scene)
@@ -30,8 +30,9 @@ fn draw_ir<D: Dialect>(ir: &IR<D>, hierarchy_ann: OpMap<Hierarchy>) -> Svg {
 
 fn draw_ann_ir<D: Dialect, OpAnn: Annotation + VisualAnnotation, ValAnn: Annotation>(
     ir: &AnnIR<D, OpAnn, ValAnn>,
-    hierarchy_ann: OpMap<Hierarchy>,
+    hierarchy_ann: Option<OpMap<Hierarchy>>,
 ) -> Svg {
+    let hierarchy_ann = hierarchy_ann.unwrap_or(ir.filled_opmap(Hierarchy::new()));
     let ann_ir = AnnIR::new(ir, hierarchy_ann, ir.filled_valmap(()));
     let mut layout_ir = generate_layout_ir(&ann_ir);
     annotate_layout(&mut layout_ir, ir.op_annotations());
@@ -55,7 +56,7 @@ fn draw_ann_ir<D: Dialect, OpAnn: Annotation + VisualAnnotation, ValAnn: Annotat
 /// Panics if the file cannot be written to the given path.
 pub fn draw_ir_to_svg<D: Dialect>(
     ir: &IR<D>,
-    hierarchy_ann: OpMap<Hierarchy>,
+    hierarchy_ann: Option<OpMap<Hierarchy>>,
     path: impl AsRef<Path>,
 ) {
     let svg_output = draw_ir(ir, hierarchy_ann);
@@ -77,7 +78,7 @@ pub fn draw_ir_to_svg<D: Dialect>(
 /// Panics if the file cannot be written to the given path.
 pub fn draw_ann_ir_to_svg<D: Dialect, OpAnn: Annotation + VisualAnnotation, ValAnn: Annotation>(
     ir: &AnnIR<D, OpAnn, ValAnn>,
-    hierarchy_ann: OpMap<Hierarchy>,
+    hierarchy_ann: Option<OpMap<Hierarchy>>,
     path: impl AsRef<Path>,
 ) {
     let svg_output = draw_ann_ir(ir, hierarchy_ann);
@@ -101,7 +102,7 @@ pub fn draw_ann_ir_to_svg<D: Dialect, OpAnn: Annotation + VisualAnnotation, ValA
 /// Panics if the file cannot be written to the given path.
 pub fn draw_ir_to_html<D: Dialect>(
     ir: &IR<D>,
-    hierarchy_ann: OpMap<Hierarchy>,
+    hierarchy_ann: Option<OpMap<Hierarchy>>,
     path: impl AsRef<Path>,
 ) {
     let svg_output = draw_ir(ir, hierarchy_ann);
@@ -125,11 +126,39 @@ pub fn draw_ir_to_html<D: Dialect>(
 /// Panics if the file cannot be written to the given path.
 pub fn draw_ann_ir_to_html<D: Dialect, OpAnn: Annotation + VisualAnnotation, ValAnn: Annotation>(
     ir: &AnnIR<D, OpAnn, ValAnn>,
-    hierarchy_ann: OpMap<Hierarchy>,
+    hierarchy_ann: Option<OpMap<Hierarchy>>,
     path: impl AsRef<Path>,
 ) {
     let svg_output = draw_ann_ir(ir, hierarchy_ann);
     let html_output = html::wrap_svg(svg_output);
     let html_content = format!("{}", html_output);
     std::fs::write(path, html_content).expect("Failed to write HTML file");
+}
+
+impl<D: Dialect> IR<D> {
+    /// Renders this IR graph as an interactive HTML file.
+    ///
+    /// Equivalent to [`draw_ir_to_html`].
+    ///
+    /// # Panics
+    ///
+    /// Panics if the file cannot be written to the given path.
+    pub fn draw_to_html(&self, hierarchy_ann: Option<OpMap<Hierarchy>>, path: impl AsRef<Path>) {
+        draw_ir_to_html(self, hierarchy_ann, path);
+    }
+}
+
+impl<'ir, D: Dialect, OpAnn: Annotation + VisualAnnotation, ValAnn: Annotation>
+    AnnIR<'ir, D, OpAnn, ValAnn>
+{
+    /// Renders this annotated IR graph as an interactive HTML file.
+    ///
+    /// Equivalent to [`draw_ann_ir_to_html`].
+    ///
+    /// # Panics
+    ///
+    /// Panics if the file cannot be written to the given path.
+    pub fn draw_to_html(&self, hierarchy_ann: Option<OpMap<Hierarchy>>, path: impl AsRef<Path>) {
+        draw_ann_ir_to_html(self, hierarchy_ann, path);
+    }
 }

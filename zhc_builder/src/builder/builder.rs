@@ -359,8 +359,10 @@ impl Builder {
     pub fn draw(&self, path: impl AsRef<Path>) {
         draw_ir_to_html(
             &self.ir(),
-            self.ir()
-                .partially_mapped_opmap(|op| self.inner().hierarchies.get(*op).cloned()),
+            Some(
+                self.ir()
+                    .partially_mapped_opmap(|op| self.inner().hierarchies.get(*op).cloned()),
+            ),
             path,
         );
     }

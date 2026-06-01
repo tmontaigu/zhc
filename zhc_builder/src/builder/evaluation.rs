@@ -134,9 +134,11 @@ impl Evaluator {
                 });
                 draw_ann_ir_to_html(
                     &ann_ir,
-                    Ref::map(self.inner.borrow(), |inner| &inner.ir).partially_mapped_opmap(|op| {
-                        self.inner.borrow().hierarchies.get(*op).cloned()
-                    }),
+                    Some(
+                        Ref::map(self.inner.borrow(), |inner| &inner.ir).partially_mapped_opmap(
+                            |op| self.inner.borrow().hierarchies.get(*op).cloned(),
+                        ),
+                    ),
                     path,
                 );
             }

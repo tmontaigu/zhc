@@ -61,5 +61,5 @@ pub fn draw_slack(builder: &Builder, path: impl AsRef<Path>) {
         slack: op.get_annotation().0,
         max_slack,
     });
-    draw_ann_ir_to_html(&ann_ir, builder.hierarchy(), path);
+    draw_ann_ir_to_html(&ann_ir, Some(builder.hierarchy()), path);
 }

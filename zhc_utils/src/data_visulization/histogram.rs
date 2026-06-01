@@ -1,6 +1,7 @@
 use crate::{Dumpable, small::SmallMap};
 use std::{fmt::Display, hash::Hash};
 
+#[derive(Clone)]
 pub struct Histogram<Bin: Hash + Eq + Clone>(SmallMap<Bin, u32>);
 
 impl<Bin: Hash + Eq + Clone> Histogram<Bin> {
@@ -13,6 +14,10 @@ impl<Bin: Hash + Eq + Clone> Histogram<Bin> {
             self.0.insert(b.clone(), 0);
         }
         *self.0.get_mut(b).unwrap() += 1;
+    }
+
+    pub fn iter_classes(&self) -> impl Iterator<Item = (&Bin, &u32)> {
+        self.0.iter()
     }
 }
 

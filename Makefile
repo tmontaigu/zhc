@@ -1,4 +1,4 @@
-.PHONY: test update-expects fmt fmt-check check bench bench-export bench-diff
+.PHONY: test update-expects fmt fmt-check check bench bench-export bench-diff analyze
 
 test:
 	cargo test --release $(if $(F),-- $(F))
@@ -17,10 +17,13 @@ check:
 	RUSTDOCFLAGS="-D warnings" cargo doc --no-deps
 
 bench:
-	cargo run --release -p zhc_bench
+	cargo run --release -p zhc_bench $(if $(F),-- $(F))
 
 bench-export:
 	cargo run --release -p zhc_bench -- export
 
 bench-diff:
-	cargo run --release -p zhc_bench -- diff
+	cargo run --release -p zhc_bench -- diff  # --iops=mul --bits=32
+
+analyze:
+	cargo run --release -p zhc_bench -- analyze $(if $(F),$(F))

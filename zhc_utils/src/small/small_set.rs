@@ -127,6 +127,13 @@ impl<T: Eq + Hash, const N: usize> SmallSet<T, N> {
             SmallSet::Stack(s) => SmallSetIntoIter::Stack(s.into_iter()),
         }
     }
+
+    pub fn len(&self) -> usize {
+        match self {
+            SmallSet::Heap(h) => h.len(),
+            SmallSet::Stack(s) => s.len(),
+        }
+    }
 }
 
 impl<T: Eq + Hash> std::iter::FromIterator<T> for SmallSet<T> {

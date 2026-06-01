@@ -1,19 +1,17 @@
 use std::collections::BTreeMap;
 use std::fs;
-use std::io::{self, Write as _};
 use std::path::PathBuf;
 use std::process::Command;
 
 use serde::{Deserialize, Serialize};
-use zhc_builder::CiphertextSpec;
+use zhc_builder::{Builder, CiphertextSpec};
 use zhc_pipeline::compat::Iop;
 use zhc_sim::MHz;
+use zhc_utils::data_visulization::DynamicTable;
 
 const ALL_BITS: &[u16] = &[8, 16, 32, 64, 128];
 const RESULTS_DIR: &str = "zhc_bench/results";
 const SITE_DIR: &str = "zhc_bench/site";
-const DELTA_COL_WIDTH: usize = 8;
-const LATENCY_COL_WIDTH: usize = 12;
 const DELTA_THRESHOLD: f64 = 0.5;
 
 const RED: &str = "\x1b[31m";
@@ -213,12 +211,8 @@ fn load_result_by_rev(rev: &str) -> Option<BenchResult> {
     Some(serde_json::from_str(&content).expect("failed to parse"))
 }
 
-fn find_latest_baseline(exclude_commit: &str) -> Option<BenchResult> {
-    let results = load_all_results();
-    results
-        .into_iter()
-        .rev()
-        .find(|r| !r.commit.starts_with(exclude_commit) && !exclude_commit.starts_with(&r.commit))
+fn find_latest_baseline() -> Option<BenchResult> {
+    load_all_results().into_iter().last()
 }
 
 fn list_available_baselines() -> Vec<String> {
@@ -251,17 +245,11 @@ fn format_latency(us: f64) -> String {
     format!("{} µs", int_str)
 }
 
-fn format_latency_cell(latency: Option<&f64>) -> String {
-    match latency {
-        Some(&us) => {
-            let formatted = format_latency(us);
-            format!("{:>w$}", formatted, w = LATENCY_COL_WIDTH)
-        }
-        None => format!("{:>w$}", "-", w = LATENCY_COL_WIDTH),
+fn format_diff(curr: f64, base: f64, use_color: bool) -> String {
+    if base == 0.0 {
+        return "-".into();
     }
-}
-
-fn format_delta(pct: f64, use_color: bool) -> String {
+    let pct = (curr - base) / base * 100.0;
     let sign = if pct >= 0.0 { "+" } else { "" };
     let text = format!("{}{:.1}%", sign, pct);
     if !use_color || pct.abs() < DELTA_THRESHOLD {
@@ -274,136 +262,81 @@ fn format_delta(pct: f64, use_color: bool) -> String {
     }
 }
 
-fn format_diff_cell(curr: Option<&f64>, base: Option<&f64>, use_color: bool) -> String {
-    match (curr, base) {
-        (Some(c), Some(b)) if *b != 0.0 => {
-            let pct = (c - b) / b * 100.0;
-            let formatted = format_delta(pct, use_color);
-            let visible_len = if pct.abs() >= DELTA_THRESHOLD && use_color {
-                formatted.len() - RED.len() - RESET.len()
-            } else {
-                formatted.len()
-            };
-            let pad = DELTA_COL_WIDTH.saturating_sub(visible_len);
-            let left = pad / 2;
-            let right = pad - left;
-            format!("{:l$}{}{:r$}", "", formatted, "", l = left, r = right)
-        }
-        _ => format!("{:^w$}", "-", w = DELTA_COL_WIDTH),
-    }
-}
-
 fn run_diff_incremental(baseline: &BenchResult, use_color: bool, filters: &Filters) {
     let baseline_short = &baseline.commit[..7.min(baseline.commit.len())];
     let baseline_date = &baseline.timestamp[..10.min(baseline.timestamp.len())];
     println!("vs {} ({})\n", baseline_short, baseline_date);
 
-    let iop_names: Vec<_> = filters
-        .iops
-        .iter()
-        .map(|iop| format!("{:?}", iop))
-        .collect();
-    let op_width = iop_names.iter().map(|s| s.len()).max().unwrap_or(9).max(9) + 2;
-
-    // Top border
-    print!("┌{:─<w$}", "", w = op_width);
-    for _ in &filters.bits {
-        print!("┬{:─<w$}", "", w = DELTA_COL_WIDTH);
-    }
-    println!("┐");
-
-    // Header
-    print!("│{:^w$}", "Operation", w = op_width);
-    for bits in &filters.bits {
-        print!("│{:^w$}", format!("{}b", bits), w = DELTA_COL_WIDTH);
-    }
-    println!("│");
-
-    // Header separator
-    print!("├{:─<w$}", "", w = op_width);
-    for _ in &filters.bits {
-        print!("┼{:─<w$}", "", w = DELTA_COL_WIDTH);
-    }
-    println!("┤");
+    let columns = filters.bits.iter().map(|b| format!("{}b", b));
+    let rows = filters.iops.iter().map(|iop| format!("{:?}", iop));
+    let mut table = DynamicTable::new(columns, rows);
 
     let config = zhc_sim::hpu::HpuConfig::default();
     let freq = MHz(400);
 
-    // Data rows - benchmark and print each row as it completes
-    for iop in &filters.iops {
+    for (row, iop) in filters.iops.iter().enumerate() {
         let iop_name = format!("{:?}", iop);
-        print!("│ {:<w$}", iop_name, w = op_width - 1);
-        io::stdout().flush().unwrap();
-
         let bits_results = bench_iop(iop, &config, freq, &filters.bits);
 
-        for bits in &filters.bits {
-            let curr = bits_results.get(bits);
-            let base = baseline.results.get(&iop_name).and_then(|m| m.get(bits));
-            let cell = format_diff_cell(curr, base, use_color);
-            print!("│{}", cell);
-            io::stdout().flush().unwrap();
+        for (col, bits) in filters.bits.iter().enumerate() {
+            let cell = match (
+                bits_results.get(bits),
+                baseline.results.get(&iop_name).and_then(|m| m.get(bits)),
+            ) {
+                (Some(&curr), Some(&base)) => format_diff(curr, base, use_color),
+                _ => "-".into(),
+            };
+            table.set(row, col, cell);
         }
-        println!("│");
     }
 
-    // Bottom border
-    print!("└{:─<w$}", "", w = op_width);
-    for _ in &filters.bits {
-        print!("┴{:─<w$}", "", w = DELTA_COL_WIDTH);
-    }
-    println!("┘");
+    table.finish();
 }
 
 fn run_latency_table(filters: &Filters) {
-    let iop_names: Vec<_> = filters
-        .iops
-        .iter()
-        .map(|iop| format!("{:?}", iop))
-        .collect();
-    let op_width = iop_names.iter().map(|s| s.len()).max().unwrap_or(9).max(9) + 2;
-
-    print!("┌{:─<w$}", "", w = op_width);
-    for _ in &filters.bits {
-        print!("┬{:─<w$}", "", w = LATENCY_COL_WIDTH);
-    }
-    println!("┐");
-
-    print!("│{:^w$}", "Operation", w = op_width);
-    for bits in &filters.bits {
-        print!("│{:^w$}", format!("{}b", bits), w = LATENCY_COL_WIDTH);
-    }
-    println!("│");
-
-    print!("├{:─<w$}", "", w = op_width);
-    for _ in &filters.bits {
-        print!("┼{:─<w$}", "", w = LATENCY_COL_WIDTH);
-    }
-    println!("┤");
+    let columns = filters.bits.iter().map(|b| format!("{}b", b));
+    let rows = filters.iops.iter().map(|iop| format!("{:?}", iop));
+    let mut table = DynamicTable::new(columns, rows);
 
     let config = zhc_sim::hpu::HpuConfig::default();
     let freq = MHz(400);
 
-    for iop in &filters.iops {
-        let iop_name = format!("{:?}", iop);
-        print!("│ {:<w$}", iop_name, w = op_width - 1);
-        io::stdout().flush().unwrap();
-
+    for (row, iop) in filters.iops.iter().enumerate() {
         let bits_results = bench_iop(iop, &config, freq, &filters.bits);
 
-        for bits in &filters.bits {
-            let cell = format_latency_cell(bits_results.get(bits));
-            print!("│{}", cell);
-            io::stdout().flush().unwrap();
+        for (col, bits) in filters.bits.iter().enumerate() {
+            let cell = match bits_results.get(bits) {
+                Some(&us) => format_latency(us),
+                None => "-".into(),
+            };
+            table.set(row, col, cell);
         }
-        println!("│");
     }
 
-    print!("└{:─<w$}", "", w = op_width);
-    for _ in &filters.bits {
-        print!("┴{:─<w$}", "", w = LATENCY_COL_WIDTH);
+    table.finish();
+}
+
+/// Customize this function during development to analyze the IR.
+fn analyze_ir(builder: &Builder) -> String {
+    let ir = builder.optimize_ir();
+    format!("{} ops", ir.n_ops())
+}
+
+fn run_analyze(filters: &Filters) {
+    let columns = filters.bits.iter().map(|b| format!("{}b", b));
+    let rows = filters.iops.iter().map(|iop| format!("{:?}", iop));
+    let mut table = DynamicTable::new(columns, rows).with_row_separators();
+
+    for (row, iop) in filters.iops.iter().enumerate() {
+        for (col, bits) in filters.bits.iter().enumerate() {
+            let spec = CiphertextSpec::new(*bits, 2, 2);
+            let builder = iop.to_builder(spec);
+            let cell = analyze_ir(&builder);
+            table.set(row, col, cell);
+        }
     }
-    println!("┘");
+
+    table.finish();
 }
 
 fn generate_html(results: &[BenchResult]) {
@@ -538,6 +471,9 @@ fn main() {
         "run" => {
             run_latency_table(&filters);
         }
+        "analyze" => {
+            run_analyze(&filters);
+        }
         "export" => {
             check_git_clean();
             let result = run_benchmarks();
@@ -563,8 +499,7 @@ fn main() {
                     }
                 }
             } else {
-                let current_short = get_commit_short();
-                match find_latest_baseline(&current_short) {
+                match find_latest_baseline() {
                     Some(b) => b,
                     None => {
                         eprintln!("Error: no baseline found.");
@@ -576,10 +511,11 @@ fn main() {
             run_diff_incremental(&baseline, use_color, &filters);
         }
         _ => {
-            eprintln!("Usage: zhc_bench [run|export|diff] [OPTIONS]");
+            eprintln!("Usage: zhc_bench [run|export|diff|analyze] [OPTIONS]");
             eprintln!();
             eprintln!("Commands:");
             eprintln!("  run                     - Run benchmarks and display latency table");
+            eprintln!("  analyze                 - Run custom IR analysis (edit analyze_ir fn)");
             eprintln!(
                 "  export                  - Run benchmarks, save results, and regenerate site"
             );

@@ -87,7 +87,8 @@ impl crate::visualization::svg::Renderable for Group {
     }
 }
 
-pub type Node = D7<InputOp, Op, EffectOp, Dummy, Group, GroupInputPort, GroupOutputPort>;
+/// Runtime-polymorphic node payload (op, group, dummy, boundary port).
+pub type NodeContent = D7<InputOp, Op, EffectOp, Dummy, Group, GroupInputPort, GroupOutputPort>;
 pub use D7::E1 as NodeInputOpVar;
 pub use D7::E2 as NodeOpVar;
 pub use D7::E3 as NodeEffectOpVar;
@@ -95,6 +96,47 @@ pub use D7::E4 as NodeDummyVar;
 pub use D7::E5 as NodeGroupVar;
 pub use D7::E6 as NodeGroupInputPortVar;
 pub use D7::E7 as NodeGroupOutputPortVar;
+
+/// Node content tagged with its `OpId`; renders inside a `<g id="node-{opid}" class="node">`.
+pub struct Node {
+    pub id: crate::OpId,
+    pub content: NodeContent,
+}
+
+impl SceneElement for Node {
+    fn get_size(&self) -> zhc_utils::graphics::Size {
+        self.content.get_size()
+    }
+
+    fn get_frame(&self) -> zhc_utils::graphics::Frame {
+        self.content.get_frame()
+    }
+
+    fn get_variable_cell(&self) -> VariableCell {
+        self.content.get_variable_cell()
+    }
+}
+
+impl SceneSolver for Node {
+    fn solve_size(&mut self) {
+        self.content.solve_size();
+    }
+
+    fn solve_frame(&mut self, available: zhc_utils::graphics::Frame) {
+        self.content.solve_frame(available);
+    }
+}
+
+impl crate::visualization::svg::Renderable for Node {
+    fn render(&self) -> Vec<crate::visualization::svg::SvgElement> {
+        vec![crate::visualization::svg::SvgElement::Group {
+            elements: self.content.render(),
+            transform: None,
+            id: Some(format!("node-{}", self.id.0)),
+            class: Some("node".into()),
+        }]
+    }
+}
 
 /// Horizontal row of nodes forming a diagram layer.
 pub type Layer = HStack<Node, LayerClass>;

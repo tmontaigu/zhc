@@ -27,7 +27,7 @@ viewport.addEventListener('wheel', (e) => {
 
         // Zoom factor
         const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
-        const newScale = Math.min(Math.max(scale * zoomFactor, 0.1), 10);
+        const newScale = Math.min(Math.max(scale * zoomFactor, 0.1), 100);
 
         // Zoom towards mouse position
         const scaleChange = newScale / scale;
@@ -90,7 +90,7 @@ window.addEventListener('keydown', (e) => {
         const rect = viewport.getBoundingClientRect();
         const centerX = rect.width / 2;
         const centerY = rect.height / 2;
-        const newScale = Math.min(scale * 1.2, 10);
+        const newScale = Math.min(scale * 1.2, 100);
         const scaleChange = newScale / scale;
         translateX = centerX - (centerX - translateX) * scaleChange;
         translateY = centerY - (centerY - translateY) * scaleChange;
@@ -205,10 +205,96 @@ viewport.addEventListener('mouseout', (e) => {
     }
 });
 
-// Click to toggle pinned highlight
+// Click: data-val click → toggle pin; click on a node body → open color picker.
 viewport.addEventListener('click', (e) => {
-    const target = e.target.closest('[data-val]');
-    if (target) {
-        togglePin(target.getAttribute('data-val'));
+    const valTarget = e.target.closest('[data-val]');
+    if (valTarget) {
+        togglePin(valTarget.getAttribute('data-val'));
+        return;
     }
+    const nodeTarget = e.target.closest('.node');
+    if (nodeTarget) {
+        openColorPicker(nodeTarget, e.clientX, e.clientY);
+    }
+});
+
+// ============================================
+// Per-node color customization
+// ============================================
+
+// Map<nodeId, color> — in-memory, lost on reload (matches pinnedValues).
+const nodeColors = new Map();
+
+const PALETTE = [
+    '#ff6b6b', '#ffa94d', '#ffd43b', '#69db7c',
+    '#4dabf7', '#9775fa', '#f783ac', '#868e96',
+];
+
+// The body rect is the V4/V5 background, emitted first by the composition
+// primitive — so it's the first direct <rect> child of the node group.
+function getNodeBody(group) {
+    return group.querySelector(':scope > rect');
+}
+
+function applyNodeColor(group, color) {
+    const body = getNodeBody(group);
+    if (!body) return;
+    if (color === null) {
+        body.style.fill = '';
+        nodeColors.delete(group.id);
+    } else {
+        body.style.fill = color;
+        nodeColors.set(group.id, color);
+    }
+}
+
+let activePicker = null;
+
+function closeColorPicker() {
+    if (activePicker) {
+        activePicker.remove();
+        activePicker = null;
+    }
+}
+
+function openColorPicker(group, clientX, clientY) {
+    closeColorPicker();
+    const picker = document.createElement('div');
+    picker.className = 'color-picker';
+    picker.style.left = `${clientX}px`;
+    picker.style.top = `${clientY}px`;
+    for (const color of PALETTE) {
+        const swatch = document.createElement('button');
+        swatch.className = 'color-swatch';
+        swatch.style.background = color;
+        swatch.addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            applyNodeColor(group, color);
+            closeColorPicker();
+        });
+        picker.appendChild(swatch);
+    }
+    const clear = document.createElement('button');
+    clear.className = 'color-swatch color-clear';
+    clear.textContent = '×';
+    clear.title = 'Reset color';
+    clear.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        applyNodeColor(group, null);
+        closeColorPicker();
+    });
+    picker.appendChild(clear);
+    document.body.appendChild(picker);
+    activePicker = picker;
+}
+
+// Dismiss on outside mousedown or Escape.
+document.addEventListener('mousedown', (e) => {
+    if (activePicker && !activePicker.contains(e.target)) {
+        closeColorPicker();
+    }
+}, true);
+
+window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeColorPicker();
 });

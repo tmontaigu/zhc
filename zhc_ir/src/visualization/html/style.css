@@ -66,3 +66,36 @@ html, body {
 .input-port.pinned, .output-port.pinned, .link.pinned {
     opacity: 1 !important;
 }
+
+/* Per-node color picker popup */
+.color-picker {
+    position: fixed;
+    display: flex;
+    gap: 4px;
+    padding: 6px;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    z-index: 1000;
+}
+
+.color-swatch {
+    width: 22px;
+    height: 22px;
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    border-radius: 50%;
+    cursor: pointer;
+    padding: 0;
+}
+
+.color-swatch:hover {
+    transform: scale(1.15);
+}
+
+.color-clear {
+    background: white;
+    color: #888;
+    font-size: 16px;
+    line-height: 1;
+}

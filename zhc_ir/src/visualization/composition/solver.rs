@@ -108,17 +108,26 @@ fn gen_layer<'ir, 'ann>(
     let mut assocs = FastMap::new();
     let mut variables = Vec::new();
     for op in ops {
-        let (variable, ann) = gen_node(op.clone());
-        variables.push(variable);
-        assocs.insert(op.id, ann);
+        let (node, ann) = gen_node(op.clone());
+        assocs.insert(node.id, ann);
+        variables.push(node);
     }
     (Layer::new(None, variables), assocs)
 }
 
-/// Generates a node from a layout instruction.
+/// Generates a node (content + identity) from a layout instruction.
 fn gen_node<'ir, 'ann>(
     op: AnnOpRef<'ir, 'ann, LayoutDialect, PlacementSolution, ()>,
 ) -> (Node, CompositionVariable) {
+    let id = op.id;
+    let (content, ann) = gen_node_content(op);
+    (Node { id, content }, ann)
+}
+
+/// Generates the renderable content of a node from a layout instruction.
+fn gen_node_content<'ir, 'ann>(
+    op: AnnOpRef<'ir, 'ann, LayoutDialect, PlacementSolution, ()>,
+) -> (NodeContent, CompositionVariable) {
     match (op.get_instruction(), op.get_annotation()) {
         (LayoutInstructionSet::Operation { op, .. }, _) if op.args.is_empty() => {
             // InputOp = V3<OpBody, Optional<OpComment>, OpOutputs>

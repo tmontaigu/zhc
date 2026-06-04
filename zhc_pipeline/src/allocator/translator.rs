@@ -75,14 +75,14 @@ pub fn translate<'ir>(ir: &AnnIR<'ir, HpuLang, Alloc, ()>) -> IR<DopLang> {
                     src2: Argument::ct_reg(srcs[1].0),
                 });
             }
-            HpuInstructionSet::SubCt => {
+            SubCt => {
                 add_op(DopInstructionSet::SUB {
                     dst: Argument::ct_reg(dsts[0].0),
                     src1: Argument::ct_reg(srcs[0].0),
                     src2: Argument::ct_reg(srcs[1].0),
                 });
             }
-            HpuInstructionSet::Mac { cst } => {
+            Mac { cst } => {
                 add_op(DopInstructionSet::MAC {
                     dst: Argument::ct_reg(dsts[0].0),
                     src1: Argument::ct_reg(srcs[0].0),
@@ -90,7 +90,7 @@ pub fn translate<'ir>(ir: &AnnIR<'ir, HpuLang, Alloc, ()>) -> IR<DopLang> {
                     cst: Argument::pt_const(cst.0),
                 });
             }
-            HpuInstructionSet::AddPt => {
+            AddPt => {
                 let imm_ld_op = op
                     .get_args_iter()
                     .nth(1)
@@ -110,7 +110,7 @@ pub fn translate<'ir>(ir: &AnnIR<'ir, HpuLang, Alloc, ()>) -> IR<DopLang> {
                     ),
                 });
             }
-            HpuInstructionSet::SubPt => {
+            SubPt => {
                 let imm_ld_op = op
                     .get_args_iter()
                     .nth(1)
@@ -130,7 +130,7 @@ pub fn translate<'ir>(ir: &AnnIR<'ir, HpuLang, Alloc, ()>) -> IR<DopLang> {
                     ),
                 });
             }
-            HpuInstructionSet::PtSub => {
+            PtSub => {
                 let imm_ld_op = op
                     .get_args_iter()
                     .nth(0)
@@ -150,7 +150,7 @@ pub fn translate<'ir>(ir: &AnnIR<'ir, HpuLang, Alloc, ()>) -> IR<DopLang> {
                     ),
                 });
             }
-            HpuInstructionSet::MulPt => {
+            MulPt => {
                 let imm_ld_op = op
                     .get_args_iter()
                     .nth(1)
@@ -170,35 +170,35 @@ pub fn translate<'ir>(ir: &AnnIR<'ir, HpuLang, Alloc, ()>) -> IR<DopLang> {
                     ),
                 });
             }
-            HpuInstructionSet::AddCst { cst } => {
+            AddCst { cst } => {
                 add_op(DopInstructionSet::ADDS {
                     dst: Argument::ct_reg(dsts[0].0),
                     src: Argument::ct_reg(srcs[0].0),
                     cst: Argument::pt_const(cst.0),
                 });
             }
-            HpuInstructionSet::SubCst { cst } => {
+            SubCst { cst } => {
                 add_op(DopInstructionSet::SUBS {
                     dst: Argument::ct_reg(dsts[0].0),
                     src: Argument::ct_reg(srcs[0].0),
                     cst: Argument::pt_const(cst.0),
                 });
             }
-            HpuInstructionSet::CstSub { cst } => {
+            CstSub { cst } => {
                 add_op(DopInstructionSet::SSUB {
                     dst: Argument::ct_reg(dsts[0].0),
                     src: Argument::ct_reg(srcs[0].0),
                     cst: Argument::pt_const(cst.0),
                 });
             }
-            HpuInstructionSet::MulCst { cst } => {
+            MulCst { cst } => {
                 add_op(DopInstructionSet::MULS {
                     dst: Argument::ct_reg(dsts[0].0),
                     src: Argument::ct_reg(srcs[0].0),
                     cst: Argument::pt_const(cst.0),
                 });
             }
-            HpuInstructionSet::CstCt { cst } => {
+            CstCt { cst } => {
                 add_op(DopInstructionSet::SUB {
                     dst: Argument::ct_reg(dsts[0].0),
                     src1: Argument::ct_reg(dsts[0].0),
@@ -212,7 +212,7 @@ pub fn translate<'ir>(ir: &AnnIR<'ir, HpuLang, Alloc, ()>) -> IR<DopLang> {
                     });
                 }
             }
-            HpuInstructionSet::Batch { block } => {
+            Batch { block } => {
                 let batch_map = BatchMap::from_op(&op);
                 let reg_map: SmallMap<ValId, RegId> =
                     ((op.get_arg_valids().iter().cloned(), srcs.iter().cloned()).mzip())
@@ -225,64 +225,63 @@ pub fn translate<'ir>(ir: &AnnIR<'ir, HpuLang, Alloc, ()>) -> IR<DopLang> {
                     let args = op.get_arg_valids();
                     let rets = op.get_return_valids();
                     match op.get_instruction() {
-                        HpuInstructionSet::Pbs { lut } => {
+                        Pbs { lut } => {
                             add_op(DopInstructionSet::PBS {
                                 dst: Argument::ct_reg(translate(rets[0]).0),
                                 src: Argument::ct_reg(translate(args[0]).0),
                                 lut: Argument::lut_id(lut),
                             });
                         }
-                        HpuInstructionSet::PbsF { lut } => {
+                        PbsF { lut } => {
                             add_op(DopInstructionSet::PBS_F {
                                 dst: Argument::ct_reg(translate(rets[0]).0),
                                 src: Argument::ct_reg(translate(args[0]).0),
                                 lut: Argument::lut_id(lut),
                             });
                         }
-                        HpuInstructionSet::Pbs2 { lut } => {
+                        Pbs2 { lut } => {
                             add_op(DopInstructionSet::PBS_ML2 {
                                 dst: Argument::ct_reg2(translate(rets[0]).0),
                                 src: Argument::ct_reg(translate(args[0]).0),
                                 lut: Argument::lut_id(lut),
                             });
                         }
-                        HpuInstructionSet::Pbs2F { lut } => {
+                        Pbs2F { lut } => {
                             add_op(DopInstructionSet::PBS_ML2_F {
                                 dst: Argument::ct_reg2(translate(rets[0]).0),
                                 src: Argument::ct_reg(translate(args[0]).0),
                                 lut: Argument::lut_id(lut),
                             });
                         }
-                        HpuInstructionSet::Pbs4 { lut } => {
+                        Pbs4 { lut } => {
                             add_op(DopInstructionSet::PBS_ML4 {
                                 dst: Argument::ct_reg4(translate(rets[0]).0),
                                 src: Argument::ct_reg(translate(args[0]).0),
                                 lut: Argument::lut_id(lut),
                             });
                         }
-                        HpuInstructionSet::Pbs4F { lut } => {
+                        Pbs4F { lut } => {
                             add_op(DopInstructionSet::PBS_ML4_F {
                                 dst: Argument::ct_reg4(translate(rets[0]).0),
                                 src: Argument::ct_reg(translate(args[0]).0),
                                 lut: Argument::lut_id(lut),
                             });
                         }
-                        HpuInstructionSet::Pbs8 { lut } => {
+                        Pbs8 { lut } => {
                             add_op(DopInstructionSet::PBS_ML8 {
                                 dst: Argument::ct_reg8(translate(rets[0]).0),
                                 src: Argument::ct_reg(translate(args[0]).0),
                                 lut: Argument::lut_id(lut),
                             });
                         }
-                        HpuInstructionSet::Pbs8F { lut } => {
+                        Pbs8F { lut } => {
                             add_op(DopInstructionSet::PBS_ML8_F {
                                 dst: Argument::ct_reg8(translate(rets[0]).0),
                                 src: Argument::ct_reg(translate(args[0]).0),
                                 lut: Argument::lut_id(lut),
                             });
                         }
-                        HpuInstructionSet::BatchArg { .. } | HpuInstructionSet::BatchRet { .. } => {
-                        }
+                        BatchArg { .. } | BatchRet { .. } => {}
                         _ => unreachable!(
                             "Encountered unexpected operation while allocating: {}",
                             op.get_instruction()

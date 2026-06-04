@@ -14,7 +14,7 @@ pub enum ValState {
 impl ValState {
     pub fn rid(&self) -> RegId {
         let ValState::Registered { reg } = self else {
-            unreachable!()
+            unreachable!("Encountered state: {:?}", self)
         };
         *reg
     }

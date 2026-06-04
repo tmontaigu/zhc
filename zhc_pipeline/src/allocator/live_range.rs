@@ -49,12 +49,19 @@ pub struct LiveRangeMap(ValMap<LiveRange>);
 impl LiveRangeMap {
     /// Extracts the map from a scheduled IR.
     pub fn from_scheduled_ir(ir: &IR<HpuLang>) -> Self {
+        use zhc_langs::hpulang::HpuTypeSystem::*;
         let mut live_ranges: ValMap<LiveRange> = ir.empty_valmap();
         for (point, op) in ir.walk_ops_linear().enumerate() {
-            for val in op.get_args_iter() {
+            for val in op
+                .get_args_iter()
+                .filter(|v| matches!(v.get_type(), CtRegister))
+            {
                 live_ranges.get_mut(&val).unwrap().0.push(point.sas());
             }
-            for val in op.get_returns_iter() {
+            for val in op
+                .get_returns_iter()
+                .filter(|v| matches!(v.get_type(), CtRegister))
+            {
                 live_ranges.insert(&val, LiveRange(svec![point.sas()]));
             }
         }

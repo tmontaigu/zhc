@@ -10,7 +10,7 @@ use zhc_ir::{IR, OpMap, OpRef, ValId, ValMap};
 use zhc_langs::hpulang::{HpuInstructionSet, HpuLang};
 use zhc_utils::{
     SafeAs,
-    iter::{CollectInSmallVec, Intermediate, MultiZip, ReconcilerOf3},
+    iter::{CollectInSmallVec, Deduped, Intermediate, MultiZip, ReconcilerOf3},
     small::SmallVec,
     svec,
 };
@@ -151,6 +151,7 @@ impl<'ir> Allocator<'ir> {
             .iter()
             .cloned()
             .filter(|v| self.map[*v].is_spilled())
+            .dedup()
             .intermediate();
 
         for valid_to_unspill in to_unspill {
@@ -223,6 +224,8 @@ impl<'ir> Allocator<'ir> {
     }
 
     pub fn allocate_registers(mut self) -> OpMap<Alloc> {
+        use zhc_langs::hpulang::HpuTypeSystem::*;
+
         let mut output = self.input.empty_opmap();
 
         for op in self.input.walk_ops_linear().into_iter() {
@@ -241,14 +244,18 @@ impl<'ir> Allocator<'ir> {
                     spills,
                     unspills,
                     srcs: op
-                        .get_arg_valids()
-                        .iter()
-                        .map(|v| self.map[*v].rid())
+                        .get_args_iter()
+                        .filter_map(|v| match v.get_type() {
+                            CtRegister => Some(self.map[*v].rid()),
+                            _ => None,
+                        })
                         .collect(),
                     dsts: op
-                        .get_return_valids()
-                        .iter()
-                        .map(|v| self.map[*v].rid())
+                        .get_returns_iter()
+                        .filter_map(|v| match v.get_type() {
+                            CtRegister => Some(self.map[*v].rid()),
+                            _ => None,
+                        })
                         .collect(),
                 },
             );

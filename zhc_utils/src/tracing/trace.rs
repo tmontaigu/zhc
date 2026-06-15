@@ -2,6 +2,8 @@ use serde::Serialize;
 use serde_json::Value;
 use std::collections::HashMap;
 
+use crate::units::Microseconds;
+
 use super::*;
 
 #[derive(Serialize, Debug, Clone, Default)]
@@ -28,7 +30,7 @@ impl Trace {
     ) {
         self.trace_events.push(Event::Instant(InstantEvent {
             name: name.as_ref().into(),
-            timestamp,
+            timestamp: timestamp.0,
             pid,
             tid,
             scope,
@@ -48,8 +50,8 @@ impl Trace {
     ) {
         self.trace_events.push(Event::Complete(CompleteEvent {
             name: name.as_ref().into(),
-            timestamp,
-            duration,
+            timestamp: timestamp.0,
+            duration: duration.0,
             pid,
             tid,
             args,
@@ -91,7 +93,7 @@ impl Trace {
         self.trace_events.push(Event::Counter(CounterEvent {
             name: name.as_ref().into(),
             ph: PhC,
-            timestamp,
+            timestamp: timestamp.0,
             pid,
             tid,
             args,

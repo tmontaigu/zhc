@@ -121,7 +121,7 @@ mod tests {
                 %1 = decl_ct<2>();
                 %2 = store_ct_block<0>(%0, %1);
                 %3 = extract_ct_block<0>(%2);
-                _consume<CtBlock>(%3);
+                _consume<CiphertextBlock>(%3);
             "#
         );
 
@@ -132,7 +132,7 @@ mod tests {
             ir.format(),
             r#"
                 %0 = let_ct_block<42>();
-                _consume<CtBlock>(%0);
+                _consume<CiphertextBlock>(%0);
             "#
         );
     }
@@ -215,7 +215,7 @@ mod tests {
                 %5 = extract_ct_block<0>(%4);
                 %6 = extract_ct_block<1>(%4);
                 %7 = add_ct(%5, %6);
-                _consume<CtBlock>(%7);
+                _consume<CiphertextBlock>(%7);
             "#
         );
 
@@ -228,7 +228,7 @@ mod tests {
                 %0 = let_ct_block<10>();
                 %1 = let_ct_block<20>();
                 %7 = add_ct(%0, %1);
-                _consume<CtBlock>(%7);
+                _consume<CiphertextBlock>(%7);
             "#
         );
     }
@@ -272,7 +272,7 @@ mod tests {
                 %3 = store_ct_block<0>(%0, %2);
                 %4 = store_ct_block<0>(%1, %3);
                 %5 = extract_ct_block<0>(%4);
-                _consume<CtBlock>(%5);
+                _consume<CiphertextBlock>(%5);
             "#
         );
 
@@ -283,7 +283,7 @@ mod tests {
             ir.format(),
             r#"
                 %1 = let_ct_block<20>();
-                _consume<CtBlock>(%1);
+                _consume<CiphertextBlock>(%1);
             "#
         );
     }
@@ -351,7 +351,7 @@ mod tests {
                 %1 = let_ct_block<99>();
                 %2 = store_ct_block<0>(%1, %0);
                 %3 = extract_ct_block<0>(%2);
-                _consume<CtBlock>(%3);
+                _consume<CiphertextBlock>(%3);
             "#
         );
 
@@ -362,7 +362,7 @@ mod tests {
             ir.format(),
             r#"
                 %1 = let_ct_block<99>();
-                _consume<CtBlock>(%1);
+                _consume<CiphertextBlock>(%1);
             "#
         );
     }
@@ -416,7 +416,7 @@ mod tests {
                 %4 = decl_ct<2>();
                 %5 = store_ct_block<0>(%3, %4);
                 %6 = extract_ct_block<0>(%5);
-                _consume<CtBlock>(%6);
+                _consume<CiphertextBlock>(%6);
             "#
         );
 
@@ -428,7 +428,7 @@ mod tests {
             ir.format(),
             r#"
                 %0 = let_ct_block<42>();
-                _consume<CtBlock>(%0);
+                _consume<CiphertextBlock>(%0);
             "#
         );
     }
@@ -501,7 +501,7 @@ mod tests {
                 %5 = extract_ct_block<0>(%3);
                 %6 = extract_ct_block<0>(%4);
                 %7 = add_ct(%5, %6);
-                _consume<CtBlock>(%7);
+                _consume<CiphertextBlock>(%7);
             "#
         );
 
@@ -514,7 +514,7 @@ mod tests {
                 %0 = let_ct_block<10>();
                 %1 = let_ct_block<20>();
                 %7 = add_ct(%0, %1);
-                _consume<CtBlock>(%7);
+                _consume<CiphertextBlock>(%7);
             "#
         );
     }

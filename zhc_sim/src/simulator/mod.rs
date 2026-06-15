@@ -1,4 +1,3 @@
-mod cycle;
 mod dispatch;
 mod simulator;
 mod tracer;
@@ -8,7 +7,6 @@ mod trigger;
 #[cfg(test)]
 mod test;
 
-pub use cycle::*;
 pub use dispatch::*;
 pub use simulator::*;
 pub use tracer::*;

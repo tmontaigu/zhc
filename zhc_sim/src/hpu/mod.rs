@@ -1,10 +1,9 @@
-use super::{Cycle, Dispatch, Simulatable, Tracer, Trigger};
+use super::{Dispatch, Simulatable, Tracer, Trigger};
 use crate::TracingLevel;
 use serde::Serialize;
+use zhc_config::hpu::HpuConfig;
 use zhc_langs::hpulang::HpuId;
-use zhc_utils::tracing::Microseconds;
 
-mod config;
 mod dops;
 mod events;
 mod isc;
@@ -16,7 +15,6 @@ mod pe_pbs;
 mod statistics;
 mod ucore;
 
-pub use config::*;
 pub use dops::*;
 pub use events::*;
 pub use isc::*;
@@ -27,12 +25,13 @@ pub use pe_mem::*;
 pub use pe_pbs::*;
 pub use statistics::*;
 pub use ucore::*;
+use zhc_utils::units::{Cycle, Microseconds};
 
 /// Latency, in microseconds, of a multi-HPU transfer of a ciphertext
 /// between boards.
-pub const MHDMA_LATENCY: Microseconds = 8.;
+pub const MHDMA_LATENCY: Microseconds = Microseconds(8.);
 /// Latency, in microseconds, of a cross-board transfer-ready notification.
-pub const NOTIFY_LATENCY: Microseconds = 1.;
+pub const NOTIFY_LATENCY: Microseconds = Microseconds(1.);
 
 /// HPU simulator containing all processing elements and scheduling logic.
 ///
@@ -197,6 +196,3 @@ impl Hpu {
         }
     }
 }
-
-#[cfg(test)]
-pub mod test;

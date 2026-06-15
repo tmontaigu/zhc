@@ -3,10 +3,9 @@ use crate::IR;
 use crate::testlang::{TestInstructionSet, TestLang};
 use crate::visualization::Hierarchy;
 use crate::visualization::composition::{NoClass, StyleModifier, TextBox};
+use zhc_utils::files::{Extension, FileHandle};
 use zhc_utils::graphics::ColorScale;
 use zhc_utils::svec;
-
-const PREFIX: &'static str = "";
 
 /// Build a small IR and annotate it with a flat hierarchy (all ops at root).
 #[test]
@@ -21,7 +20,11 @@ fn test_flat_hierarchy() {
     let root = Hierarchy::new();
     let op_annotations = ir.filled_opmap(root);
 
-    draw_ir_to_html(&ir, Some(op_annotations), &format!("{PREFIX}test1.html"));
+    draw_ir_to_html(
+        &ir,
+        Some(op_annotations),
+        FileHandle::random(Extension::Html),
+    );
 }
 
 /// Build an IR where some ops are in a nested hierarchy level.
@@ -46,7 +49,11 @@ fn test_nested_hierarchy() {
     op_annotations.insert(op2, group_a.clone());
     op_annotations.insert(op3, root.clone());
 
-    draw_ir_to_html(&ir, Some(op_annotations), &format!("{PREFIX}test2.html"));
+    draw_ir_to_html(
+        &ir,
+        Some(op_annotations),
+        FileHandle::random(Extension::Html),
+    );
 }
 
 /// Test with two separate groups at the same level.
@@ -73,7 +80,11 @@ fn test_sibling_groups() {
     op_annotations.insert(op2, group_a.clone());
     op_annotations.insert(op3, group_b.clone());
     op_annotations.insert(op4, root.clone());
-    draw_ir_to_html(&ir, Some(op_annotations), &format!("{PREFIX}test3.html"));
+    draw_ir_to_html(
+        &ir,
+        Some(op_annotations),
+        FileHandle::random(Extension::Html),
+    );
 }
 
 /// Test deeply nested hierarchy (2 levels deep).
@@ -99,7 +110,11 @@ fn test_deep_nesting() {
     op_annotations.insert(op2, group_ab.clone());
     op_annotations.insert(op3, root.clone());
 
-    draw_ir_to_html(&ir, Some(op_annotations), &format!("{PREFIX}test4.html"));
+    draw_ir_to_html(
+        &ir,
+        Some(op_annotations),
+        FileHandle::random(Extension::Html),
+    );
 }
 
 /// Operations along a group boundary (enter/exit same group multiple times).
@@ -123,7 +138,11 @@ fn test_operations_along_group() {
     op_annotations.insert(op2, root.clone());
     op_annotations.insert(op3, group_a.clone());
     op_annotations.insert(op4, root.clone());
-    draw_ir_to_html(&ir, Some(op_annotations), &format!("{PREFIX}test5.html"));
+    draw_ir_to_html(
+        &ir,
+        Some(op_annotations),
+        FileHandle::random(Extension::Html),
+    );
 }
 
 /// Diamond with different path lengths (slack test).
@@ -153,7 +172,11 @@ fn test_diamond_different_slacks() {
     op_annotations.insert(op4, root.clone());
     op_annotations.insert(op5, root.clone());
     op_annotations.insert(op6, root.clone());
-    draw_ir_to_html(&ir, Some(op_annotations), &format!("{PREFIX}test6.html"));
+    draw_ir_to_html(
+        &ir,
+        Some(op_annotations),
+        FileHandle::random(Extension::Html),
+    );
 }
 
 /// Branches with asymmetric slack in nested groups.
@@ -185,7 +208,11 @@ fn test_asymmetric_slack_nested() {
     op_annotations.insert(op3, group_c.clone());
     op_annotations.insert(op4, root.clone());
     op_annotations.insert(op5, root.clone());
-    draw_ir_to_html(&ir, Some(op_annotations), &format!("{PREFIX}test7.html"));
+    draw_ir_to_html(
+        &ir,
+        Some(op_annotations),
+        FileHandle::random(Extension::Html),
+    );
 }
 
 /// Deep entry immediately, slow exit with ops at each level.
@@ -213,7 +240,11 @@ fn test_deep_entry_slow_exit() {
     op_annotations.insert(op2, group_ab.clone());
     op_annotations.insert(op3, group_a.clone());
     op_annotations.insert(op4, root.clone());
-    draw_ir_to_html(&ir, Some(op_annotations), &format!("{PREFIX}test8.html"));
+    draw_ir_to_html(
+        &ir,
+        Some(op_annotations),
+        FileHandle::random(Extension::Html),
+    );
 }
 
 /// Slow entry with ops at each level, deep exit immediately.
@@ -241,7 +272,11 @@ fn test_slow_entry_deep_exit() {
     op_annotations.insert(op2, group_ab.clone());
     op_annotations.insert(op3, group_abc.clone());
     op_annotations.insert(op4, root.clone());
-    draw_ir_to_html(&ir, Some(op_annotations), &format!("{PREFIX}test9.html"));
+    draw_ir_to_html(
+        &ir,
+        Some(op_annotations),
+        FileHandle::random(Extension::Html),
+    );
 }
 
 /// Immediate deep entry and exit (no intermediate ops).
@@ -263,7 +298,11 @@ fn test_immediate_deep_entry_exit() {
     op_annotations.insert(op0, root.clone());
     op_annotations.insert(op1, group_abc.clone());
     op_annotations.insert(op2, root.clone());
-    draw_ir_to_html(&ir, Some(op_annotations), &format!("{PREFIX}test10.html"));
+    draw_ir_to_html(
+        &ir,
+        Some(op_annotations),
+        FileHandle::random(Extension::Html),
+    );
 }
 
 /// Multiple ops deep, immediate jump out and back in.
@@ -289,7 +328,11 @@ fn test_deep_oscillation() {
     op_annotations.insert(op2, root.clone());
     op_annotations.insert(op3, group_abc.clone());
     op_annotations.insert(op4, group_abc.clone());
-    draw_ir_to_html(&ir, Some(op_annotations), &format!("{PREFIX}test11.html"));
+    draw_ir_to_html(
+        &ir,
+        Some(op_annotations),
+        FileHandle::random(Extension::Html),
+    );
 }
 
 /// Fan-out with different nesting depths per branch.
@@ -322,7 +365,11 @@ fn test_fanout_varied_depths() {
     op_annotations.insert(op4, root.clone());
     op_annotations.insert(op5, root.clone());
     op_annotations.insert(op6, root.clone());
-    draw_ir_to_html(&ir, Some(op_annotations), &format!("{PREFIX}test12.html"));
+    draw_ir_to_html(
+        &ir,
+        Some(op_annotations),
+        FileHandle::random(Extension::Html),
+    );
 }
 
 /// Paths of lengths 1-6 converging, producing slacks 5 down to 0.
@@ -420,7 +467,11 @@ fn test_slack_gradient_0_to_5() {
     op_annotations.insert(add4_id, root.clone());
     op_annotations.insert(add5_id, root.clone());
     op_annotations.insert(ret_id, root.clone());
-    draw_ir_to_html(&ir, Some(op_annotations), &format!("{PREFIX}test13.html"));
+    draw_ir_to_html(
+        &ir,
+        Some(op_annotations),
+        FileHandle::random(Extension::Html),
+    );
 }
 
 /// Multi-return op with outputs consumed at different depths.
@@ -451,7 +502,11 @@ fn test_multireturn_different_depths() {
     op_annotations.insert(op4, group_c.clone()); // shallow
     op_annotations.insert(op5, root.clone());
     op_annotations.insert(op6, root.clone());
-    draw_ir_to_html(&ir, Some(op_annotations), &format!("{PREFIX}test14.html"));
+    draw_ir_to_html(
+        &ir,
+        Some(op_annotations),
+        FileHandle::random(Extension::Html),
+    );
 }
 
 /// Multiple inputs entering same group from root.
@@ -477,7 +532,11 @@ fn test_multi_input_to_group() {
     op_annotations.insert(op3, group_a.clone());
     op_annotations.insert(op4, group_a.clone());
     op_annotations.insert(op5, root.clone());
-    draw_ir_to_html(&ir, Some(op_annotations), &format!("{PREFIX}test15.html"));
+    draw_ir_to_html(
+        &ir,
+        Some(op_annotations),
+        FileHandle::random(Extension::Html),
+    );
 }
 
 /// Group produces multiple outputs consumed by different ops at root.
@@ -505,7 +564,11 @@ fn test_multi_output_from_group() {
     op_annotations.insert(op4, root.clone());
     op_annotations.insert(op5, root.clone());
     op_annotations.insert(op6, root.clone());
-    draw_ir_to_html(&ir, Some(op_annotations), &format!("{PREFIX}test16.html"));
+    draw_ir_to_html(
+        &ir,
+        Some(op_annotations),
+        FileHandle::random(Extension::Html),
+    );
 }
 
 /// Multiple inputs and outputs crossing group boundary simultaneously.
@@ -535,7 +598,11 @@ fn test_multi_io_group() {
     op_annotations.insert(op5, root.clone());
     op_annotations.insert(op6, root.clone());
     op_annotations.insert(op7, root.clone());
-    draw_ir_to_html(&ir, Some(op_annotations), &format!("{PREFIX}test17.html"));
+    draw_ir_to_html(
+        &ir,
+        Some(op_annotations),
+        FileHandle::random(Extension::Html),
+    );
 }
 
 /// Large diamond subgraph entirely within a group.
@@ -567,7 +634,11 @@ fn test_big_subgraph_diamond() {
     op_annotations.insert(op5, group_a.clone());
     op_annotations.insert(op6, group_a.clone());
     op_annotations.insert(op7, root.clone());
-    draw_ir_to_html(&ir, Some(op_annotations), &format!("{PREFIX}test18.html"));
+    draw_ir_to_html(
+        &ir,
+        Some(op_annotations),
+        FileHandle::random(Extension::Html),
+    );
 }
 
 /// Chain of 8 ops inside nested group with single entry/exit.
@@ -601,7 +672,11 @@ fn test_long_chain_in_nested_group() {
     op_annotations.insert(op7, group_ab.clone());
     op_annotations.insert(op8, group_ab.clone());
     op_annotations.insert(op9, root.clone());
-    draw_ir_to_html(&ir, Some(op_annotations), &format!("{PREFIX}test19.html"));
+    draw_ir_to_html(
+        &ir,
+        Some(op_annotations),
+        FileHandle::random(Extension::Html),
+    );
 }
 
 /// Cross-group edges: two groups each receive input and produce output to the other.
@@ -634,7 +709,11 @@ fn test_cross_group_multi_edge() {
     op_annotations.insert(op5, group_a.clone());
     op_annotations.insert(op6, root.clone());
     op_annotations.insert(op7, root.clone());
-    draw_ir_to_html(&ir, Some(op_annotations), &format!("{PREFIX}test20.html"));
+    draw_ir_to_html(
+        &ir,
+        Some(op_annotations),
+        FileHandle::random(Extension::Html),
+    );
 }
 
 /// Nested groups with multiple inputs at different depths.
@@ -668,7 +747,11 @@ fn test_multi_input_nested_depths() {
     op_annotations.insert(op5, group_ab.clone());
     op_annotations.insert(op6, group_ab.clone());
     op_annotations.insert(op7, root.clone());
-    draw_ir_to_html(&ir, Some(op_annotations), &format!("{PREFIX}test21.html"));
+    draw_ir_to_html(
+        &ir,
+        Some(op_annotations),
+        FileHandle::random(Extension::Html),
+    );
 }
 
 /// Group with internal fanout: one input, multiple parallel chains, multiple outputs.
@@ -704,7 +787,11 @@ fn test_group_internal_fanout() {
     op_annotations.insert(op7, root.clone());
     op_annotations.insert(op8, root.clone());
     op_annotations.insert(op9, root.clone());
-    draw_ir_to_html(&ir, Some(op_annotations), &format!("{PREFIX}test22.html"));
+    draw_ir_to_html(
+        &ir,
+        Some(op_annotations),
+        FileHandle::random(Extension::Html),
+    );
 }
 
 /// Two groups each with internal diamond, connected in sequence.
@@ -742,7 +829,11 @@ fn test_sequential_diamonds_in_groups() {
     op_annotations.insert(op7, group_b.clone());
     op_annotations.insert(op8, group_b.clone());
     op_annotations.insert(op9, root.clone());
-    draw_ir_to_html(&ir, Some(op_annotations), &format!("{PREFIX}test23.html"));
+    draw_ir_to_html(
+        &ir,
+        Some(op_annotations),
+        FileHandle::random(Extension::Html),
+    );
 }
 
 /// Five inputs feeding into a deep nested group, five outputs exiting to root.
@@ -783,7 +874,11 @@ fn test_wide_io_deep_group() {
     for id in [c0, c1, c2, c3, r] {
         op_annotations.insert(id, root.clone());
     }
-    draw_ir_to_html(&ir, Some(op_annotations), &format!("{PREFIX}test24.html"));
+    draw_ir_to_html(
+        &ir,
+        Some(op_annotations),
+        FileHandle::random(Extension::Html),
+    );
 }
 
 /// Two parallel paths with crossing edges if not reordered.
@@ -806,7 +901,11 @@ fn test_crossing_two_parallel() {
     for id in [a, b, c, d, e, r] {
         op_annotations.insert(id, root.clone());
     }
-    draw_ir_to_html(&ir, Some(op_annotations), &format!("{PREFIX}test25.html"));
+    draw_ir_to_html(
+        &ir,
+        Some(op_annotations),
+        FileHandle::random(Extension::Html),
+    );
 }
 
 /// Three inputs, three outputs, all cross-connected (K₃,₃ bipartite).
@@ -835,7 +934,11 @@ fn test_bipartite_k33() {
     for id in [a, b, c, d, d2, e, e2, f, f2, g, h, r] {
         op_annotations.insert(id, root.clone());
     }
-    draw_ir_to_html(&ir, Some(op_annotations), &format!("{PREFIX}test26.html"));
+    draw_ir_to_html(
+        &ir,
+        Some(op_annotations),
+        FileHandle::random(Extension::Html),
+    );
 }
 
 /// Fan-out to 4 children, connected to fan-in in reversed order.
@@ -865,7 +968,11 @@ fn test_fanout_reversed_fanin() {
     for id in [inp, a, b, c, d, w, x, y, z, m1, m2, m3, r] {
         op_annotations.insert(id, root.clone());
     }
-    draw_ir_to_html(&ir, Some(op_annotations), &format!("{PREFIX}test27.html"));
+    draw_ir_to_html(
+        &ir,
+        Some(op_annotations),
+        FileHandle::random(Extension::Html),
+    );
 }
 
 /// Ladder pattern: pairs connected with alternating cross-links.
@@ -894,7 +1001,11 @@ fn test_ladder_alternating() {
     for id in [a0, b0, a1, b1, a2, b2, a3, b3, m, r] {
         op_annotations.insert(id, root.clone());
     }
-    draw_ir_to_html(&ir, Some(op_annotations), &format!("{PREFIX}test28.html"));
+    draw_ir_to_html(
+        &ir,
+        Some(op_annotations),
+        FileHandle::random(Extension::Html),
+    );
 }
 
 /// Permuted parallel chains: 4 chains inserted in shuffled order.
@@ -930,7 +1041,11 @@ fn test_permuted_chains() {
     ] {
         op_annotations.insert(id, root.clone());
     }
-    draw_ir_to_html(&ir, Some(op_annotations), &format!("{PREFIX}test29.html"));
+    draw_ir_to_html(
+        &ir,
+        Some(op_annotations),
+        FileHandle::random(Extension::Html),
+    );
 }
 
 /// Single source, multiple sinks at same depth with shared intermediate.
@@ -959,7 +1074,11 @@ fn test_shared_intermediate_multi_sink() {
     for id in [inp, mid, s0, s1, s2, t0, t1, t2, c1, c2, r] {
         op_annotations.insert(id, root.clone());
     }
-    draw_ir_to_html(&ir, Some(op_annotations), &format!("{PREFIX}test30.html"));
+    draw_ir_to_html(
+        &ir,
+        Some(op_annotations),
+        FileHandle::random(Extension::Html),
+    );
 }
 
 /// Wide layer (8 nodes) with butterfly-pattern edges to next layer.
@@ -1018,7 +1137,11 @@ fn test_butterfly_wide() {
     for id in [c0, c1, c2, c3, d0, d1, e, r] {
         op_annotations.insert(id, root.clone());
     }
-    draw_ir_to_html(&ir, Some(op_annotations), &format!("{PREFIX}test31.html"));
+    draw_ir_to_html(
+        &ir,
+        Some(op_annotations),
+        FileHandle::random(Extension::Html),
+    );
 }
 
 /// Crossing within nested group — reordering must respect hierarchy.
@@ -1048,7 +1171,11 @@ fn test_crossing_in_group() {
     }
     op_annotations.insert(m, root.clone());
     op_annotations.insert(r, root.clone());
-    draw_ir_to_html(&ir, Some(op_annotations), &format!("{PREFIX}test32.html"));
+    draw_ir_to_html(
+        &ir,
+        Some(op_annotations),
+        FileHandle::random(Extension::Html),
+    );
 }
 
 /// Cross-group edges that would cross if groups aren't reordered.
@@ -1078,7 +1205,11 @@ fn test_cross_group_reorder() {
     op_annotations.insert(b, group_b);
     op_annotations.insert(m, root.clone());
     op_annotations.insert(r, root.clone());
-    draw_ir_to_html(&ir, Some(op_annotations), &format!("{PREFIX}test33.html"));
+    draw_ir_to_html(
+        &ir,
+        Some(op_annotations),
+        FileHandle::random(Extension::Html),
+    );
 }
 
 /// Bug reproducer: GroupInput shares layer 1 with an IntInput inside the group.
@@ -1116,7 +1247,11 @@ fn test_mixed_first_layer_in_group() {
     op_annotations.insert(op_add1, group_a.clone());
     op_annotations.insert(op_add2, group_a.clone());
     op_annotations.insert(op_ret, root.clone());
-    draw_ir_to_html(&ir, Some(op_annotations), &format!("{PREFIX}test34.html"));
+    draw_ir_to_html(
+        &ir,
+        Some(op_annotations),
+        FileHandle::random(Extension::Html),
+    );
 }
 
 /// Bug reproducer: GroupOutput shares last layer with a Return inside the group.
@@ -1155,7 +1290,11 @@ fn test_mixed_last_layer_in_group() {
     op_annotations.insert(op_inc2, group_a.clone());
     op_annotations.insert(op_internal_ret, group_a.clone());
     op_annotations.insert(op_ret, root.clone());
-    draw_ir_to_html(&ir, Some(op_annotations), &format!("{PREFIX}test35.html"));
+    draw_ir_to_html(
+        &ir,
+        Some(op_annotations),
+        FileHandle::random(Extension::Html),
+    );
 }
 
 #[test]
@@ -1217,7 +1356,7 @@ fn test_ann_style_modifier() {
     draw_ann_ir_to_html(
         &ann_ir.view(),
         Some(op_annotations),
-        &format!("{PREFIX}test36.html"),
+        FileHandle::random(Extension::Html),
     );
 }
 
@@ -1238,5 +1377,9 @@ fn test_linear_order_not_topological() {
     op_annotations.insert(op2, root.clone());
     op_annotations.insert(op3, root.clone());
 
-    draw_ir_to_html(&ir, Some(op_annotations), &format!("{PREFIX}test37.html"));
+    draw_ir_to_html(
+        &ir,
+        Some(op_annotations),
+        FileHandle::random(Extension::Html),
+    );
 }

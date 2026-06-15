@@ -114,7 +114,9 @@ impl<A> SmallVec<A> {
             );
             eprintln!("Backtrace:\n{}", std::backtrace::Backtrace::capture());
         }
-        if cap <= StackVec::<A>::static_capacity() {
+        // A capacity of 0 is the sentinel for "`A` is too large for the stack buffer", not a
+        // legitimate capacity, so it must be rejected even when `cap` is 0.
+        if StackVec::<A>::static_capacity() > 0 && cap <= StackVec::<A>::static_capacity() {
             SmallVec::Stack(StackVec::new())
         } else {
             SmallVec::Heap(Vec::new())
@@ -301,9 +303,12 @@ impl<A> std::iter::FromIterator<A> for SmallVec<A> {
                 std::mem::size_of::<A>(),
                 STACK_BYTES
             );
-            eprintln!("Backtrace:\n{}", std::backtrace::Backtrace::capture());
+            // eprintln!("Backtrace:\n{}", std::backtrace::Backtrace::capture());
         }
+        // Same sentinel caveat as in `with_capacity`: capacity 0 means `A` does not fit on the
+        // stack at all, so an empty iterator must still go to the heap.
         if let (_, Some(max)) = iter.size_hint()
+            && StackVec::<A>::static_capacity() > 0
             && max <= StackVec::<A>::static_capacity()
         {
             SmallVec::Stack(StackVec::from_iter(iter))
@@ -763,5 +768,59 @@ mod tests {
         assert_eq!(vec.len(), 100);
         assert!(matches!(vec, SmallVec::Heap(_)));
         assert!(vec.iter().all(|&x| x == 1));
+    }
+
+    // A type whose size exceeds `STACK_BYTES`, hence `StackVec::static_capacity() == 0`.
+    #[derive(Clone)]
+    #[repr(C)]
+    struct Oversized([u64; 16]);
+
+    impl Oversized {
+        fn new(v: u64) -> Self {
+            Oversized([v; 16])
+        }
+    }
+
+    #[test]
+    fn test_oversized_type_has_no_stack_capacity() {
+        // Sanity check: the sentinel value `from_iter`/`with_capacity` misinterpret as a
+        // legitimate capacity.
+        assert_eq!(StackVec::<Oversized>::static_capacity(), 0);
+    }
+
+    #[test]
+    fn test_empty_creation_oversized_uses_heap() {
+        let vec: SmallVec<Oversized> = SmallVec::from_iter(std::iter::empty());
+        assert!(matches!(vec, SmallVec::Heap(_)));
+        assert_eq!(vec.len(), 0);
+    }
+
+    #[test]
+    fn test_svec_macro_empty_oversized_uses_heap() {
+        let vec: SmallVec<Oversized> = svec![];
+        assert!(matches!(vec, SmallVec::Heap(_)));
+        assert_eq!(vec.len(), 0);
+    }
+
+    #[test]
+    fn test_svec_macro_zero_repeat_oversized_uses_heap() {
+        let vec: SmallVec<Oversized> = svec![Oversized::new(1); 0];
+        assert!(matches!(vec, SmallVec::Heap(_)));
+        assert_eq!(vec.len(), 0);
+    }
+
+    #[test]
+    fn test_with_capacity_zero_oversized_uses_heap() {
+        let vec: SmallVec<Oversized> = SmallVec::with_capacity(0);
+        assert!(matches!(vec, SmallVec::Heap(_)));
+        assert_eq!(vec.len(), 0);
+    }
+
+    #[test]
+    fn test_nonempty_oversized_uses_heap() {
+        let vec: SmallVec<Oversized> = svec![Oversized::new(7)];
+        assert!(matches!(vec, SmallVec::Heap(_)));
+        assert_eq!(vec.len(), 1);
+        assert_eq!(vec[0].0[0], 7);
     }
 }

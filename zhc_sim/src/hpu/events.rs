@@ -29,6 +29,7 @@ pub enum Events {
     IscQuery,
     /// Refills an operation back into the scheduler queue.
     IscRefillDOp(DOp),
+    /// The Isc has treated every DOp in its queue.
     IscStarved,
 
     /// ALU processing element begins operation execution.
@@ -71,15 +72,19 @@ pub enum Events {
     /// External notification of scheduler command execution.
     NotifyIsc(DOpId, IscCommand),
     /// External notification
-    NotifyStartOnTimeout {
-        last_in: DOp,
-    },
+    NotifyStartOnTimeout { last_in: DOp },
 
+    /// Micro-core receives a new DOp stream to sequence.
     UCorePushDOps(Vec<DOp>),
+    /// Micro-core drains its DOp queue until it stalls on a transfer or runs dry.
     UCoreProcessDOps,
+    /// Source board signals that the identified inbound transfer may start loading.
     UCoreTransferInNotified(TransferId),
+    /// Inbound DMA of the identified transfer completed, releasing the matching `WAIT`.
     UCoreTransferInFinished(TransferId),
+    /// Identified outbound transfer is ready to be signalled to the destination HPU.
     UCoreTransferOutReady(HpuId, TransferId),
+    /// The UCore has treated every DOp in its queue and the Isc has drained.
     UCoreStarved,
 }
 

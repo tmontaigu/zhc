@@ -24,14 +24,14 @@
 
 mod assembly;
 mod dialect;
+mod evaluation;
 mod instruction_set;
-mod interpretation;
 mod spills;
 mod type_system;
 
 pub use assembly::*;
 pub use dialect::*;
+pub use evaluation::*;
 pub use instruction_set::*;
-pub use interpretation::*;
 pub use spills::*;
 pub use type_system::*;

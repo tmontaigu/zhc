@@ -1,3 +1,5 @@
+use zhc_utils::units::Cycle;
+
 use super::*;
 
 /// Represents a scheduled event with its execution time.

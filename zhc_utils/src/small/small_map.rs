@@ -194,6 +194,14 @@ impl<K: Eq + Hash, V> Extend<(K, V)> for SmallMap<K, V> {
     }
 }
 
+impl<K: Eq + Hash, V: PartialEq> PartialEq for SmallMap<K, V> {
+    fn eq(&self, other: &Self) -> bool {
+        self.len() == other.len() && self.iter().all(|(k, v)| other.get(k) == Some(v))
+    }
+}
+
+impl<K: Eq + Hash, V: Eq> Eq for SmallMap<K, V> {}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -304,6 +312,39 @@ mod tests {
         assert_eq!(map.get(&"a"), Some(&1));
         assert_eq!(map.get(&"b"), Some(&2));
         assert_eq!(map.get(&"c"), Some(&3));
+    }
+
+    #[test]
+    fn test_eq() {
+        let a: SmallMap<i32, i32> = vec![(1, 10), (2, 20)].into_iter().collect();
+        let b: SmallMap<i32, i32> = vec![(2, 20), (1, 10)].into_iter().collect();
+        let c: SmallMap<i32, i32> = vec![(1, 10), (2, 21)].into_iter().collect();
+        let d: SmallMap<i32, i32> = vec![(1, 10)].into_iter().collect();
+
+        // Insertion order is irrelevant.
+        assert_eq!(a, b);
+        // Differing value, then differing length.
+        assert_ne!(a, c);
+        assert_ne!(a, d);
+        assert_eq!(SmallMap::<i32, i32>::new(), SmallMap::new());
+    }
+
+    #[test]
+    fn test_eq_across_representations() {
+        let mut stack: SmallMap<u64, u64> = SmallMap::new();
+        let capacity = stack.capacity();
+        for i in 0..capacity as u64 {
+            stack.insert(i, i * 10);
+        }
+        assert!(matches!(stack, SmallMap::Stack(_)));
+
+        // Same contents, but forced onto the heap by a spill-then-remove.
+        let mut heap = stack.clone();
+        heap.insert(u64::MAX, 0);
+        heap.remove(&u64::MAX);
+        assert!(matches!(heap, SmallMap::Heap(_)));
+
+        assert_eq!(stack, heap);
     }
 
     #[test]

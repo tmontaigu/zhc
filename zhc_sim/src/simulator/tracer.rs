@@ -6,9 +6,10 @@ use super::*;
 use zhc_utils::{
     FastMap,
     tracing::{Scope, Trace},
+    units::{Cycle, MHz, Microseconds},
 };
 
-pub static PERIOD_IN_US: f64 = MHz(400).period();
+pub static PERIOD_IN_US: Microseconds = MHz(400).period();
 static DEFAULT_EVENTS_PID: usize = 0;
 static DEFAULT_STATES_PID: usize = 1;
 static DEFAULT_COUNTERS_PID: usize = 2;
@@ -130,8 +131,12 @@ impl Tracer {
                 // Shrink the slice by a few ULP *at the end's magnitude* so that, after the
                 // trace viewer recomputes `ts + dur`, it stays strictly below the next slice's
                 // `ts` and the two render as siblings rather than nested (see `add_state`).
-                (at - *tracker.state_change.as_ref().unwrap()).as_ts(PERIOD_IN_US)
-                    - at.as_ts(PERIOD_IN_US).abs() * 4. * f64::EPSILON,
+                Microseconds(
+                    (at - *tracker.state_change.as_ref().unwrap())
+                        .as_ts(PERIOD_IN_US)
+                        .0
+                        - at.as_ts(PERIOD_IN_US).0.abs() * 4. * f64::EPSILON,
+                ),
             );
         }
         let json = serde_json::to_string_pretty(&trace).expect("Failed to serialize trace.");
@@ -261,8 +266,12 @@ impl Tracer {
                     tracker.tid,
                     &tracker.name,
                     Some(json!({"val": tracker.state.as_ref().unwrap()})),
-                    (at - *tracker.state_change.as_ref().unwrap()).as_ts(PERIOD_IN_US)
-                        - at.as_ts(PERIOD_IN_US).abs() * 4. * f64::EPSILON,
+                    Microseconds(
+                        (at - *tracker.state_change.as_ref().unwrap())
+                            .as_ts(PERIOD_IN_US)
+                            .0
+                            - at.as_ts(PERIOD_IN_US).0.abs() * 4. * f64::EPSILON,
+                    ),
                 );
                 tracker.state_change = Some(at);
                 tracker.state = Some(state);

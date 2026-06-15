@@ -1,4 +1,6 @@
 use serde::Serialize;
+use zhc_utils::units::Cycle;
+use zhc_utils::units::MHz;
 
 use super::*;
 

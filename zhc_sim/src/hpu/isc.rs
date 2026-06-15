@@ -1,5 +1,5 @@
 use super::*;
-use crate::{Cycle, Dispatch};
+use crate::Dispatch;
 use serde::{Deserialize, Serialize};
 use std::{collections::VecDeque, fmt::Display};
 use zhc_langs::doplang::Affinity;

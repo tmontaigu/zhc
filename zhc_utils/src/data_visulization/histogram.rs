@@ -1,7 +1,7 @@
 use crate::{Dumpable, small::SmallMap};
 use std::{fmt::Display, hash::Hash};
 
-#[derive(Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Histogram<Bin: Hash + Eq + Clone>(SmallMap<Bin, u32>);
 
 impl<Bin: Hash + Eq + Clone> Histogram<Bin> {

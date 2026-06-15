@@ -5,9 +5,9 @@ use std::process::Command;
 
 use serde::{Deserialize, Serialize};
 use zhc_builder::{Builder, CiphertextSpec};
+use zhc_config::hpu::HpuConfig;
 use zhc_pipeline::compat::Iop;
-use zhc_sim::MHz;
-use zhc_utils::data_visulization::DynamicTable;
+use zhc_utils::{data_visulization::DynamicTable, units::Microseconds};
 
 const ALL_BITS: &[u16] = &[8, 16, 32, 64, 128];
 const RESULTS_DIR: &str = "zhc_bench/results";
@@ -83,7 +83,7 @@ impl Filters {
 struct BenchResult {
     commit: String,
     timestamp: String,
-    results: BTreeMap<String, BTreeMap<u16, f64>>, // iop -> bits -> latency_us
+    results: BTreeMap<String, BTreeMap<u16, Microseconds>>,
 }
 
 fn get_commit_hash() -> String {
@@ -130,30 +130,24 @@ fn check_git_clean() {
     }
 }
 
-fn bench_iop(
-    iop: &Iop,
-    config: &zhc_sim::hpu::HpuConfig,
-    freq: MHz,
-    bits_filter: &[u16],
-) -> BTreeMap<u16, f64> {
+fn bench_iop(iop: &Iop, config: &HpuConfig, bits_filter: &[u16]) -> BTreeMap<u16, Microseconds> {
     let mut bits_results = BTreeMap::new();
     for &bits in bits_filter {
         let spec = CiphertextSpec::new(bits, 2, 2);
-        let latency = iop.compute_latency(&config, spec, freq);
+        let latency = iop.compute_latency(&config, spec);
         bits_results.insert(bits, latency);
     }
     bits_results
 }
 
 fn run_benchmarks() -> BenchResult {
-    let config = zhc_sim::hpu::HpuConfig::default();
-    let freq = MHz(400);
-    let mut results: BTreeMap<String, BTreeMap<u16, f64>> = BTreeMap::new();
+    let config = HpuConfig::default();
+    let mut results: BTreeMap<String, BTreeMap<u16, Microseconds>> = BTreeMap::new();
 
     for iop in Iop::ALL {
         let iop_name = format!("{:?}", iop);
         println!("Benchmarking {}", iop_name);
-        let bits_results = bench_iop(iop, &config, freq, ALL_BITS);
+        let bits_results = bench_iop(iop, &config, ALL_BITS);
         for (&bits, &latency) in &bits_results {
             println!("  {}b: {:.2}us", bits, latency);
         }
@@ -270,19 +264,18 @@ fn run_diff_incremental(baseline: &BenchResult, use_color: bool, filters: &Filte
     let rows = filters.iops.iter().map(|iop| format!("{:?}", iop));
     let mut table = DynamicTable::new(columns, rows);
 
-    let config = zhc_sim::hpu::HpuConfig::default();
-    let freq = MHz(400);
+    let config = HpuConfig::default();
 
     for (row, iop) in filters.iops.iter().enumerate() {
         let iop_name = format!("{:?}", iop);
-        let bits_results = bench_iop(iop, &config, freq, &filters.bits);
+        let bits_results = bench_iop(iop, &config, &filters.bits);
 
         for (col, bits) in filters.bits.iter().enumerate() {
             let cell = match (
                 bits_results.get(bits),
                 baseline.results.get(&iop_name).and_then(|m| m.get(bits)),
             ) {
-                (Some(&curr), Some(&base)) => format_diff(curr, base, use_color),
+                (Some(&curr), Some(&base)) => format_diff(curr.0, base.0, use_color),
                 _ => "-".into(),
             };
             table.set(row, col, cell);
@@ -297,15 +290,14 @@ fn run_latency_table(filters: &Filters) {
     let rows = filters.iops.iter().map(|iop| format!("{:?}", iop));
     let mut table = DynamicTable::new(columns, rows);
 
-    let config = zhc_sim::hpu::HpuConfig::default();
-    let freq = MHz(400);
+    let config = HpuConfig::default();
 
     for (row, iop) in filters.iops.iter().enumerate() {
-        let bits_results = bench_iop(iop, &config, freq, &filters.bits);
+        let bits_results = bench_iop(iop, &config, &filters.bits);
 
         for (col, bits) in filters.bits.iter().enumerate() {
             let cell = match bits_results.get(bits) {
-                Some(&us) => format_latency(us),
+                Some(&us) => format_latency(us.0),
                 None => "-".into(),
             };
             table.set(row, col, cell);

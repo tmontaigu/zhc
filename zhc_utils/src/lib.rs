@@ -6,10 +6,12 @@
 
 pub mod assert_display;
 pub mod data_visulization;
+pub mod files;
 pub mod graphics;
 pub mod iter;
 pub mod small;
 pub mod tracing;
+pub mod units;
 
 mod bi_map;
 mod change_guard;
@@ -33,5 +35,7 @@ pub use safe_as::*;
 pub use store::*;
 pub use type_name::*;
 
+pub use zhc_utils_macro::DisplayVariant;
 pub use zhc_utils_macro::assert_display_is;
+pub use zhc_utils_macro::existential_enum;
 pub use zhc_utils_macro::fsm;

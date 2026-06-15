@@ -20,12 +20,12 @@ pub struct DurationBeginEvent {
     pub categories: Categories,
     pub ph: PhB,
     #[serde(rename = "ts")]
-    pub timestamp: Microseconds,
+    pub timestamp: f64,
     pub pid: Pid,
     pub tid: Tid,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "tts")]
-    pub thread_timestamp: Option<Microseconds>,
+    pub thread_timestamp: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub args: Option<Value>,
     #[serde(flatten)]
@@ -39,12 +39,12 @@ pub struct DurationEndEvent {
     pub categories: Categories,
     pub ph: PhE,
     #[serde(rename = "ts")]
-    pub timestamp: Microseconds,
+    pub timestamp: f64,
     pub pid: Pid,
     pub tid: Tid,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "tts")]
-    pub thread_timestamp: Option<Microseconds>,
+    pub thread_timestamp: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub args: Option<Value>,
     #[serde(flatten)]
@@ -58,14 +58,14 @@ pub struct CompleteEvent {
     pub categories: Categories,
     pub ph: PhX,
     #[serde(rename = "ts")]
-    pub timestamp: Microseconds,
+    pub timestamp: f64,
     #[serde(rename = "dur")]
-    pub duration: Microseconds,
+    pub duration: f64,
     pub pid: Pid,
     pub tid: Tid,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "tdur")]
-    pub thread_duration: Option<Microseconds>,
+    pub thread_duration: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub args: Option<Value>,
 }
@@ -77,7 +77,7 @@ pub struct InstantEvent {
     pub categories: Categories,
     pub ph: Phi,
     #[serde(rename = "ts")]
-    pub timestamp: Microseconds,
+    pub timestamp: f64,
     pub pid: Pid,
     pub tid: Tid,
     #[serde(rename = "s")]
@@ -139,7 +139,7 @@ pub struct CounterEvent {
     pub categories: Categories,
     pub ph: PhC,
     #[serde(rename = "ts")]
-    pub timestamp: Microseconds,
+    pub timestamp: f64,
     pub pid: Pid,
     pub tid: Tid,
     #[serde(skip_serializing_if = "Option::is_none")]

@@ -20,7 +20,7 @@ pub fn add(spec: CiphertextSpec) -> Builder {
     let builder = Builder::new(spec.block_spec());
     let src_a = builder.ciphertext_input(spec.int_size());
     let src_b = builder.ciphertext_input(spec.int_size());
-    let res = builder.iop_add(&src_a, &src_b);
+    let res = builder.iop_add(&src_a, &src_b, None);
     builder.ciphertext_output(res);
     builder
 }
@@ -105,7 +105,7 @@ pub fn overflow_add(spec: CiphertextSpec) -> Builder {
     let builder = Builder::new(spec.block_spec());
     let src_a = builder.ciphertext_input(spec.int_size());
     let src_b = builder.ciphertext_input(spec.int_size());
-    let (res, flag) = builder.iop_overflow_add(&src_a, &src_b);
+    let (res, flag) = builder.iop_overflow_add(&src_a, &src_b, None);
     builder.ciphertext_output(res);
     builder.ciphertext_output(flag);
     builder
@@ -132,21 +132,15 @@ impl Builder {
     /// # let builder = Builder::new(spec.block_spec());
     /// # let a = builder.ciphertext_input(spec.int_size());
     /// # let b = builder.ciphertext_input(spec.int_size());
-    /// let sum = builder.iop_add(&a, &b);
+    /// let sum = builder.iop_add(&a, &b, None);
     /// ```
-    pub fn iop_add(&self, lhs: &Ciphertext, rhs: &Ciphertext) -> Ciphertext {
-        let par_w = match lhs.spec().int_size() {
-            8..16 => 1,
-            16..24 => 7,
-            24..256 => 12,
-            _ => 1,
-        };
-        match lhs.spec().int_size() {
-            0..8 => self.iop_add_ripple_carry(&lhs, &rhs, None).0,
-            8..17 => self.iop_add_hillis_steele(&lhs, &rhs, None).0,
-            17..256 => self.iop_add_kogge_stone(&lhs, &rhs, None, par_w).0,
-            _ => todo!(),
-        }
+    pub fn iop_add(
+        &self,
+        lhs: &Ciphertext,
+        rhs: &Ciphertext,
+        cin: Option<&CiphertextBlock>,
+    ) -> Ciphertext {
+        self.iop_overflow_add(lhs, rhs, cin).0
     }
 
     /// Adds two encrypted integers with overflow detection.
@@ -164,19 +158,46 @@ impl Builder {
     /// # let builder = Builder::new(spec.block_spec());
     /// # let a = builder.ciphertext_input(spec.int_size());
     /// # let b = builder.ciphertext_input(spec.int_size());
-    /// let (sum, overflow) = builder.iop_overflow_add(&a, &b);
+    /// let (sum, overflow) = builder.iop_overflow_add(&a, &b, None);
     /// ```
-    pub fn iop_overflow_add(&self, lhs: &Ciphertext, rhs: &Ciphertext) -> (Ciphertext, Ciphertext) {
-        let par_w = match lhs.spec().int_size() {
-            8..16 => 1,
-            16..24 => 7,
-            24..256 => 12,
-            _ => 1,
-        };
-        match lhs.spec().int_size() {
-            0..8 => self.iop_add_ripple_carry(&lhs, &rhs, None),
-            8..17 => self.iop_add_hillis_steele(&lhs, &rhs, None),
-            17..256 => self.iop_add_kogge_stone(&lhs, &rhs, None, par_w),
+    pub fn iop_overflow_add(
+        &self,
+        lhs: &Ciphertext,
+        rhs: &Ciphertext,
+        cin: Option<&CiphertextBlock>,
+    ) -> (Ciphertext, Ciphertext) {
+        let lhs_blocks = self.ciphertext_split(lhs);
+        let rhs_blocks = self.ciphertext_split(rhs);
+        let int_size = lhs.spec().int_size();
+
+        let (output_blocks, carry_out) = self.iop_add_raw(int_size, lhs_blocks, rhs_blocks, cin);
+        (
+            self.comment("Join Output")
+                .ciphertext_join(output_blocks, None),
+            self.comment("Join Carry")
+                .ciphertext_join([carry_out], None),
+        )
+    }
+
+    pub fn iop_add_raw(
+        &self,
+        int_size: u16,
+        lhs_blocks: impl AsRef<[CiphertextBlock]>,
+        rhs_blocks: impl AsRef<[CiphertextBlock]>,
+        cin: Option<&CiphertextBlock>,
+    ) -> (Vec<CiphertextBlock>, CiphertextBlock) {
+        match int_size {
+            0..8 => self.iop_add_ripple_carry_raw(&lhs_blocks, &rhs_blocks, cin),
+            8..17 => self.iop_add_hillis_steele_raw(&lhs_blocks, &rhs_blocks, cin, true),
+            17..256 => {
+                // select internal par_w based on integer_w
+                let par_w = match int_size {
+                    16..24 => 7,
+                    24..256 => 12,
+                    _ => 1,
+                };
+                self.iop_add_kogge_stone_raw(&lhs_blocks, &rhs_blocks, cin, par_w)
+            }
             _ => todo!(),
         }
     }
@@ -209,12 +230,36 @@ impl Builder {
     ) -> (Ciphertext, Ciphertext) {
         let lhs_blocks = self.ciphertext_split(lhs);
         let rhs_blocks = self.ciphertext_split(rhs);
+        let (output_blocks, carry_out) = self.iop_add_ripple_carry_raw(lhs_blocks, rhs_blocks, cin);
+        (
+            self.comment("Join Output")
+                .ciphertext_join(output_blocks, None),
+            self.comment("Join Carry")
+                .ciphertext_join([carry_out], None),
+        )
+    }
 
+    pub fn iop_add_ripple_carry_raw(
+        &self,
+        lhs_blocks: impl AsRef<[CiphertextBlock]>,
+        rhs_blocks: impl AsRef<[CiphertextBlock]>,
+        cin: Option<&CiphertextBlock>,
+    ) -> (Vec<CiphertextBlock>, CiphertextBlock) {
         let mut carry = cin.cloned().unwrap_or_else(|| self.block_let_ciphertext(0));
         let mut output_blocks = Vec::new();
-        for i in 0..lhs_blocks.iter().len() {
+        let wider_inputs = lhs_blocks
+            .as_ref()
+            .iter()
+            .len()
+            .max(rhs_blocks.as_ref().iter().len());
+        for i in 0..wider_inputs {
             self.push_comment(format!("{i}-th"));
-            let raw_sum = self.block_add(lhs_blocks[i], rhs_blocks[i]);
+            let raw_sum = match (lhs_blocks.as_ref().get(i), rhs_blocks.as_ref().get(i)) {
+                (Some(lhs), Some(rhs)) => self.block_add(lhs, rhs),
+                (Some(lhs), None) => lhs.clone(),
+                (None, Some(rhs)) => rhs.clone(),
+                _ => unreachable!(),
+            };
             let sum = self.block_add(raw_sum, carry);
             let (message, carry_tmp) = self.block_lookup2(sum, Lut2Def::ManyCarryMsg);
             carry = carry_tmp;
@@ -223,11 +268,7 @@ impl Builder {
         }
 
         // carry is now the carry-out of the last block (clean 0/1 via CarryInMsg)
-        (
-            self.comment("Join Output")
-                .ciphertext_join(output_blocks, None),
-            self.comment("Join Carry").ciphertext_join([carry], None),
-        )
+        (output_blocks, carry)
     }
 
     /// Adds two encrypted integers using Hillis-Steele carry propagation.
@@ -650,7 +691,7 @@ impl Builder {
         let lhs_blocks = self.ciphertext_split(lhs);
         let rhs_blocks = self.ciphertext_split(rhs);
         let (output_blocks, carry_out) =
-            self.iop_add_kogge_stone_raw(lhs_blocks, rhs_blocks, cin, par_w, false);
+            self.iop_add_kogge_stone_raw(lhs_blocks, rhs_blocks, cin, par_w);
         let co_issome = self.block_lookup(&carry_out, Lut1Def::IsSome);
         (
             self.comment("Join Output")
@@ -668,7 +709,6 @@ impl Builder {
         rhs_blocks: impl AsRef<[CiphertextBlock]>,
         cin: Option<&CiphertextBlock>,
         par_w: usize,
-        clean: bool,
     ) -> (Vec<CiphertextBlock>, CiphertextBlock) {
         let sums = self.comment("Raw sum").vector_add(
             &lhs_blocks,
@@ -714,16 +754,6 @@ impl Builder {
         // Carry-out: the final PG entry spans cin through all blocks.
         // Because it is a PG carry the carry is really in bit 1
         let carry_out = cin_pg_kogge_entry.fresh;
-
-        if clean {
-            self.push_comment("Cleanup");
-            result = result
-                .into_iter()
-                .map(|ct| self.block_lookup(&ct, Lut1Def::MsgOnly))
-                .collect();
-            self.pop_comment();
-        }
-
         (result, carry_out)
     }
 
@@ -873,17 +903,17 @@ mod test {
                 // Kogge chunk [7..9)               | %95 = pbs<Protect, Lut1("ReduceCarry3")>(%94);
                 // Kogge chunk [7..9)               | %96 = pack_ct<4>(%95, %91);
                 // Kogge chunk [7..9)               | %97 = pbs<Protect, Lut1("GenPropAdd")>(%96);
-                // Join Output                      | %103 = decl_ct<18>();
-                // Join Output                      | %114 = store_ct_block<0>(%45, %103);
-                // Join Output                      | %115 = store_ct_block<1>(%49, %114);
-                // Join Output                      | %116 = store_ct_block<2>(%53, %115);
-                // Join Output                      | %117 = store_ct_block<3>(%61, %116);
-                // Join Output                      | %118 = store_ct_block<4>(%65, %117);
-                // Join Output                      | %119 = store_ct_block<5>(%71, %118);
-                // Join Output                      | %120 = store_ct_block<6>(%79, %119);
-                // Join Output                      | %121 = store_ct_block<7>(%93, %120);
-                // Join Output                      | %122 = store_ct_block<8>(%97, %121);
-                                                    | output<0>(%122);
+                // Join Output                      | %102 = decl_ct<18>();
+                // Join Output                      | %113 = store_ct_block<0>(%45, %102);
+                // Join Output                      | %114 = store_ct_block<1>(%49, %113);
+                // Join Output                      | %115 = store_ct_block<2>(%53, %114);
+                // Join Output                      | %116 = store_ct_block<3>(%61, %115);
+                // Join Output                      | %117 = store_ct_block<4>(%65, %116);
+                // Join Output                      | %118 = store_ct_block<5>(%71, %117);
+                // Join Output                      | %119 = store_ct_block<6>(%79, %118);
+                // Join Output                      | %120 = store_ct_block<7>(%93, %119);
+                // Join Output                      | %121 = store_ct_block<8>(%97, %120);
+                                                    | output<0>(%121);
             "#
         );
     }
@@ -974,7 +1004,7 @@ mod test {
             let a_blocks = builder.ciphertext_split(&a);
             let b_blocks = builder.ciphertext_split(&b);
             let (res, _carry_out) =
-                builder.iop_add_kogge_stone_raw(a_blocks, b_blocks, None, par_w, true);
+                builder.iop_add_kogge_stone_raw(a_blocks, b_blocks, None, par_w);
             let out = builder.ciphertext_join(res, None);
             builder.ciphertext_output(out);
             builder.test_random(100, semantic);

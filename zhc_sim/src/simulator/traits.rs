@@ -1,5 +1,6 @@
 use serde::Serialize;
 use std::fmt::Display;
+use zhc_utils::units::Cycle;
 
 use zhc_utils::type_name_of_val;
 

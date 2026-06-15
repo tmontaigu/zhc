@@ -2,7 +2,7 @@ use std::ops::Index;
 use zhc_langs::doplang::Affinity;
 use zhc_utils::{Fifo, SafeAs};
 
-use crate::{Cycle, Dispatch};
+use crate::Dispatch;
 
 use super::*;
 

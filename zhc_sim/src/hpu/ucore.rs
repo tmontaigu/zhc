@@ -103,11 +103,15 @@ impl Simulatable for UCore {
                             else {
                                 unreachable!()
                             };
-                            assert!(
-                                self.transfers
-                                    .insert(TransferId(flag), TransferState::Awaited)
-                                    .is_none()
-                            );
+                            match self
+                                .transfers
+                                .insert(TransferId(flag), TransferState::Awaited)
+                            {
+                                Some(TransferState::Loaded) | None => {}
+                                s => panic!(
+                                    "Encountered invalid transfer state {s:?} for flag {flag}"
+                                ),
+                            }
                         }
                         Some(WAIT {
                             flag: Argument::UserFlag { flag },

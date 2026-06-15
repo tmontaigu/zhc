@@ -1,7 +1,5 @@
+use crate::evaluation::{EagerEvaluator, Evaluable, EvaluatesTo, Evaluation, OpState, ValState};
 use crate::failure::Failure;
-use crate::interpretation::{
-    InterpState, Interpretable, Interpretation, InterpretsTo, interpret_ir,
-};
 use crate::val_ref::ValRef;
 use crate::visualization::{Hierarchy, draw_ir_to_html};
 use crate::{
@@ -920,31 +918,21 @@ impl<D: Dialect> IR<D> {
         }
     }
 
-    /// Interprets the IR with the given context and returns the annotated result.
-    ///
-    /// Returns `Ok` with the fully interpreted IR and context on success, or `Err`
-    /// with partial interpretation state (containing `Panicked` and `Poisoned` markers)
-    /// and context on failure.
-    pub fn interpret<I: Interpretation>(
+    pub fn evaluate<I: Evaluation>(
         &self,
-        mut context: <D::InstructionSet as Interpretable<I>>::Context,
-    ) -> Result<
-        (
-            AnnIR<'_, D, (), I>,
-            <D::InstructionSet as Interpretable<I>>::Context,
-        ),
-        (
-            AnnIR<'_, D, (), InterpState<I>>,
-            <D::InstructionSet as Interpretable<I>>::Context,
-        ),
-    >
+        context: &mut <D::InstructionSet as Evaluable<I>>::Context,
+    ) -> Result<AnnIR<'_, D, (), I>, AnnIR<'_, D, OpState, ValState<I>>>
     where
-        D::InstructionSet: Interpretable<I>,
-        D::TypeSystem: InterpretsTo<I>,
+        D::InstructionSet: Evaluable<I>,
+        D::TypeSystem: EvaluatesTo<I>,
     {
-        match interpret_ir(self, &mut context) {
-            Ok(interpreted) => Ok((interpreted, context)),
-            Err(partial) => Err((partial, context)),
+        let mut evaluator = EagerEvaluator::from_ir(self);
+        evaluator.push_all(context);
+
+        if evaluator.is_ok() {
+            Ok(evaluator.into_value_ir())
+        } else {
+            Err(evaluator.into_eval_ir())
         }
     }
 

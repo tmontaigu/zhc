@@ -341,7 +341,7 @@ mod tests {
                 %1 = let_ct_block<20>();
                 %2 = decl_ct<2>();
                 %4 = store_ct_block<0>(%1, %2);
-                _consume<Ct>(%4);
+                _consume<Ciphertext>(%4);
             "#
         );
     }

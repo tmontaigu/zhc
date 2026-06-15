@@ -94,7 +94,7 @@ pub struct Translation<OD: Dialect> {
 /// driver uses this handle to look up already-translated values, emit
 /// operations in the output dialect, and register value correspondences.
 pub struct Translator<ID: Dialect, OD: Dialect> {
-    output: IR<OD>,
+    pub output: IR<OD>,
     valmap: ValMap<ValId>,
     provenance_map: ProvenanceMap,
     current: Option<OpId>,
@@ -191,12 +191,12 @@ pub fn translate<'a, ID: Dialect, OD: Dialect>(
 ) -> Translation<OD> {
     let output = IR::empty();
     let valmap = ir.empty_valmap();
-    let op_provenance_map = ProvenanceMap(Vec::new());
+    let provenance_map = ProvenanceMap(Vec::new());
     let current = None;
     let mut translator = Translator {
         output,
         valmap,
-        provenance_map: op_provenance_map,
+        provenance_map,
         current,
         phantom: PhantomData,
     };
@@ -236,12 +236,12 @@ pub fn translate_ann<'a, 'b, ID: Dialect, OpAnn: Annotation, ValAnn: Annotation,
 ) -> Translation<OD> {
     let output = IR::empty();
     let valmap = ir.empty_valmap();
-    let op_provenance_map = ProvenanceMap(Vec::new());
+    let provenance_map = ProvenanceMap(Vec::new());
     let current = None;
     let mut translator = Translator {
         output,
         valmap,
-        provenance_map: op_provenance_map,
+        provenance_map,
         current,
         phantom: PhantomData,
     };

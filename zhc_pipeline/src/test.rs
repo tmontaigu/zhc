@@ -8,7 +8,7 @@ use zhc_langs::{
 };
 use zhc_utils::{Dumpable, FastMap, SafeAs};
 
-use crate::translation::{GIDS1, GIDS2};
+use crate::hpu::lowering::{GIDS1, GIDS2};
 
 pub fn check_iop_hpu_equivalence(
     iop_ir: &IR<IopLang>,
@@ -53,13 +53,13 @@ pub fn check_iop_hpu_equivalence(
             .collect();
 
         // Interpret IOP.
-        let iop_ctx = IopInterepreterContext {
+        let mut iop_ctx = IopInterepreterContext {
             spec,
             inputs: iop_inputs.iter().cloned().enumerate().collect(),
             outputs: FastMap::new(),
         };
-        let (_, iop_ctx) = iop_ir
-            .interpret::<IopValue>(iop_ctx)
+        iop_ir
+            .evaluate::<IopValue>(&mut iop_ctx)
             .expect("IOP interpretation failed");
 
         // Populate HPU context: decompose IOP inputs into block-level entries.
@@ -99,9 +99,9 @@ pub fn check_iop_hpu_equivalence(
         }
 
         // Interpret HPU.
-        let hpu_ctx = match hpu_ir.interpret::<HpuValue>(hpu_ctx) {
-            Ok((_, ctx)) => ctx,
-            Err((ann_ir, _)) => ann_ir.dump_and_panic(),
+        match hpu_ir.evaluate::<HpuValue>(&mut hpu_ctx) {
+            Err(eval_ir) => eval_ir.dump_and_panic(),
+            Ok(_) => {}
         };
 
         // Compare: check each output block matches.
@@ -172,13 +172,13 @@ pub fn check_iop_dop_equivalence(
             .collect();
 
         // Interpret IOP.
-        let iop_ctx = IopInterepreterContext {
+        let mut iop_ctx = IopInterepreterContext {
             spec,
             inputs: iop_inputs.iter().cloned().enumerate().collect(),
             outputs: FastMap::new(),
         };
-        let (_, iop_ctx) = iop_ir
-            .interpret::<IopValue>(iop_ctx)
+        iop_ir
+            .evaluate::<IopValue>(&mut iop_ctx)
             .expect("IOP interpretation failed");
 
         // Populate DOP context: decompose IOP inputs into block-level entries.
@@ -208,9 +208,9 @@ pub fn check_iop_dop_equivalence(
         }
 
         // Interpret DOP.
-        let dop_ctx = match dop_ir.interpret::<DopValue>(dop_ctx) {
-            Ok((_, ctx)) => ctx,
-            Err((ann_ir, _)) => ann_ir.dump_and_panic(),
+        match dop_ir.evaluate::<DopValue>(&mut dop_ctx) {
+            Err(eval_ir) => eval_ir.dump_and_panic(),
+            Ok(_) => {}
         };
 
         // Compare: check each output block matches.

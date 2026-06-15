@@ -76,6 +76,15 @@ impl Hierarchy {
         });
     }
 
+    pub fn with_comment(mut self, comment: impl Into<String>) -> Self {
+        self.0 = Rc::new(HierarchyInner::Leaf {
+            comment: comment.into(),
+            depth: self.0.get_depth() + 1,
+            parent: self.0.clone(),
+        });
+        self
+    }
+
     pub fn pop(&mut self) {
         self.0 = match self.0.as_ref() {
             HierarchyInner::Root => panic!(),

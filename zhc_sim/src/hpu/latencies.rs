@@ -1,5 +1,5 @@
-use crate::Cycle;
 use serde::Serialize;
+use zhc_utils::units::Cycle;
 
 use super::BatchSize;
 

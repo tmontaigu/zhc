@@ -18,6 +18,5 @@ pub use stack::*;
 pub use trace::*;
 pub use unit::*;
 
-pub type Microseconds = f64;
 pub type Pid = usize;
 pub type Tid = usize;

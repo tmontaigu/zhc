@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use serde::Serialize;
 use zhc_ir::visualization::VisualAnnotation;
-use zhc_utils::small::SmallSet;
+use zhc_utils::{Dumpable, small::SmallSet};
 
 /// Identifies a single HPU board within a partitioned multi-HPU program.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Copy, Hash)]
@@ -55,3 +55,9 @@ impl HpuLocality {
 }
 
 impl VisualAnnotation for HpuLocality {}
+
+impl Dumpable for HpuLocality {
+    fn dump_to_string(&self) -> String {
+        format!("{:?}", self)
+    }
+}

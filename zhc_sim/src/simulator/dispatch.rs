@@ -1,5 +1,7 @@
 use std::{cmp::Reverse, collections::BinaryHeap, marker::PhantomData};
 
+use zhc_utils::units::Cycle;
+
 use super::*;
 
 /// Event dispatcher managing scheduled events using a priority queue.

@@ -6,14 +6,10 @@ use zhc_builder::{
     erc7984_simd, if_then_else, if_then_zero, ilog2, lead0, lead1, mul, overflow_add, overflow_mul,
     overflow_sub, rem, rotate_left, rotate_right, shift_left, shift_right, sub, trail0, trail1,
 };
-use zhc_ir::IR;
-use zhc_langs::{doplang::DopLang, hpulang::HpuLang};
-use zhc_sim::{MHz, hpu::HpuConfig};
+use zhc_config::{hpu::HpuConfig, multi_hpu::MultiHpuConfig};
+use zhc_utils::units::Microseconds;
 
-use crate::{
-    alternative_pipeline, latency, regular_pipeline,
-    translation_table::{DOpRepr, generate_translation_table},
-};
+use crate::{Pipeline, hpu::translation_table::DOpRepr};
 
 /// Iops supported by the pipeline.
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
@@ -211,53 +207,62 @@ impl Iop {
         }
     }
 
-    /// Generates a translation table for the specified operation configuration.
-    ///
-    /// Takes the HPU hardware configuration in `hpu_config`, and an integer arithmetic
-    /// configuration in `integer_config` to produce an hex stream.
     pub fn get_translation_table(
         &self,
         hpu_config: &HpuConfig,
         spec: CiphertextSpec,
     ) -> Vec<DOpRepr> {
-        generate_translation_table(&self.get_scheduled_and_allocated(hpu_config, spec).1)
+        let pipeline = Pipeline::new()
+            .with_builder(self.get_builder(spec))
+            .with_hpu_config(hpu_config.clone());
+        let mut pipeline = match (self, spec.int_size()) {
+            (Iop::Mul, _)
+            | (Iop::OvfMul, _)
+            | (Iop::RightRot | Iop::LeftRot | Iop::LeftShift | Iop::RightShift, 128) => {
+                pipeline.with_legacy_hpu_scheduler()
+            }
+            _ => pipeline,
+        };
+        pipeline.get_hpu_stream().to_owned()
     }
 
-    pub fn compute_latency(&self, hpu_config: &HpuConfig, spec: CiphertextSpec, freq: MHz) -> f64 {
-        latency::compute_latency(
-            &self.get_scheduled_and_allocated(hpu_config, spec).1,
-            &hpu_config,
-        )
-        .0
-        .as_ts(freq.period())
+    pub fn compute_latency(&self, hpu_config: &HpuConfig, spec: CiphertextSpec) -> Microseconds {
+        let pipeline = Pipeline::new()
+            .with_builder(self.get_builder(spec))
+            .with_hpu_config(hpu_config.clone());
+        let mut pipeline = match (self, spec.int_size()) {
+            (Iop::Mul, _)
+            | (Iop::OvfMul, _)
+            | (Iop::RightRot | Iop::LeftRot | Iop::LeftShift | Iop::RightShift, 128) => {
+                pipeline.with_legacy_hpu_scheduler()
+            }
+            _ => pipeline,
+        };
+        pipeline.get_hpu_metrics().latency
     }
 
-    pub fn get_scheduled_and_allocated(
-        &self,
-        hpu_config: &HpuConfig,
-        spec: CiphertextSpec,
-    ) -> (IR<HpuLang>, IR<DopLang>) {
-        let ir = match self {
-            Iop::CmpGt => cmp_gt(spec).optimize_ir(),
-            Iop::CmpGte => cmp_gte(spec).optimize_ir(),
-            Iop::CmpLt => cmp_lt(spec).optimize_ir(),
-            Iop::CmpLte => cmp_lte(spec).optimize_ir(),
-            Iop::CmpEq => cmp_eq(spec).optimize_ir(),
-            Iop::CmpNeq => cmp_neq(spec).optimize_ir(),
-            Iop::IfThenElse => if_then_else(spec).optimize_ir(),
-            Iop::IfThenZero => if_then_zero(spec).optimize_ir(),
-            Iop::Add => add(spec).optimize_ir(),
-            Iop::Sub => sub(spec).optimize_ir(),
-            Iop::Mul => mul(spec).optimize_ir(),
-            Iop::Ilog2 => ilog2(spec).optimize_ir(),
-            Iop::CountZeros => count_0(spec).optimize_ir(),
-            Iop::CountOnes => count_1(spec).optimize_ir(),
-            Iop::LeadingZeros => lead0(spec).optimize_ir(),
-            Iop::LeadingOnes => lead1(spec).optimize_ir(),
-            Iop::TrailingZeros => trail0(spec).optimize_ir(),
-            Iop::TrailingOnes => trail1(spec).optimize_ir(),
-            Iop::Div => div(spec).optimize_ir(),
-            Iop::Mod => rem(spec).optimize_ir(),
+    pub fn get_builder(&self, spec: CiphertextSpec) -> Builder {
+        match self {
+            Iop::CmpGt => cmp_gt(spec),
+            Iop::CmpGte => cmp_gte(spec),
+            Iop::CmpLt => cmp_lt(spec),
+            Iop::CmpLte => cmp_lte(spec),
+            Iop::CmpEq => cmp_eq(spec),
+            Iop::CmpNeq => cmp_neq(spec),
+            Iop::IfThenElse => if_then_else(spec),
+            Iop::IfThenZero => if_then_zero(spec),
+            Iop::Add => add(spec),
+            Iop::Sub => sub(spec),
+            Iop::Mul => mul(spec),
+            Iop::Ilog2 => ilog2(spec),
+            Iop::CountZeros => count_0(spec),
+            Iop::CountOnes => count_1(spec),
+            Iop::LeadingZeros => lead0(spec),
+            Iop::LeadingOnes => lead1(spec),
+            Iop::TrailingZeros => trail0(spec),
+            Iop::TrailingOnes => trail1(spec),
+            Iop::Div => div(spec),
+            Iop::Mod => rem(spec),
             // Iop::AddPt => todo!(),
             // Iop::SubPt => todo!(),
             // Iop::PtSub => todo!(),
@@ -272,29 +277,81 @@ impl Iop {
             // Iop::LeftShiftPt => todo!(),
             // Iop::RightRotPt => todo!(),
             // Iop::LeftRotPt => todo!(),
-            Iop::OvfAdd => overflow_add(spec).optimize_ir(),
-            Iop::OvfSub => overflow_sub(spec).optimize_ir(),
-            Iop::OvfMul => overflow_mul(spec).optimize_ir(),
-            Iop::BwAnd => bitwise_and(spec).optimize_ir(),
-            Iop::BwOr => bitwise_or(spec).optimize_ir(),
-            Iop::BwXor => bitwise_xor(spec).optimize_ir(),
-            Iop::BwNot => bitwise_inv(spec).optimize_ir(),
-            Iop::RightShift => shift_right(spec).optimize_ir(),
-            Iop::LeftShift => shift_left(spec).optimize_ir(),
-            Iop::RightRot => rotate_right(spec).optimize_ir(),
-            Iop::LeftRot => rotate_left(spec).optimize_ir(),
-            Iop::Erc7984 => erc7984(spec).optimize_ir(),
-            Iop::Erc7984Simd => erc7984_simd(spec).optimize_ir(),
-            Iop::AddSimd => add_simd(spec).optimize_ir(),
+            Iop::OvfAdd => overflow_add(spec),
+            Iop::OvfSub => overflow_sub(spec),
+            Iop::OvfMul => overflow_mul(spec),
+            Iop::BwAnd => bitwise_and(spec),
+            Iop::BwOr => bitwise_or(spec),
+            Iop::BwXor => bitwise_xor(spec),
+            Iop::BwNot => bitwise_inv(spec),
+            Iop::RightShift => shift_right(spec),
+            Iop::LeftShift => shift_left(spec),
+            Iop::RightRot => rotate_right(spec),
+            Iop::LeftRot => rotate_left(spec),
+            Iop::Erc7984 => erc7984(spec),
+            Iop::Erc7984Simd => erc7984_simd(spec),
+            Iop::AddSimd => add_simd(spec),
             // Iop::MemCpy => todo!(),
-        };
-        match (self, spec.int_size()) {
-            (Iop::Mul, _)
-            | (Iop::OvfMul, _)
-            | (Iop::RightRot | Iop::LeftRot | Iop::LeftShift | Iop::RightShift, 128) => {
-                alternative_pipeline(ir, hpu_config)
+        }
+    }
+}
+
+pub fn mh_mul(spec: CiphertextSpec, config: MultiHpuConfig) -> Pipeline {
+    let schoolbook_depth = std::cmp::max(2, config.n_hpus / 2) as usize;
+    let builder = zhc_builder::mh_mul(spec, schoolbook_depth);
+    match config.n_hpus {
+        2 => {
+            builder.group_partitions_id(&[1, 2, 0, 9]);
+            builder.group_partitions_id(&[3, 4, 6, 7]);
+        }
+        4 => {
+            builder.group_partitions_id(&[4, 6, 7, 0, 9]);
+            builder.group_partitions_id(&[2]);
+            builder.group_partitions_id(&[3]);
+            builder.group_partitions_id(&[1]);
+        }
+        8 => {
+            builder.group_partitions_id(&[1, 8, 24, 0, 36]);
+            builder.group_partitions_id(&[2, 3, 23]);
+            builder.group_partitions_id(&[4, 5, 25, 27, 28]);
+            builder.group_partitions_id(&[6, 7, 29]);
+            builder.group_partitions_id(&[9, 10, 26]);
+            builder.group_partitions_id(&[11, 12, 30, 32, 34]);
+            builder.group_partitions_id(&[14, 19]);
+            builder.group_partitions_id(&[15, 16, 31, 33]);
+        }
+        _ => {
+            panic!("n_hpus is out-of-range. Frogs only contains up to 8 nodes");
+        }
+    }
+    Pipeline::new()
+        .with_builder(builder)
+        .with_multi_hpu_config(config)
+}
+
+#[cfg(test)]
+mod test {
+    use zhc_builder::CiphertextSpec;
+    use zhc_config::multi_hpu::MultiHpuConfig;
+
+    use crate::compat::mh_mul;
+
+    #[test]
+    fn test_mh_mul_pipeline() {
+        const INT_SIZES: [u16; 4] = [8, 16, 32, 64];
+        const MH_FACTORS: [u8; 3] = [2, 4, 8];
+
+        for int_size in INT_SIZES {
+            for mh in MH_FACTORS {
+                let mut pl = mh_mul(
+                    CiphertextSpec::new(int_size, 2, 2),
+                    MultiHpuConfig {
+                        n_hpus: mh,
+                        ..Default::default()
+                    },
+                );
+                pl.get_multi_hpu_trace();
             }
-            _ => regular_pipeline(ir, hpu_config),
         }
     }
 }

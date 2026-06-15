@@ -21,7 +21,7 @@ use zhc_utils::Dumpable;
 ///
 /// This type cannot be constructed directly — it is always returned by
 /// [`Builder`](`super::Builder`) methods. Use [`make_value`](Self::make_value) to create a test
-/// [`IopValue`] for [`Evaluator::with_inputs`](`super::Evaluator::with_inputs`).
+/// [`IopValue`] for [`Interpreter::with_inputs`](`super::Interpreter::with_inputs`).
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct CiphertextBlock {
     pub(super) valid: ValId,
@@ -52,7 +52,7 @@ impl CiphertextBlock {
         self.spec
     }
 
-    /// Creates a compatible value to be used in evaluation.
+    /// Creates a compatible value to be used in interpretation.
     ///
     /// The `val` argument is the complete block representation including both carry and
     /// message bits. It is interpreted according to this block's [`CiphertextBlockSpec`].
@@ -78,7 +78,7 @@ impl CiphertextBlock {
 ///
 /// This type cannot be constructed directly — it is always returned by
 /// [`Builder`](`super::Builder`) methods. Use [`make_value`](Self::make_value) to create a test
-/// [`IopValue`] for [`Evaluator::with_inputs`](`super::Evaluator::with_inputs`).
+/// [`IopValue`] for [`Interpreter::with_inputs`](`super::Interpreter::with_inputs`).
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Ciphertext {
     pub(super) valid: ValId,
@@ -109,7 +109,7 @@ impl Ciphertext {
         self.spec
     }
 
-    /// Creates a compatible value to be used in evaluation.
+    /// Creates a compatible value to be used in interpretation.
     ///
     /// The `val` argument is the integer to be encoded. It is decomposed into
     /// blocks according to this ciphertext's [`CiphertextSpec`].
@@ -128,7 +128,7 @@ impl Ciphertext {
 ///
 /// This type cannot be constructed directly — it is always returned by
 /// [`Builder`](`super::Builder`) methods. Use [`make_value`](Self::make_value) to create a test
-/// [`IopValue`] for [`Evaluator::with_inputs`](`super::Evaluator::with_inputs`).
+/// [`IopValue`] for [`Interpreter::with_inputs`](`super::Interpreter::with_inputs`).
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct PlaintextBlock {
     pub(super) valid: ValId,
@@ -159,7 +159,7 @@ impl PlaintextBlock {
         self.spec
     }
 
-    /// Creates a compatible value to be used in evaluation.
+    /// Creates a compatible value to be used in interpretation.
     ///
     /// The `val` argument is a raw message-only value. It is interpreted according to this
     /// block's [`PlaintextBlockSpec`].
@@ -182,7 +182,7 @@ impl PlaintextBlock {
 ///
 /// This type cannot be constructed directly — it is always returned by
 /// [`Builder`](`super::Builder`) methods. Use [`make_value`](Self::make_value) to create a test
-/// [`IopValue`] for [`Evaluator::with_inputs`](`super::Evaluator::with_inputs`).
+/// [`IopValue`] for [`Interpreter::with_inputs`](`super::Interpreter::with_inputs`).
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Plaintext {
     pub(super) valid: ValId,
@@ -213,7 +213,7 @@ impl Plaintext {
         self.spec
     }
 
-    /// Creates a compatible value to be used in evaluation.
+    /// Creates a compatible value to be used in interpretation.
     ///
     /// The `val` argument is the integer to be encoded. It is decomposed into
     /// blocks according to this plaintext's [`PlaintextSpec`].

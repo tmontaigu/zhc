@@ -1,40 +1,9 @@
-use serde::{Deserialize, Serialize};
+use zhc_utils::units::{Cycle, MHz, Microseconds};
 
 use super::*;
 use std::path::Path;
-use zhc_utils::tracing::Microseconds;
 
 static DUMP_TRACE_ON_PANIC: bool = true;
-static S_IN_US: f64 = 1_000_000.;
-
-/// Represents a frequency in megahertz for simulation timing.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, Hash)]
-pub struct MHz(pub usize);
-
-impl MHz {
-    const fn as_raw_hertz(&self) -> f64 {
-        self.0 as f64 * 1_000_000.
-    }
-
-    /// Calculates the period duration in microseconds for this frequency.
-    pub const fn period(&self) -> Microseconds {
-        (1. / self.as_raw_hertz()) * S_IN_US
-    }
-
-    /// Returns the number of whole cycles spanning `duration` at this frequency.
-    ///
-    /// The result is truncated toward zero, so a `duration` shorter than one
-    /// period yields zero.
-    pub const fn n_cycles(&self, duration: Microseconds) -> usize {
-        (duration / self.period()) as usize
-    }
-}
-
-impl Default for MHz {
-    fn default() -> Self {
-        MHz(400)
-    }
-}
 
 /// Represents the current state of simulation execution.
 pub enum SimulationState {

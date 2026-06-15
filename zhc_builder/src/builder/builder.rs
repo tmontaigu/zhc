@@ -18,7 +18,7 @@
 //! ```
 
 use crate::{
-    Evaluator,
+    Interpreter,
     builder::{Ciphertext, CiphertextBlock, Plaintext, PlaintextBlock},
 };
 use std::{
@@ -95,7 +95,18 @@ impl Debug for Type {
     }
 }
 
-#[derive(Debug)]
+/// What kind of IR to work on.
+///
+/// Passed as argument to the `draw*` and `partition*` methods in order to specify which IR must be
+/// used.
+pub enum IrKind {
+    /// Use the original IR, as built by the builder.
+    Original,
+    /// Use the optimized IR, notably after dead code elimination.
+    Optimized,
+}
+
+#[derive(Debug, PartialEq, Eq)]
 pub(super) struct InnerBuilder {
     pub(super) ir: IR<IopLang>,
     pub(super) hierarchies: Store<OpId, Hierarchy>,
@@ -154,7 +165,7 @@ impl InnerBuilder {
 /// second becomes input 1, and so on — both kinds share the same index space. Likewise,
 /// the first [`ciphertext_output`](Self::ciphertext_output) becomes
 /// output 0. This ordering defines the circuit's [`signature`](Self::signature) and must
-/// match the order of values passed to [`Evaluator::with_inputs`].
+/// match the order of values passed to [`Interpreter::with_inputs`].
 ///
 /// # Comments
 ///
@@ -178,7 +189,7 @@ impl InnerBuilder {
 /// builder.ciphertext_output(&output);
 /// let ir = builder.optimize_ir();
 /// ```
-#[derive(Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Builder {
     spec: CiphertextBlockSpec,
     inner: Rc<RefCell<InnerBuilder>>,
@@ -271,10 +282,10 @@ impl Builder {
             .partially_mapped_opmap(|op| self.inner().hierarchies.get(*op).cloned())
     }
 
-    /// Creates an evaluator for interpreting this circuit.
+    /// Creates an interpreter for this circuit.
     ///
-    /// Returns an [`Evaluator`] that can be configured with inputs and run to compute
-    /// outputs. The evaluator uses the unoptimized IR graph for interpretation.
+    /// Returns an [`Interpreter`] that can be configured with inputs and run to compute
+    /// outputs. The interpreter uses the unoptimized IR graph for interpretation.
     ///
     /// # Example
     ///
@@ -283,12 +294,12 @@ impl Builder {
     /// let builder = Builder::new(CiphertextBlockSpec(2, 2));
     /// let a = builder.ciphertext_input(8);
     /// builder.ciphertext_output(&a);
-    /// let outputs = builder.eval()
+    /// let outputs = builder.interpret()
     ///     .with_inputs(&[a.make_value(42)])
     ///     .get_outputs();
     /// ```
-    pub fn eval(&self) -> Evaluator {
-        Evaluator {
+    pub fn interpret(&self) -> Interpreter {
+        Interpreter {
             inputs: vec![],
             inner: self.inner.clone(),
             spec: self.spec,
@@ -305,7 +316,7 @@ impl Builder {
     /// # Panics
     ///
     /// Panics if any test case produces outputs that don't match expectations,
-    /// dumping the failing evaluation for debugging.
+    /// dumping the failing interpretation for debugging.
     pub fn test_random(
         &self,
         reps: usize,
@@ -322,11 +333,11 @@ impl Builder {
                 .cosvec();
             if let Some(expectations) = gen_expect(inputs.as_slice()) {
                 let outputs = match std::panic::catch_unwind(AssertUnwindSafe(|| {
-                    self.eval().with_inputs(&inputs).get_outputs()
+                    self.interpret().with_inputs(&inputs).get_outputs()
                 })) {
                     Ok(outputs) => outputs,
                     Err(_) => {
-                        self.eval().with_inputs(&inputs).dump_and_panic();
+                        self.interpret().with_inputs(&inputs).dump_and_panic();
                     }
                 };
                 if false {
@@ -340,7 +351,7 @@ impl Builder {
                         "Random test failed for input {:#?}:\nExpected:\n{:#?}\nOutput:\n{:#?}",
                         inputs, expectations, outputs
                     );
-                    self.eval().with_inputs(inputs).dump_and_panic();
+                    self.interpret().with_inputs(inputs).dump_and_panic();
                 }
             }
         }
@@ -366,11 +377,15 @@ impl Builder {
     /// # use zhc_builder::*;
     /// # let builder = Builder::new(CiphertextBlockSpec(2, 2));
     /// # let ct = builder.ciphertext_input(4);
-    /// builder.draw("debug.html");
+    /// builder.draw("debug.html", IrKind::Original);
     /// ```
-    pub fn draw(&self, path: impl AsRef<Path>) {
+    pub fn draw(&self, path: impl AsRef<Path>, kind: IrKind) {
+        let ir = match kind {
+            IrKind::Original => &self.ir(),
+            IrKind::Optimized => &self.optimize_ir(),
+        };
         draw_ir_to_html(
-            &self.ir(),
+            ir,
             Some(
                 self.ir()
                     .partially_mapped_opmap(|op| self.inner().hierarchies.get(*op).cloned()),
@@ -397,11 +412,14 @@ impl Builder {
     /// # use zhc_builder::*;
     /// # let builder = Builder::new(CiphertextBlockSpec(2, 2));
     /// # let ct = builder.ciphertext_input(4);
-    /// let ir = builder.ir();
-    /// builder.draw_partitions(&ir, "debug.html");
+    /// builder.draw_partitions("debug.html", IrKind::Original);
     /// ```
-    pub fn draw_partitions(&self, ir: &IR<IopLang>, path: impl AsRef<Path>) {
-        let ann_ir = AnnIR::new(ir, self.partitions(ir), ir.filled_valmap(()));
+    pub fn draw_partitions(&self, path: impl AsRef<Path>, kind: IrKind) {
+        let ir = match kind {
+            IrKind::Original => &self.ir(),
+            IrKind::Optimized => &self.optimize_ir(),
+        };
+        let ann_ir = AnnIR::new(ir, self.partitions(kind), ir.filled_valmap(()));
         draw_ann_ir_to_html(
             &ann_ir.view(),
             Some(
@@ -490,7 +508,7 @@ impl Builder {
     /// ```
     pub fn get_partition_by_id(&self, id: PartitionIdRaw) -> Option<PartitionId> {
         let mut part_set = self
-            .partitions(&self.ir())
+            .partitions(IrKind::Original)
             .into_iter()
             .map(|p| p.1)
             .filter(|p| p.id == id)
@@ -567,10 +585,13 @@ impl Builder {
     /// # use zhc_builder::*;
     /// # let builder = Builder::new(CiphertextBlockSpec(2, 2));
     /// # let ct = builder.ciphertext_input(4);
-    /// let ir = builder.ir();
-    /// let per_op = builder.partitions(&ir);
+    /// let per_op = builder.partitions(IrKind::Original);
     /// ```
-    pub fn partitions(&self, ir: &IR<IopLang>) -> OpMap<PartitionId> {
+    pub fn partitions(&self, kind: IrKind) -> OpMap<PartitionId> {
+        let ir = match kind {
+            IrKind::Original => &self.ir(),
+            IrKind::Optimized => &self.optimize_ir(),
+        };
         ir.totally_mapped_opmap(|op| self.inner().partitions[*op].clone())
     }
 
@@ -586,12 +607,11 @@ impl Builder {
     /// # use zhc_builder::*;
     /// # let builder = Builder::new(CiphertextBlockSpec(2, 2));
     /// # let ct = builder.ciphertext_input(4);
-    /// let ir = builder.ir();
-    /// let table = builder.partitions_table(&ir);
+    /// let table = builder.partitions_table(IrKind::Original);
     /// ```
-    pub fn partitions_table(&self, ir: &IR<IopLang>) -> PartitionTable {
+    pub fn partitions_table(&self, kind: IrKind) -> PartitionTable {
         PartitionTable::from(
-            self.partitions(ir)
+            self.partitions(kind)
                 .into_iter()
                 .map(|(_k, v)| v)
                 .collect::<std::collections::BTreeSet<_>>(),

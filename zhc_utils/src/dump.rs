@@ -26,9 +26,13 @@
 //! points.dump();                    // prints "[(0, 0), (1, 1)]"
 //! ```
 
-use std::{collections::VecDeque, io::Write, path::Path};
+use std::{
+    collections::VecDeque,
+    io::Write,
+    path::{Path, PathBuf},
+};
 
-use crate::small::SmallVec;
+use crate::{small::SmallVec, units::Microseconds};
 
 /// A type that can render itself as a human-readable string for debugging.
 ///
@@ -241,7 +245,7 @@ macro_rules! impl_dumpable_via_debug {
     };
 }
 
-impl_dumpable_via_debug!(());
+impl_dumpable_via_debug!((), PathBuf);
 
 impl_dumpable_via_display!(
     u8,
@@ -258,5 +262,6 @@ impl_dumpable_via_display!(
     isize,
     f64,
     f32,
-    std::backtrace::Backtrace
+    std::backtrace::Backtrace,
+    Microseconds,
 );

@@ -408,6 +408,7 @@ fn generate_html(results: &[BenchResult]) {
                     scales: {{
                         x: {{ ticks: {{ color: '#aaa' }}, grid: {{ color: '#333' }} }},
                         y: {{
+                            type: 'logarithmic',
                             ticks: {{ color: '#aaa' }},
                             grid: {{ color: '#333' }},
                             title: {{ display: true, text: 'Latency (μs)', color: '#aaa' }}

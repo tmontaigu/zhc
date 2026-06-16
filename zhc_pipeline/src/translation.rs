@@ -17,7 +17,7 @@ use zhc_langs::{
     hpulang::{HpuInstructionSet, HpuLang, Immediate, LutId, TDstId, TImmId, TSrcId},
     ioplang::{IopInstructionSet, IopLang, Lut1Def, Lut2Def},
 };
-use zhc_utils::{FastMap, SafeAs, svec};
+use zhc_utils::{FastMap, SafeAs, small::SmallMap, svec};
 
 pub(crate) static GIDS1: LazyLock<FastMap<Lut1, LutId>> = LazyLock::new(|| {
     HashMap::from([
@@ -322,11 +322,33 @@ pub(crate) static GIDS2: LazyLock<FastMap<Lut2, LutId>> = LazyLock::new(|| {
 });
 
 pub fn lower_iop_to_hpu(ir: &IR<IopLang>) -> IR<HpuLang> {
+    use IopInstructionSet::*;
+    let remap = ir
+        .walk_ops_linear()
+        .filter(|op| {
+            matches!(
+                op.get_instruction(),
+                InputCiphertext { .. } | InputPlaintext { .. }
+            )
+        })
+        .scan((0, 0), |(ct_id, pt_id), op| match op.get_instruction() {
+            InputCiphertext { pos, .. } => {
+                *ct_id += 1;
+                Some((pos, *ct_id - 1))
+            }
+            InputPlaintext { pos, .. } => {
+                *pt_id += 1;
+                Some((pos, *pt_id - 1))
+            }
+            _ => unreachable!(),
+        })
+        .collect::<SmallMap<usize, usize>>();
     let ann_ir = ir
         .forward_dataflow_analysis(|a| {
-            use IopInstructionSet::*;
             let opann = match a.get_instruction() {
-                InputCiphertext { pos, .. } | InputPlaintext { pos, .. } => Some(pos),
+                InputCiphertext { pos, .. } | InputPlaintext { pos, .. } => {
+                    Some(*remap.get(&pos).unwrap())
+                }
                 ExtractCtBlock { .. } | ExtractPtBlock { .. } => a
                     .get_args_iter()
                     .next()
@@ -342,7 +364,6 @@ pub fn lower_iop_to_hpu(ir: &IR<IopLang>) -> IR<HpuLang> {
             (opann, valanns)
         })
         .backward_dataflow_analysis(|a, prev| {
-            use IopInstructionSet::*;
             let opann = match a.get_instruction() {
                 OutputCiphertext { pos, .. } => Some(pos),
                 StoreCtBlock { .. } => {

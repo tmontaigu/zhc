@@ -66,29 +66,33 @@ pub fn check_iop_hpu_equivalence(
         let mut hpu_ctx = HpuInterpreterContext::new(spec);
         hpu_ctx.lut1_table = lut1.clone();
         hpu_ctx.lut2_table = lut2.clone();
-        for (pos, val) in iop_inputs.iter().enumerate() {
+        let mut ct_idx = 0usize;
+        let mut pt_idx = 0usize;
+        for val in iop_inputs.iter() {
             match val {
                 IopValue::Ciphertext(ct) => {
                     for i in 0..ct.len() {
                         hpu_ctx.sources.insert(
                             TSrcId {
-                                src_pos: pos.sas(),
+                                src_pos: ct_idx.sas(),
                                 block_pos: i.sas(),
                             },
                             ct.get_block(i),
                         );
                     }
+                    ct_idx += 1;
                 }
                 IopValue::Plaintext(pt) => {
                     for i in 0..pt.len() {
                         hpu_ctx.immediates.insert(
                             TImmId {
-                                imm_pos: pos.sas(),
+                                imm_pos: pt_idx.sas(),
                                 block_pos: i.sas(),
                             },
                             pt.get_block(i),
                         );
                     }
+                    pt_idx += 1;
                 }
                 _ => panic!("Unexpected input type"),
             }
@@ -181,17 +185,23 @@ pub fn check_iop_dop_equivalence(
         let mut dop_ctx = DopInterpreterContext::new(spec, num_registers);
         dop_ctx.lut1_table = lut1.clone();
         dop_ctx.lut2_table = lut2.clone();
-        for (pos, val) in iop_inputs.iter().enumerate() {
+        let mut ct_idx = 0usize;
+        let mut pt_idx = 0usize;
+        for val in iop_inputs.iter() {
             match val {
                 IopValue::Ciphertext(ct) => {
                     for i in 0..ct.len() {
-                        dop_ctx.sources.insert((pos, i.sas()), ct.get_block(i));
+                        dop_ctx.sources.insert((ct_idx, i.sas()), ct.get_block(i));
                     }
+                    ct_idx += 1;
                 }
                 IopValue::Plaintext(pt) => {
                     for i in 0..pt.len() {
-                        dop_ctx.pt_sources.insert((pos, i.sas()), pt.get_block(i));
+                        dop_ctx
+                            .pt_sources
+                            .insert((pt_idx, i.sas()), pt.get_block(i));
                     }
+                    pt_idx += 1;
                 }
                 _ => panic!("Unexpected input type"),
             }

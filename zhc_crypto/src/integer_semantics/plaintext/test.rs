@@ -172,12 +172,6 @@ fn spec_creation_zero_message_panics() {
 }
 
 #[test]
-#[should_panic(expected = "Tried to create malformed plaintext spec")]
-fn spec_creation_misaligned_int_size_panics() {
-    PlaintextSpec::new(9, 4);
-}
-
-#[test]
 #[should_panic(expected = "exceeds maximum value for int size")]
 fn from_int_overflow_panics() {
     let spec = PlaintextSpec::new(8, 4);

@@ -58,11 +58,6 @@ impl PlaintextSpec {
             block_message_size, 0,
             "Tried to create malformed plaintext spec."
         );
-        assert_eq!(
-            int_size.rem_euclid(block_message_size.sas::<u16>()),
-            0,
-            "Tried to create malformed plaintext spec."
-        );
         Self {
             int_size,
             block: PlaintextBlockSpec(block_message_size),
@@ -104,10 +99,10 @@ impl PlaintextSpec {
 
     /// Returns the number of blocks in this integer.
     ///
-    /// Computed as `int_size / block_message_size`.
+    /// Computed as `ceil(int_size / block_message_size)`.
     pub fn block_count(&self) -> u8 {
         self.int_size
-            .div_euclid(self.block.0.sas::<u16>())
+            .div_ceil(self.block.0.sas::<u16>())
             .sas::<u8>()
     }
 

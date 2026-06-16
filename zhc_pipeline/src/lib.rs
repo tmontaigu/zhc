@@ -104,5 +104,17 @@ pub fn regular_pipeline(ir: IR<IopLang>, config: &HpuConfig) -> (IR<HpuLang>, IR
     (scheduled, allocated)
 }
 
+pub fn alternative_pipeline(ir: IR<IopLang>, config: &HpuConfig) -> (IR<HpuLang>, IR<DopLang>) {
+    let unscheduled = translation::lower_iop_to_hpu(&ir);
+    let scheduled = scheduler::two_step::schedule(
+        &unscheduled,
+        config,
+        SchedPolicy::AsLateAsPossible,
+        SchedPolicy::AsSoonAsPossible,
+    );
+    let allocated = allocate_registers(&scheduled, config);
+    (scheduled, allocated)
+}
+
 #[cfg(test)]
 mod test;

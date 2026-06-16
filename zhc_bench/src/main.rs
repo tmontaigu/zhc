@@ -139,8 +139,7 @@ fn bench_iop(
     let mut bits_results = BTreeMap::new();
     for &bits in bits_filter {
         let spec = CiphertextSpec::new(bits, 2, 2);
-        let builder = iop.to_builder(spec);
-        let latency = zhc_pipeline::compute_latency(&builder, config.clone(), freq);
+        let latency = iop.compute_latency(&config, spec, freq);
         bits_results.insert(bits, latency);
     }
     bits_results

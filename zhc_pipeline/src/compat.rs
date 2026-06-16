@@ -6,10 +6,12 @@ use zhc_builder::{
     erc7984_simd, if_then_else, if_then_zero, ilog2, lead0, lead1, mul, overflow_add, overflow_mul,
     overflow_sub, rem, rotate_left, rotate_right, shift_left, shift_right, sub, trail0, trail1,
 };
-use zhc_sim::hpu::HpuConfig;
+use zhc_ir::IR;
+use zhc_langs::{doplang::DopLang, hpulang::HpuLang};
+use zhc_sim::{MHz, hpu::HpuConfig};
 
 use crate::{
-    regular_pipeline,
+    alternative_pipeline, latency, regular_pipeline,
     translation_table::{DOpRepr, generate_translation_table},
 };
 
@@ -218,6 +220,23 @@ impl Iop {
         hpu_config: &HpuConfig,
         spec: CiphertextSpec,
     ) -> Vec<DOpRepr> {
+        generate_translation_table(&self.get_scheduled_and_allocated(hpu_config, spec).1)
+    }
+
+    pub fn compute_latency(&self, hpu_config: &HpuConfig, spec: CiphertextSpec, freq: MHz) -> f64 {
+        latency::compute_latency(
+            &self.get_scheduled_and_allocated(hpu_config, spec).1,
+            &hpu_config,
+        )
+        .0
+        .as_ts(freq.period())
+    }
+
+    pub fn get_scheduled_and_allocated(
+        &self,
+        hpu_config: &HpuConfig,
+        spec: CiphertextSpec,
+    ) -> (IR<HpuLang>, IR<DopLang>) {
         let ir = match self {
             Iop::CmpGt => cmp_gt(spec).optimize_ir(),
             Iop::CmpGte => cmp_gte(spec).optimize_ir(),
@@ -269,7 +288,13 @@ impl Iop {
             Iop::AddSimd => add_simd(spec).optimize_ir(),
             // Iop::MemCpy => todo!(),
         };
-        let (_, allocated) = regular_pipeline(ir, hpu_config);
-        generate_translation_table(&allocated)
+        match (self, spec.int_size()) {
+            (Iop::Mul, _)
+            | (Iop::OvfMul, _)
+            | (Iop::RightRot | Iop::LeftRot | Iop::LeftShift | Iop::RightShift, 128) => {
+                alternative_pipeline(ir, hpu_config)
+            }
+            _ => regular_pipeline(ir, hpu_config),
+        }
     }
 }

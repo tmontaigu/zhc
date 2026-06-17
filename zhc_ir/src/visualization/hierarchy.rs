@@ -35,7 +35,7 @@ impl HierarchyInner {
                 if parent.is_root() {
                     format!("{}", comment)
                 } else {
-                    format!("{} / {}", parent.comment(), comment)
+                    format!("{} / {}", parent.format(), comment)
                 }
             }
         }

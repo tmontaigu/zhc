@@ -68,8 +68,19 @@ viewport.addEventListener('contextmenu', (e) => {
     e.preventDefault();
 });
 
-// Reset view on double-click
-viewport.addEventListener('dblclick', () => {
+// Double-click routing: value → toggle pin; node body → color picker;
+// empty background → reset view.
+viewport.addEventListener('dblclick', (e) => {
+    const valTarget = e.target.closest('[data-val]');
+    if (valTarget) {
+        togglePin(valTarget.getAttribute('data-val'));
+        return;
+    }
+    const nodeTarget = e.target.closest('.node');
+    if (nodeTarget) {
+        openColorPicker(nodeTarget, e.clientX, e.clientY);
+        return;
+    }
     scale = 1;
     translateX = 0;
     translateY = 0;
@@ -78,6 +89,8 @@ viewport.addEventListener('dblclick', () => {
 
 // Keyboard shortcuts
 window.addEventListener('keydown', (e) => {
+    // Ignore navigation shortcuts while typing in a text field.
+    if (e.target instanceof HTMLInputElement) return;
     // Reset on 'r' or '0'
     if (e.key === 'r' || e.key === '0') {
         scale = 1;
@@ -205,19 +218,6 @@ viewport.addEventListener('mouseout', (e) => {
     }
 });
 
-// Click: data-val click → toggle pin; click on a node body → open color picker.
-viewport.addEventListener('click', (e) => {
-    const valTarget = e.target.closest('[data-val]');
-    if (valTarget) {
-        togglePin(valTarget.getAttribute('data-val'));
-        return;
-    }
-    const nodeTarget = e.target.closest('.node');
-    if (nodeTarget) {
-        openColorPicker(nodeTarget, e.clientX, e.clientY);
-    }
-});
-
 // ============================================
 // Per-node color customization
 // ============================================
@@ -298,3 +298,137 @@ document.addEventListener('mousedown', (e) => {
 window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeColorPicker();
 });
+
+// ============================================
+// In-canvas search (highlight + center)
+// ============================================
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+const searchBox = document.getElementById('search-box');
+const searchInput = document.getElementById('search-input');
+const searchCount = document.getElementById('search-count');
+
+// Current result set and which one is focused.
+let searchMatches = [];   // array of <text> elements
+let searchIndex = -1;
+let searchBoxes = [];      // highlight <rect>s we injected, for cleanup
+
+function clearSearchBoxes() {
+    searchBoxes.forEach(r => r.remove());
+    searchBoxes = [];
+}
+
+// Draw a highlight rect behind `textEl`. getBBox() is in the text's own user
+// space, which is the parent group's space — so a sibling rect with those
+// coords lines up regardless of ancestor transforms.
+function addSearchBox(textEl, isCurrent) {
+    const bbox = textEl.getBBox();
+    const pad = bbox.height * 0.15;
+    const rect = document.createElementNS(SVG_NS, 'rect');
+    rect.setAttribute('x', bbox.x - pad);
+    rect.setAttribute('y', bbox.y - pad);
+    rect.setAttribute('width', bbox.width + 2 * pad);
+    rect.setAttribute('height', bbox.height + 2 * pad);
+    rect.setAttribute('rx', pad);
+    rect.setAttribute('class', isCurrent ? 'search-hit search-hit-current' : 'search-hit');
+    textEl.parentNode.insertBefore(rect, textEl);
+    searchBoxes.push(rect);
+}
+
+function redrawSearchBoxes() {
+    clearSearchBoxes();
+    searchMatches.forEach((el, i) => addSearchBox(el, i === searchIndex));
+}
+
+// Pan/zoom so `el` sits centered in the viewport at a readable size. We invert
+// the current transform to recover the element's canvas-local center, then
+// solve for the translate that maps it to the viewport center at targetScale.
+function centerOnElement(el) {
+    const vp = viewport.getBoundingClientRect();
+    const rect = el.getBoundingClientRect();
+
+    const screenX = rect.left + rect.width / 2 - vp.left;
+    const screenY = rect.top + rect.height / 2 - vp.top;
+    const localX = (screenX - translateX) / scale;
+    const localY = (screenY - translateY) / scale;
+
+    // Pick a zoom that renders the match at a comfortable on-screen height.
+    const localHeight = rect.height / scale;
+    const targetScale = Math.min(Math.max(48 / localHeight, 1), 8);
+
+    scale = targetScale;
+    translateX = vp.width / 2 - targetScale * localX;
+    translateY = vp.height / 2 - targetScale * localY;
+    updateTransform();
+}
+
+function updateSearchCount() {
+    if (!searchInput.value) {
+        searchCount.textContent = '';
+        searchCount.classList.remove('no-match');
+    } else if (searchMatches.length === 0) {
+        searchCount.textContent = '0/0';
+        searchCount.classList.add('no-match');
+    } else {
+        searchCount.textContent = `${searchIndex + 1}/${searchMatches.length}`;
+        searchCount.classList.remove('no-match');
+    }
+}
+
+function runSearch(term) {
+    const needle = term.toLowerCase();
+    searchMatches = needle
+        ? Array.from(document.querySelectorAll('#canvas text'))
+            .filter(t => t.textContent.toLowerCase().includes(needle))
+        : [];
+    searchIndex = searchMatches.length ? 0 : -1;
+    redrawSearchBoxes();
+    updateSearchCount();
+    if (searchIndex >= 0) centerOnElement(searchMatches[searchIndex]);
+}
+
+function stepSearch(delta) {
+    if (!searchMatches.length) return;
+    searchIndex = (searchIndex + delta + searchMatches.length) % searchMatches.length;
+    redrawSearchBoxes();
+    updateSearchCount();
+    centerOnElement(searchMatches[searchIndex]);
+}
+
+function openSearch() {
+    searchBox.classList.remove('hidden');
+    searchInput.focus();
+    searchInput.select();
+}
+
+function closeSearch() {
+    searchBox.classList.add('hidden');
+    clearSearchBoxes();
+    searchMatches = [];
+    searchIndex = -1;
+}
+
+// Ctrl/Cmd+F opens our search instead of the browser's.
+window.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+        e.preventDefault();
+        openSearch();
+    }
+});
+
+searchInput.addEventListener('input', () => runSearch(searchInput.value));
+
+searchInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        stepSearch(e.shiftKey ? -1 : 1);
+    } else if (e.key === 'Escape') {
+        e.preventDefault();
+        closeSearch();
+    }
+});
+
+document.getElementById('search-next').addEventListener('click', () => stepSearch(1));
+document.getElementById('search-prev').addEventListener('click', () => stepSearch(-1));
+document.getElementById('search-close').addEventListener('click', closeSearch);

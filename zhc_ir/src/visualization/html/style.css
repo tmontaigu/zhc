@@ -99,3 +99,84 @@ html, body {
     font-size: 16px;
     line-height: 1;
 }
+
+/* ============================================ */
+/* Search box                                   */
+/* ============================================ */
+
+#search-box {
+    position: fixed;
+    top: 12px;
+    right: 12px;
+    z-index: 1100;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    background: white;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+    font-family: system-ui, sans-serif;
+    font-size: 13px;
+}
+
+#search-box.hidden {
+    display: none;
+}
+
+#search-input {
+    width: 200px;
+    padding: 4px 6px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 13px;
+    outline: none;
+}
+
+#search-input:focus {
+    border-color: #4dabf7;
+}
+
+#search-count {
+    min-width: 48px;
+    text-align: center;
+    color: #868e96;
+    font-variant-numeric: tabular-nums;
+}
+
+#search-count.no-match {
+    color: #e03131;
+}
+
+#search-box button {
+    width: 24px;
+    height: 24px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: #f8f9fa;
+    cursor: pointer;
+    line-height: 1;
+    color: #495057;
+}
+
+#search-box button:hover {
+    background: #e9ecef;
+}
+
+/* Highlight boxes drawn behind matched text (inside the SVG, so they zoom
+   with the canvas). Bright fill for all hits, hot accent + glow for current. */
+.search-hit {
+    fill: #ffe000;
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+.search-hit-current {
+    fill: #ff9500;
+    opacity: 0.85;
+    stroke: #d9480f;
+    stroke-width: 2px;
+    paint-order: stroke;
+    filter: drop-shadow(0 0 6px rgba(255, 100, 0, 0.9));
+}

@@ -29,6 +29,20 @@ impl std::fmt::Display for Html {
         writeln!(f, "  </style>")?;
         writeln!(f, "</head>")?;
         writeln!(f, "<body>")?;
+
+        // Search bar (hidden until Ctrl/Cmd+F). Lives outside #viewport so its
+        // clicks never reach the pan/zoom handlers.
+        writeln!(f, "  <div id=\"search-box\" class=\"hidden\">")?;
+        writeln!(
+            f,
+            "    <input id=\"search-input\" type=\"text\" placeholder=\"Search\u{2026}\" autocomplete=\"off\" spellcheck=\"false\" />"
+        )?;
+        writeln!(f, "    <span id=\"search-count\"></span>")?;
+        writeln!(f, "    <button id=\"search-prev\" title=\"Previous (Shift+Enter)\">\u{2191}</button>")?;
+        writeln!(f, "    <button id=\"search-next\" title=\"Next (Enter)\">\u{2193}</button>")?;
+        writeln!(f, "    <button id=\"search-close\" title=\"Close (Esc)\">\u{00d7}</button>")?;
+        writeln!(f, "  </div>")?;
+
         writeln!(f, "  <div id=\"viewport\">")?;
         writeln!(f, "    <div id=\"canvas\">")?;
 

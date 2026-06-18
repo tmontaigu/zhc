@@ -11,3 +11,5 @@ pub trait VisualAnnotation: Debug + 'static {
         None
     }
 }
+
+impl VisualAnnotation for () {}

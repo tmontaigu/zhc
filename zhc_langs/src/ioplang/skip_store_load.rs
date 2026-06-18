@@ -34,7 +34,23 @@ pub fn skip_store_load(ir: &mut IR<IopLang>) {
                     panic!()
                 };
                 let mut map = map.clone();
-                map.insert(index, op.get_arg_valids()[0]);
+                match op
+                    .get_args_iter()
+                    .nth(0)
+                    .unwrap()
+                    .get_annotation()
+                    .clone()
+                    .unwrap_analyzed()
+                {
+                    ValAnn::ShouldBeReplaced(val_id) => {
+                        map.insert(index, val_id);
+                    }
+                    ValAnn::NotConcerned => {
+                        map.insert(index, op.get_arg_valids()[0]);
+                    }
+                    _ => unreachable!(),
+                };
+
                 ((), svec![ValAnn::StoresBlocks(map)])
             }
             ExtractCtBlock { index } => {
@@ -347,6 +363,72 @@ mod tests {
             r#"
                 %1 = let_ct_block<99>();
                 _consume<CtBlock>(%1);
+            "#
+        );
+    }
+
+    /// Chain of store/load pairs: a value extracted from one ciphertext is stored into a
+    /// second ciphertext and extracted again. The pass should resolve the chain transitively
+    /// so the final extract collapses all the way back to the original block.
+    #[test]
+    fn test_chained_store_load() {
+        let mut ir: IR<IopLang> = IR::empty();
+
+        let (_, block) = ir.add_op(IopInstructionSet::LetCiphertextBlock { value: 42 }, svec![]);
+        let (_, ct_a) = ir.add_op(
+            IopInstructionSet::DeclareCiphertext { int_size: 2 },
+            svec![],
+        );
+        let (_, a_stored) = ir.add_op(
+            IopInstructionSet::StoreCtBlock { index: 0 },
+            svec![block[0], ct_a[0]],
+        );
+        let (_, a_extracted) = ir.add_op(
+            IopInstructionSet::ExtractCtBlock { index: 0 },
+            svec![a_stored[0]],
+        );
+        let (_, ct_b) = ir.add_op(
+            IopInstructionSet::DeclareCiphertext { int_size: 2 },
+            svec![],
+        );
+        let (_, b_stored) = ir.add_op(
+            IopInstructionSet::StoreCtBlock { index: 0 },
+            svec![a_extracted[0], ct_b[0]],
+        );
+        let (_, b_extracted) = ir.add_op(
+            IopInstructionSet::ExtractCtBlock { index: 0 },
+            svec![b_stored[0]],
+        );
+        ir.add_op(
+            IopInstructionSet::_Consume {
+                typ: IopTypeSystem::CiphertextBlock,
+            },
+            svec![b_extracted[0]],
+        );
+
+        assert_display_is!(
+            ir.format(),
+            r#"
+                %0 = let_ct_block<42>();
+                %1 = decl_ct<2>();
+                %2 = store_ct_block<0>(%0, %1);
+                %3 = extract_ct_block<0>(%2);
+                %4 = decl_ct<2>();
+                %5 = store_ct_block<0>(%3, %4);
+                %6 = extract_ct_block<0>(%5);
+                _consume<CtBlock>(%6);
+            "#
+        );
+
+        skip_store_load(&mut ir);
+        eliminate_dead_code(&mut ir);
+
+        // Both round-trips should be eliminated, leaving only the original block.
+        assert_display_is!(
+            ir.format(),
+            r#"
+                %0 = let_ct_block<42>();
+                _consume<CtBlock>(%0);
             "#
         );
     }

@@ -38,9 +38,18 @@ impl std::fmt::Display for Html {
             "    <input id=\"search-input\" type=\"text\" placeholder=\"Search\u{2026}\" autocomplete=\"off\" spellcheck=\"false\" />"
         )?;
         writeln!(f, "    <span id=\"search-count\"></span>")?;
-        writeln!(f, "    <button id=\"search-prev\" title=\"Previous (Shift+Enter)\">\u{2191}</button>")?;
-        writeln!(f, "    <button id=\"search-next\" title=\"Next (Enter)\">\u{2193}</button>")?;
-        writeln!(f, "    <button id=\"search-close\" title=\"Close (Esc)\">\u{00d7}</button>")?;
+        writeln!(
+            f,
+            "    <button id=\"search-prev\" title=\"Previous (Shift+Enter)\">\u{2191}</button>"
+        )?;
+        writeln!(
+            f,
+            "    <button id=\"search-next\" title=\"Next (Enter)\">\u{2193}</button>"
+        )?;
+        writeln!(
+            f,
+            "    <button id=\"search-close\" title=\"Close (Esc)\">\u{00d7}</button>"
+        )?;
         writeln!(f, "  </div>")?;
 
         writeln!(f, "  <div id=\"viewport\">")?;

@@ -275,7 +275,7 @@ impl<'ir, 'ann, D: Dialect> Stack<'ir, 'ann, D> {
             .unwrap()
             .get_annotation()
             .get_root();
-        let remaining = ir.walk_ops_linear().map(|op| op.get_id()).collect();
+        let remaining = ir.walk_ops_topological().map(|op| op.get_id()).collect();
         let mut output = Stack {
             ir,
             frames: Vec::new(),

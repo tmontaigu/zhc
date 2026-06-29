@@ -1220,3 +1220,23 @@ fn test_ann_style_modifier() {
         &format!("{PREFIX}test36.html"),
     );
 }
+
+#[test]
+fn test_linear_order_not_topological() {
+    let mut ir: IR<TestLang> = IR::empty();
+    let (op0, v0) = ir.add_op(TestInstructionSet::IntInput { pos: 0 }, svec![]);
+    let (op1, inc) = ir.add_op(TestInstructionSet::Inc, svec![v0[0]]);
+    let (op2, v2) = ir.add_op(TestInstructionSet::IntInput { pos: 1 }, svec![]);
+    let (op3, _) = ir.add_op(TestInstructionSet::Return, svec![inc[0]]);
+
+    ir.replace_val_use(v0[0], v2[0]);
+
+    let root = Hierarchy::new();
+    let mut op_annotations = ir.empty_opmap();
+    op_annotations.insert(op0, root.clone());
+    op_annotations.insert(op1, root.clone());
+    op_annotations.insert(op2, root.clone());
+    op_annotations.insert(op3, root.clone());
+
+    draw_ir_to_html(&ir, Some(op_annotations), &format!("{PREFIX}test37.html"));
+}

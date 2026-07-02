@@ -381,7 +381,7 @@ pub fn lower_iop_to_hpu(ir: &IR<IopLang>) -> IR<HpuLang> {
             let valanns = svec![(); a.get_return_arity()];
             (opann, valanns)
         });
-    translate_ann(&ann_ir, Order::Linear, |op, translator| {
+    translate_ann(ann_ir.view(), Order::Linear, |op, translator| {
         match op.get_instruction() {
             IopInstructionSet::_Consume { .. } => {
                 panic!("Tried to translate a _consume op");
@@ -413,7 +413,7 @@ pub fn lower_iop_to_hpu(ir: &IR<IopLang>) -> IR<HpuLang> {
             }
             IopInstructionSet::LetCiphertextBlock { value } => {
                 translator.direct_translation(
-                    op,
+                    &op,
                     HpuInstructionSet::CstCt {
                         cst: Immediate(value),
                     },
@@ -422,14 +422,14 @@ pub fn lower_iop_to_hpu(ir: &IR<IopLang>) -> IR<HpuLang> {
             IopInstructionSet::AddCt
             | IopInstructionSet::WrappingAddCt
             | IopInstructionSet::TemperAddCt => {
-                translator.direct_translation(op, HpuInstructionSet::AddCt);
+                translator.direct_translation(&op, HpuInstructionSet::AddCt);
             }
             IopInstructionSet::SubCt | IopInstructionSet::WrappingSubCt => {
-                translator.direct_translation(op, HpuInstructionSet::SubCt);
+                translator.direct_translation(&op, HpuInstructionSet::SubCt);
             }
             IopInstructionSet::PackCt { mul } => {
                 translator.direct_translation(
-                    op,
+                    &op,
                     HpuInstructionSet::Mac {
                         cst: Immediate(mul.sas()),
                     },
@@ -454,7 +454,7 @@ pub fn lower_iop_to_hpu(ir: &IR<IopLang>) -> IR<HpuLang> {
                         translator.register_translation(op.get_return_valids()[0], new_rets[0]);
                     }
                     _ => {
-                        translator.direct_translation(op, HpuInstructionSet::AddPt);
+                        translator.direct_translation(&op, HpuInstructionSet::AddPt);
                     }
                 }
             }
@@ -477,7 +477,7 @@ pub fn lower_iop_to_hpu(ir: &IR<IopLang>) -> IR<HpuLang> {
                         translator.register_translation(op.get_return_valids()[0], new_rets[0]);
                     }
                     _ => {
-                        translator.direct_translation(op, HpuInstructionSet::SubPt);
+                        translator.direct_translation(&op, HpuInstructionSet::SubPt);
                     }
                 }
             }
@@ -500,7 +500,7 @@ pub fn lower_iop_to_hpu(ir: &IR<IopLang>) -> IR<HpuLang> {
                         translator.register_translation(op.get_return_valids()[0], new_rets[0]);
                     }
                     _ => {
-                        translator.direct_translation(op, HpuInstructionSet::PtSub);
+                        translator.direct_translation(&op, HpuInstructionSet::PtSub);
                     }
                 }
             }
@@ -523,7 +523,7 @@ pub fn lower_iop_to_hpu(ir: &IR<IopLang>) -> IR<HpuLang> {
                         translator.register_translation(op.get_return_valids()[0], new_rets[0]);
                     }
                     _ => {
-                        translator.direct_translation(op, HpuInstructionSet::MulPt);
+                        translator.direct_translation(&op, HpuInstructionSet::MulPt);
                     }
                 }
             }
@@ -581,7 +581,7 @@ pub fn lower_iop_to_hpu(ir: &IR<IopLang>) -> IR<HpuLang> {
                         }
                     }
                 };
-                translator.direct_translation(op, HpuInstructionSet::Pbs { lut });
+                translator.direct_translation(&op, HpuInstructionSet::Pbs { lut });
             }
             IopInstructionSet::Pbs2 { lut, .. } => {
                 let lut = match GIDS2.get(&lut) {
@@ -597,10 +597,11 @@ pub fn lower_iop_to_hpu(ir: &IR<IopLang>) -> IR<HpuLang> {
                         }
                     }
                 };
-                translator.direct_translation(op, HpuInstructionSet::Pbs2 { lut });
+                translator.direct_translation(&op, HpuInstructionSet::Pbs2 { lut });
             }
         }
     })
+    .output
 }
 
 #[cfg(test)]

@@ -1215,7 +1215,7 @@ fn test_ann_style_modifier() {
         }
     });
     draw_ann_ir_to_html(
-        &ann_ir,
+        &ann_ir.view(),
         Some(op_annotations),
         &format!("{PREFIX}test36.html"),
     );

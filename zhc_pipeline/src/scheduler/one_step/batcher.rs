@@ -92,4 +92,5 @@ pub fn batch(ir: &IR<HpuLang>, sched: Vec<SchedElm>) -> IR<HpuLang> {
             }
         }
     })
+    .output
 }

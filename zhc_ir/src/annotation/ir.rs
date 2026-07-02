@@ -2,8 +2,9 @@ use super::*;
 use crate::{
     AnnOpRef, AnnValRef, AsOpId, AsValId, Dialect, Formatted, IR, OpId, OpMap, ValId, ValMap,
     annotation::view::AnnIRView,
+    visualization::{Hierarchy, VisualAnnotation},
 };
-use std::ops::Deref;
+use std::{ops::Deref, path::Path};
 use zhc_utils::{Dumpable, iter::MultiZip, small::SmallVec};
 
 /// IR container with parallel annotation storage for operations and values.
@@ -61,6 +62,7 @@ impl<'ir, D: Dialect, OpAnn: Annotation, ValAnn: Annotation> AnnIR<'ir, D, OpAnn
         &mut self.val_annotations
     }
 
+    /// Borrows an [`AnnIRView`] sharing this instance's IR and annotation maps.
     pub fn view(&self) -> AnnIRView<'ir, '_, D, OpAnn, ValAnn> {
         AnnIRView {
             ir: self.ir,
@@ -75,14 +77,7 @@ impl<'ir, D: Dialect, OpAnn: Annotation, ValAnn: Annotation> AnnIR<'ir, D, OpAnn
     ///
     /// Panics if the operation ID does not exist or refers to an inactive operation.
     pub fn get_op(&self, opid: impl AsOpId) -> AnnOpRef<'ir, '_, D, OpAnn, ValAnn> {
-        let opid = opid.op_id();
-        let opref = self.ir.get_op(opid);
-        let ann = &self.op_annotations[opid];
-        AnnOpRef {
-            ir: self.view(),
-            opref,
-            ann,
-        }
+        self.view().get_op(opid)
     }
 
     /// Returns an annotated value reference for the specified value.
@@ -91,86 +86,49 @@ impl<'ir, D: Dialect, OpAnn: Annotation, ValAnn: Annotation> AnnIR<'ir, D, OpAnn
     ///
     /// Panics if the value ID does not exist, refers to an inactive value.
     pub fn get_val(&self, valid: impl AsValId) -> AnnValRef<'ir, '_, D, OpAnn, ValAnn> {
-        let valid = valid.val_id();
-        let valref = self.ir.get_val(valid);
-        let ann = &self.val_annotations[valid];
-        AnnValRef {
-            ir: self.view(),
-            valref,
-            ann,
-        }
+        self.view().get_val(valid)
     }
 
     /// Returns an iterator over all active operations with annotations in linear order.
     pub fn walk_ops_linear(
         &self,
-    ) -> impl DoubleEndedIterator<Item = AnnOpRef<'ir, '_, D, OpAnn, ValAnn>> {
-        self.ir.walk_ops_linear().map(|opref| {
-            let ann = &self.op_annotations[&opref];
-            AnnOpRef {
-                ir: self.view(),
-                opref,
-                ann,
-            }
-        })
+    ) -> impl DoubleEndedIterator<Item = AnnOpRef<'ir, '_, D, OpAnn, ValAnn>>
+    + use<'ir, '_, D, OpAnn, ValAnn> {
+        self.view().walk_ops_linear()
     }
 
     /// Returns an iterator over all active operations with annotations in topological order.
     pub fn walk_ops_topological(
         &self,
-    ) -> impl DoubleEndedIterator<Item = AnnOpRef<'ir, '_, D, OpAnn, ValAnn>> {
-        self.ir.walk_ops_topological().map(|opref| {
-            let ann = &self.op_annotations[&opref];
-            AnnOpRef {
-                ir: self.view(),
-                opref,
-                ann,
-            }
-        })
+    ) -> impl DoubleEndedIterator<Item = AnnOpRef<'ir, '_, D, OpAnn, ValAnn>>
+    + use<'ir, '_, D, OpAnn, ValAnn> {
+        self.view().walk_ops_topological()
     }
 
     /// Returns an iterator over operations with annotations using a custom walker.
-    pub fn walk_ops_with(
+    pub fn walk_ops_with<W: Iterator<Item = OpId>>(
         &self,
-        walker: impl Iterator<Item = OpId>,
-    ) -> impl Iterator<Item = AnnOpRef<'ir, '_, D, OpAnn, ValAnn>> {
-        self.ir.walk_ops_with(walker).map(|opref| {
-            let ann = &self.op_annotations[&opref];
-            AnnOpRef {
-                ir: self.view(),
-                opref,
-                ann,
-            }
-        })
+        walker: W,
+    ) -> impl Iterator<Item = AnnOpRef<'ir, '_, D, OpAnn, ValAnn>> + use<'ir, '_, W, D, OpAnn, ValAnn>
+    {
+        self.view().walk_ops_with(walker)
     }
 
     /// Returns an iterator over all active values with annotations in linear order.
     pub fn walk_vals_linear(
         &self,
-    ) -> impl DoubleEndedIterator<Item = AnnValRef<'ir, '_, D, OpAnn, ValAnn>> {
-        self.ir.walk_vals_linear().map(|valref| {
-            let ann = &self.val_annotations[&valref];
-            AnnValRef {
-                ir: self.view(),
-                valref,
-                ann,
-            }
-        })
+    ) -> impl DoubleEndedIterator<Item = AnnValRef<'ir, '_, D, OpAnn, ValAnn>>
+    + use<'ir, '_, D, OpAnn, ValAnn> {
+        self.view().walk_vals_linear()
     }
 
     /// Returns an iterator over values with annotations using a custom walker.
-    pub fn walk_vals_with(
+    pub fn walk_vals_with<W: Iterator<Item = ValId>>(
         &self,
-        walker: impl Iterator<Item = ValId>,
-    ) -> impl Iterator<Item = AnnValRef<'ir, '_, D, OpAnn, ValAnn>> {
-        self.ir.walk_vals_with(walker).map(|valref| {
-            let ann = &self.val_annotations[&valref];
-            AnnValRef {
-                ir: self.view(),
-                valref,
-                ann,
-            }
-        })
+        walker: W,
+    ) -> impl Iterator<Item = AnnValRef<'ir, '_, D, OpAnn, ValAnn>> + use<'ir, '_, W, D, OpAnn, ValAnn>
+    {
+        self.view().walk_vals_with(walker)
     }
 
     /// Performs backward dataflow analysis with access to existing annotations.
@@ -315,8 +273,19 @@ impl<'ir, D: Dialect, OpAnn: Annotation, ValAnn: Annotation> AnnIR<'ir, D, OpAnn
         (self.op_annotations, self.val_annotations)
     }
 
-    pub fn opmap(&self) -> &OpMap<OpAnn> {
-        &self.op_annotations
+    /// Renders this annotated IR graph as an interactive HTML file.
+    ///
+    /// Equivalent to [`draw_ann_ir_to_html`](crate::visualization::draw_ann_ir_to_html), requiring
+    /// `OpAnn` to implement [`VisualAnnotation`].
+    ///
+    /// # Panics
+    ///
+    /// Panics if the file cannot be written to the given path.
+    pub fn draw_to_html(&self, hierarchy_ann: Option<OpMap<Hierarchy>>, path: impl AsRef<Path>)
+    where
+        OpAnn: VisualAnnotation,
+    {
+        self.view().draw_to_html(hierarchy_ann, path);
     }
 }
 

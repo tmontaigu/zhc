@@ -3,9 +3,11 @@ use crate::interpretation::{
     InterpState, Interpretable, Interpretation, InterpretsTo, interpret_ir,
 };
 use crate::val_ref::ValRef;
+use crate::visualization::{Hierarchy, draw_ir_to_html};
 use crate::{
     Analysing, AnnIR, AnnOpRef, Annotation, AsOpId, AsValId, Formatted, ValMap, ValOrigin, ValUse,
 };
+use std::path::Path;
 use std::{cmp::max, fmt::Debug};
 use zhc_utils::iter::MultiZip;
 use zhc_utils::{Dumpable, SafeAs, svec};
@@ -159,11 +161,13 @@ impl<D: Dialect> IR<D> {
         *self.op_depth.iter().max().unwrap_or(&0)
     }
 
-    pub(crate) fn raw_linear_opwalker(&self) -> impl DoubleEndedIterator<Item = OpId> {
+    pub(crate) fn raw_linear_opwalker(&self) -> impl DoubleEndedIterator<Item = OpId> + use<'_, D> {
         OpId::range(0, self.raw_n_ops())
     }
 
-    pub(crate) fn raw_topological_opwalker(&self) -> impl DoubleEndedIterator<Item = OpId> {
+    pub(crate) fn raw_topological_opwalker(
+        &self,
+    ) -> impl DoubleEndedIterator<Item = OpId> + use<'_, D> {
         let max_depth = *self.op_depth.iter().max().unwrap_or(&0);
         let mut depth_buckets = vec![svec![]; (max_depth + 1).sas()];
         for op in self.raw_walk_ops_linear() {
@@ -172,34 +176,42 @@ impl<D: Dialect> IR<D> {
         depth_buckets.into_iter().flat_map(|b| b.into_iter())
     }
 
-    pub(crate) fn raw_walk_ops(
+    pub(crate) fn raw_walk_ops<W: Iterator<Item = OpId>>(
         &self,
-        walker: impl Iterator<Item = OpId>,
-    ) -> impl Iterator<Item = OpRef<'_, D>> {
+        walker: W,
+    ) -> impl Iterator<Item = OpRef<'_, D>> + use<'_, W, D> {
         walker.map(|opid| self.raw_get_op(opid))
     }
 
-    pub(crate) fn raw_walk_ops_linear(&self) -> impl DoubleEndedIterator<Item = OpRef<'_, D>> {
+    pub(crate) fn raw_walk_ops_linear(
+        &self,
+    ) -> impl DoubleEndedIterator<Item = OpRef<'_, D>> + use<'_, D> {
         self.raw_linear_opwalker().map(|opid| self.raw_get_op(opid))
     }
 
-    pub(crate) fn raw_walk_ops_topo(&self) -> impl DoubleEndedIterator<Item = OpRef<'_, D>> {
+    pub(crate) fn raw_walk_ops_topo(
+        &self,
+    ) -> impl DoubleEndedIterator<Item = OpRef<'_, D>> + use<'_, D> {
         self.raw_topological_opwalker()
             .map(|opid| self.raw_get_op(opid))
     }
 
-    pub(crate) fn raw_linear_valwalker(&self) -> impl DoubleEndedIterator<Item = ValId> {
+    pub(crate) fn raw_linear_valwalker(
+        &self,
+    ) -> impl DoubleEndedIterator<Item = ValId> + use<'_, D> {
         ValId::range(0, self.raw_n_vals())
     }
 
-    pub(crate) fn raw_walk_vals(
+    pub(crate) fn raw_walk_vals<W: Iterator<Item = ValId>>(
         &self,
-        walker: impl Iterator<Item = ValId>,
-    ) -> impl Iterator<Item = ValRef<'_, D>> {
+        walker: W,
+    ) -> impl Iterator<Item = ValRef<'_, D>> + use<'_, W, D> {
         walker.map(|valid| self.raw_get_val(valid))
     }
 
-    pub(crate) fn raw_walk_vals_linear(&self) -> impl DoubleEndedIterator<Item = ValRef<'_, D>> {
+    pub(crate) fn raw_walk_vals_linear(
+        &self,
+    ) -> impl DoubleEndedIterator<Item = ValRef<'_, D>> + use<'_, D> {
         self.raw_linear_valwalker()
             .map(|valid| self.raw_get_val(valid))
     }
@@ -341,7 +353,7 @@ impl<D: Dialect> IR<D> {
     /// Returns an iterator over all active operations in linear order.
     ///
     /// Operations are yielded in the order they were added to the IR.
-    pub fn walk_ops_linear(&self) -> impl DoubleEndedIterator<Item = OpRef<'_, D>> {
+    pub fn walk_ops_linear(&self) -> impl DoubleEndedIterator<Item = OpRef<'_, D>> + use<'_, D> {
         self.raw_walk_ops_linear().filter(op_active)
     }
 
@@ -349,7 +361,9 @@ impl<D: Dialect> IR<D> {
     ///
     /// Operations are yielded such that all dependencies of an operation
     /// are visited before the operation itself.
-    pub fn walk_ops_topological(&self) -> impl DoubleEndedIterator<Item = OpRef<'_, D>> {
+    pub fn walk_ops_topological(
+        &self,
+    ) -> impl DoubleEndedIterator<Item = OpRef<'_, D>> + use<'_, D> {
         self.raw_walk_ops_topo().filter(op_active)
     }
 
@@ -357,17 +371,17 @@ impl<D: Dialect> IR<D> {
     ///
     /// The `walker` provides the order in which operation IDs are visited,
     /// and this method maps those IDs to their corresponding operation references.
-    pub fn walk_ops_with(
+    pub fn walk_ops_with<W: Iterator<Item = OpId>>(
         &self,
-        walker: impl Iterator<Item = OpId>,
-    ) -> impl Iterator<Item = OpRef<'_, D>> {
+        walker: W,
+    ) -> impl Iterator<Item = OpRef<'_, D>> + use<'_, W, D> {
         walker.map(|opid| self.get_op(opid))
     }
 
     /// Returns an iterator over all active values in linear order.
     ///
     /// Values are yielded in the order they were added to the IR.
-    pub fn walk_vals_linear(&self) -> impl DoubleEndedIterator<Item = ValRef<'_, D>> {
+    pub fn walk_vals_linear(&self) -> impl DoubleEndedIterator<Item = ValRef<'_, D>> + use<'_, D> {
         self.raw_walk_vals_linear().filter(val_active)
     }
 
@@ -375,10 +389,10 @@ impl<D: Dialect> IR<D> {
     ///
     /// The `walker` provides the order in which value IDs are visited,
     /// and this method maps those IDs to their corresponding value references.
-    pub fn walk_vals_with(
+    pub fn walk_vals_with<W: Iterator<Item = ValId>>(
         &self,
-        walker: impl Iterator<Item = ValId>,
-    ) -> impl Iterator<Item = ValRef<'_, D>> {
+        walker: W,
+    ) -> impl Iterator<Item = ValRef<'_, D>> + use<'_, W, D> {
         walker.map(|valid| self.get_val(valid))
     }
 
@@ -699,26 +713,26 @@ impl<D: Dialect> IR<D> {
 
     /// Creates an empty operation map for this IR.
     pub fn empty_opmap<V>(&self) -> OpMap<V> {
-        OpMap::new_empty(self)
+        OpMap::empty_from_ir(self)
     }
 
     /// Creates an operation map filled with the specified value for all operations.
     pub fn filled_opmap<V: Clone>(&self, v: V) -> OpMap<V> {
-        OpMap::new_filled(self, v)
+        OpMap::filled_from_ir(self, v)
     }
 
     /// Creates an operation map by applying a function to each operation.
     ///
     /// The function returns `None` for operations that should not have entries.
     pub fn partially_mapped_opmap<V>(&self, f: impl FnMut(OpRef<D>) -> Option<V>) -> OpMap<V> {
-        OpMap::new_partially_mapped(self, f)
+        OpMap::partially_mapped_from_ir(self, f)
     }
 
     /// Creates an operation map by applying a function to each operation.
     ///
     /// All operations will have entries in the resulting map.
     pub fn totally_mapped_opmap<V>(&self, f: impl FnMut(OpRef<D>) -> V) -> OpMap<V> {
-        OpMap::new_totally_mapped(self, f)
+        OpMap::totally_mapped_from_ir(self, f)
     }
 
     /// Creates an empty value map for this IR.
@@ -865,6 +879,15 @@ impl<D: Dialect> IR<D> {
             Ok(interpreted) => Ok((interpreted, context)),
             Err(partial) => Err((partial, context)),
         }
+    }
+
+    /// Renders this IR graph as an interactive HTML file.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the file cannot be written to the given path.
+    pub fn draw_to_html(&self, hierarchy_ann: Option<OpMap<Hierarchy>>, path: impl AsRef<Path>) {
+        draw_ir_to_html(self, hierarchy_ann, path);
     }
 
     /// Creates a configurable formatter for the entire IR.

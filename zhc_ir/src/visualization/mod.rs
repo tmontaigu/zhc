@@ -1,4 +1,4 @@
-use crate::{AnnIR, Annotation, Dialect, IR, OpMap, visualization::svg::Svg};
+use crate::{AnnIR, AnnIRView, Annotation, Dialect, IR, OpMap, visualization::svg::Svg};
 use std::path::Path;
 
 mod composition;
@@ -29,7 +29,7 @@ fn draw_ir<D: Dialect>(ir: &IR<D>, hierarchy_ann: Option<OpMap<Hierarchy>>) -> S
 }
 
 fn draw_ann_ir<D: Dialect, OpAnn: Annotation + VisualAnnotation, ValAnn: Annotation>(
-    ir: &AnnIR<D, OpAnn, ValAnn>,
+    ir: &AnnIRView<D, OpAnn, ValAnn>,
     hierarchy_ann: Option<OpMap<Hierarchy>>,
 ) -> Svg {
     let hierarchy_ann = hierarchy_ann.unwrap_or(ir.filled_opmap(Hierarchy::new()));
@@ -66,7 +66,7 @@ pub fn draw_ir_to_svg<D: Dialect>(
 
 /// Renders an annotated IR graph as a static SVG file.
 ///
-/// Like [`draw_ir_to_svg`], but accepts an [`AnnIR`] whose operation annotations implement
+/// Like [`draw_ir_to_svg`], but accepts an [`AnnIRView`] whose operation annotations implement
 /// [`VisualAnnotation`]. Each operation's annotation can provide a custom widget (displayed
 /// inside the node) and a style modifier (affecting the node's appearance). This is useful
 /// for visualizing interpreter results, optimization metadata, or any per-operation data.
@@ -77,7 +77,7 @@ pub fn draw_ir_to_svg<D: Dialect>(
 ///
 /// Panics if the file cannot be written to the given path.
 pub fn draw_ann_ir_to_svg<D: Dialect, OpAnn: Annotation + VisualAnnotation, ValAnn: Annotation>(
-    ir: &AnnIR<D, OpAnn, ValAnn>,
+    ir: &AnnIRView<D, OpAnn, ValAnn>,
     hierarchy_ann: Option<OpMap<Hierarchy>>,
     path: impl AsRef<Path>,
 ) {
@@ -113,7 +113,7 @@ pub fn draw_ir_to_html<D: Dialect>(
 
 /// Renders an annotated IR graph as an interactive HTML file.
 ///
-/// Like [`draw_ir_to_html`], but accepts an [`AnnIR`] whose operation annotations implement
+/// Like [`draw_ir_to_html`], but accepts an [`AnnIRView`] whose operation annotations implement
 /// [`VisualAnnotation`]. Each operation's annotation can provide a custom widget (displayed
 /// inside the node) and a style modifier (affecting the node's appearance). This is useful
 /// for visualizing interpreter results, optimization metadata, or any per-operation data.
@@ -125,7 +125,7 @@ pub fn draw_ir_to_html<D: Dialect>(
 ///
 /// Panics if the file cannot be written to the given path.
 pub fn draw_ann_ir_to_html<D: Dialect, OpAnn: Annotation + VisualAnnotation, ValAnn: Annotation>(
-    ir: &AnnIR<D, OpAnn, ValAnn>,
+    ir: &AnnIRView<D, OpAnn, ValAnn>,
     hierarchy_ann: Option<OpMap<Hierarchy>>,
     path: impl AsRef<Path>,
 ) {
@@ -133,32 +133,4 @@ pub fn draw_ann_ir_to_html<D: Dialect, OpAnn: Annotation + VisualAnnotation, Val
     let html_output = html::wrap_svg(svg_output);
     let html_content = format!("{}", html_output);
     std::fs::write(path, html_content).expect("Failed to write HTML file");
-}
-
-impl<D: Dialect> IR<D> {
-    /// Renders this IR graph as an interactive HTML file.
-    ///
-    /// Equivalent to [`draw_ir_to_html`].
-    ///
-    /// # Panics
-    ///
-    /// Panics if the file cannot be written to the given path.
-    pub fn draw_to_html(&self, hierarchy_ann: Option<OpMap<Hierarchy>>, path: impl AsRef<Path>) {
-        draw_ir_to_html(self, hierarchy_ann, path);
-    }
-}
-
-impl<'ir, D: Dialect, OpAnn: Annotation + VisualAnnotation, ValAnn: Annotation>
-    AnnIR<'ir, D, OpAnn, ValAnn>
-{
-    /// Renders this annotated IR graph as an interactive HTML file.
-    ///
-    /// Equivalent to [`draw_ann_ir_to_html`].
-    ///
-    /// # Panics
-    ///
-    /// Panics if the file cannot be written to the given path.
-    pub fn draw_to_html(&self, hierarchy_ann: Option<OpMap<Hierarchy>>, path: impl AsRef<Path>) {
-        draw_ann_ir_to_html(self, hierarchy_ann, path);
-    }
 }

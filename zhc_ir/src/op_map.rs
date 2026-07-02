@@ -15,7 +15,7 @@ use super::{Dialect, IR, OpId, State};
 /// values are currently stored.
 #[derive(Clone, PartialEq, Eq)]
 pub struct OpMap<T> {
-    store: Store<OpId, State<Option<T>>>,
+    pub store: Store<OpId, State<Option<T>>>,
     pub n_stored: OpIdRaw,
     pub n_inactive: OpIdRaw,
 }
@@ -30,7 +30,7 @@ impl<T> OpMap<T> {
     ///
     /// The resulting map preserves the active/inactive state of operations
     /// from the source IR but contains no stored values.
-    pub fn new_empty<D: Dialect>(ir: &IR<D>) -> Self {
+    pub fn empty_from_ir<D: Dialect>(ir: &IR<D>) -> Self {
         OpMap {
             store: ir
                 .op_states
@@ -49,7 +49,7 @@ impl<T> OpMap<T> {
     ///
     /// Every active operation in the source IR will be associated with a clone
     /// of `v`. Inactive operations remain unmapped.
-    pub fn new_filled<D: Dialect>(ir: &IR<D>, v: T) -> Self
+    pub fn filled_from_ir<D: Dialect>(ir: &IR<D>, v: T) -> Self
     where
         T: Clone,
     {
@@ -72,7 +72,7 @@ impl<T> OpMap<T> {
     /// The function returns `None` for operations that should not have entries
     /// in the resulting map. Only operations for which the function returns
     /// `Some(value)` will be stored.
-    pub fn new_partially_mapped<D: Dialect>(
+    pub fn partially_mapped_from_ir<D: Dialect>(
         ir: &IR<D>,
         mut f: impl FnMut(OpRef<D>) -> Option<T>,
     ) -> Self {
@@ -96,7 +96,10 @@ impl<T> OpMap<T> {
     ///
     /// Every active operation will have an entry in the resulting map,
     /// as the function must return a value rather than an option.
-    pub fn new_totally_mapped<D: Dialect>(ir: &IR<D>, mut f: impl FnMut(OpRef<D>) -> T) -> Self {
+    pub fn totally_mapped_from_ir<D: Dialect>(
+        ir: &IR<D>,
+        mut f: impl FnMut(OpRef<D>) -> T,
+    ) -> Self {
         OpMap {
             store: ir
                 .raw_walk_ops_linear()

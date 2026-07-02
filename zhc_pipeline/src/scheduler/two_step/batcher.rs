@@ -375,6 +375,7 @@ pub fn batch<'a, 'b>(
             }
         }
     })
+    .output
 }
 
 #[cfg(test)]

@@ -1505,8 +1505,22 @@ impl<const N: usize> Dumpable for ColorScale<N> {
 }
 
 impl ColorScale<3> {
+    /// Green-to-red traffic-light palette.
     pub const TRAFFIC_LIGHT: Self = Self([Color::GREEN, Color::YELLOW, Color::RED]);
+    /// Red-to-green traffic-light palette.
     pub const INVERSE_TRAFFIC_LIGHT: Self = Self([Color::RED, Color::YELLOW, Color::GREEN]);
+}
+impl ColorScale<7> {
+    /// Seven-stop violet-to-red rainbow palette.
+    pub const RAINBOW: Self = Self([
+        Color::VIOLET,
+        Color::INDIGO,
+        Color::BLUE,
+        Color::GREEN,
+        Color::YELLOW,
+        Color::ORANGE,
+        Color::RED,
+    ]);
 }
 
 impl<const N: usize> ColorScale<N> {

@@ -15,13 +15,13 @@ use super::{Dialect, IR, OpId, State};
 /// values are currently stored.
 #[derive(Clone, PartialEq, Eq)]
 pub struct OpMap<T> {
-    pub store: Store<OpId, State<Option<T>>>,
+    pub(crate) store: Store<OpId, State<Option<T>>>,
     pub n_stored: OpIdRaw,
     pub n_inactive: OpIdRaw,
 }
 
 impl<T> OpMap<T> {
-    fn may_store(&self, k: impl AsOpId) -> bool {
+    pub(crate) fn may_store(&self, k: impl AsOpId) -> bool {
         let k = k.op_id();
         k.0 < self.store.len() && self.store[&k].is_active()
     }
@@ -214,6 +214,16 @@ impl<T> OpMap<T> {
             State::Active(Some(v)) => Some((i, v)),
             _ => None,
         })
+    }
+
+    /// Returns a mutable iterator over operation IDs and their stored values.
+    pub fn iter_mut(&mut self) -> impl DoubleEndedIterator<Item = (OpId, &mut T)> {
+        self.store
+            .enumerate_iter_mut()
+            .filter_map(|(i, a)| match a {
+                State::Active(Some(v)) => Some((i, v)),
+                _ => None,
+            })
     }
 
     /// Consumes the map and returns an iterator over operation IDs and their stored values.

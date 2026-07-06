@@ -131,35 +131,36 @@ impl IopInstructionSet {
 
 impl Format for IopInstructionSet {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>, _ctx: &FormatContext) -> std::fmt::Result {
+        use IopInstructionSet::*;
         match self {
-            IopInstructionSet::InputCiphertext { pos, int_size } => {
+            InputCiphertext { pos, int_size } => {
                 write!(f, "input_ciphertext<{pos}, {int_size}>")
             }
-            IopInstructionSet::InputPlaintext { pos, int_size } => {
+            InputPlaintext { pos, int_size } => {
                 write!(f, "input_plaintext<{pos}, {int_size}>")
             }
-            IopInstructionSet::OutputCiphertext { pos } => write!(f, "output<{pos}>"),
-            IopInstructionSet::_Consume { typ } => write!(f, "_consume<{typ}>"),
-            IopInstructionSet::Inspect { .. } => write!(f, "inspect"),
-            IopInstructionSet::DeclareCiphertext { int_size } => write!(f, "decl_ct<{int_size}>"),
-            IopInstructionSet::LetPlaintextBlock { value } => write!(f, "let_pt_block<{value}>"),
-            IopInstructionSet::LetCiphertextBlock { value } => write!(f, "let_ct_block<{value}>"),
-            IopInstructionSet::PackCt { mul } => write!(f, "pack_ct<{mul}>"),
-            IopInstructionSet::AddCt => write!(f, "add_ct"),
-            IopInstructionSet::WrappingAddCt => write!(f, "wrapping_add_ct"),
-            IopInstructionSet::TemperAddCt => write!(f, "temper_add_ct"),
-            IopInstructionSet::SubCt => write!(f, "sub_ct"),
-            IopInstructionSet::WrappingSubCt => write!(f, "wrapping_sub_ct"),
-            IopInstructionSet::AddPt => write!(f, "add_pt"),
-            IopInstructionSet::WrappingAddPt => write!(f, "wrapping_add_pt"),
-            IopInstructionSet::SubPt => write!(f, "sub_pt"),
-            IopInstructionSet::PtSub => write!(f, "pt_sub"),
-            IopInstructionSet::MulPt => write!(f, "mul_pt"),
-            IopInstructionSet::ExtractCtBlock { index } => write!(f, "extract_ct_block<{index}>"),
-            IopInstructionSet::ExtractPtBlock { index } => write!(f, "extract_pt_block<{index}>"),
-            IopInstructionSet::StoreCtBlock { index } => write!(f, "store_ct_block<{index}>"),
-            IopInstructionSet::Pbs { check, lut } => write!(f, "pbs<{check:?}, {lut:?}>"),
-            IopInstructionSet::Pbs2 { check, lut } => write!(f, "pbs2<{check:?}, {lut:?}>"),
+            OutputCiphertext { pos } => write!(f, "output<{pos}>"),
+            _Consume { typ } => write!(f, "_consume<{typ}>"),
+            Inspect { .. } => write!(f, "inspect"),
+            DeclareCiphertext { int_size } => write!(f, "decl_ct<{int_size}>"),
+            LetPlaintextBlock { value } => write!(f, "let_pt_block<{value}>"),
+            LetCiphertextBlock { value } => write!(f, "let_ct_block<{value}>"),
+            PackCt { mul } => write!(f, "pack_ct<{mul}>"),
+            AddCt => write!(f, "add_ct"),
+            WrappingAddCt => write!(f, "wrapping_add_ct"),
+            TemperAddCt => write!(f, "temper_add_ct"),
+            SubCt => write!(f, "sub_ct"),
+            WrappingSubCt => write!(f, "wrapping_sub_ct"),
+            AddPt => write!(f, "add_pt"),
+            WrappingAddPt => write!(f, "wrapping_add_pt"),
+            SubPt => write!(f, "sub_pt"),
+            PtSub => write!(f, "pt_sub"),
+            MulPt => write!(f, "mul_pt"),
+            ExtractCtBlock { index } => write!(f, "extract_ct_block<{index}>"),
+            ExtractPtBlock { index } => write!(f, "extract_pt_block<{index}>"),
+            StoreCtBlock { index } => write!(f, "store_ct_block<{index}>"),
+            Pbs { check, lut } => write!(f, "pbs<{check:?}, {lut:?}>"),
+            Pbs2 { check, lut } => write!(f, "pbs2<{check:?}, {lut:?}>"),
         }
     }
 }
@@ -174,58 +175,59 @@ impl DialectInstructionSet for IopInstructionSet {
     type TypeSystem = IopTypeSystem;
 
     fn get_signature(&self) -> Signature<Self::TypeSystem> {
+        use IopInstructionSet::*;
         use IopTypeSystem::*;
         match self {
-            IopInstructionSet::InputCiphertext { .. } => sig![() -> (Ciphertext)],
-            IopInstructionSet::InputPlaintext { .. } => sig![() -> (Plaintext)],
-            IopInstructionSet::OutputCiphertext { .. } => sig![(Ciphertext) -> ()],
-            IopInstructionSet::_Consume { typ } => sig![(typ.clone()) -> ()],
-            IopInstructionSet::DeclareCiphertext { .. } => sig![() -> (Ciphertext)],
-            IopInstructionSet::LetPlaintextBlock { .. } => sig![() -> (PlaintextBlock)],
-            IopInstructionSet::LetCiphertextBlock { .. } => sig![() -> (CiphertextBlock)],
-            IopInstructionSet::AddCt => {
+            InputCiphertext { .. } => sig![() -> (Ciphertext)],
+            InputPlaintext { .. } => sig![() -> (Plaintext)],
+            OutputCiphertext { .. } => sig![(Ciphertext) -> ()],
+            _Consume { typ } => sig![(typ.clone()) -> ()],
+            DeclareCiphertext { .. } => sig![() -> (Ciphertext)],
+            LetPlaintextBlock { .. } => sig![() -> (PlaintextBlock)],
+            LetCiphertextBlock { .. } => sig![() -> (CiphertextBlock)],
+            AddCt => {
                 sig![(CiphertextBlock, CiphertextBlock) -> (CiphertextBlock)]
             }
-            IopInstructionSet::WrappingAddCt => {
+            WrappingAddCt => {
                 sig![(CiphertextBlock, CiphertextBlock) -> (CiphertextBlock)]
             }
-            IopInstructionSet::TemperAddCt => {
+            TemperAddCt => {
                 sig![(CiphertextBlock, CiphertextBlock) -> (CiphertextBlock)]
             }
-            IopInstructionSet::SubCt => {
+            SubCt => {
                 sig![(CiphertextBlock, CiphertextBlock) -> (CiphertextBlock)]
             }
-            IopInstructionSet::WrappingSubCt => {
+            WrappingSubCt => {
                 sig![(CiphertextBlock, CiphertextBlock) -> (CiphertextBlock)]
             }
-            IopInstructionSet::PackCt { .. } => {
+            PackCt { .. } => {
                 sig![(CiphertextBlock, CiphertextBlock) -> (CiphertextBlock)]
             }
-            IopInstructionSet::AddPt => {
+            AddPt => {
                 sig![(CiphertextBlock, PlaintextBlock) -> (CiphertextBlock)]
             }
-            IopInstructionSet::WrappingAddPt => {
+            WrappingAddPt => {
                 sig![(CiphertextBlock, PlaintextBlock) -> (CiphertextBlock)]
             }
-            IopInstructionSet::SubPt => {
+            SubPt => {
                 sig![(CiphertextBlock, PlaintextBlock) -> (CiphertextBlock)]
             }
-            IopInstructionSet::PtSub => {
+            PtSub => {
                 sig![(PlaintextBlock, CiphertextBlock) -> (CiphertextBlock)]
             }
-            IopInstructionSet::MulPt => {
+            MulPt => {
                 sig![(CiphertextBlock, PlaintextBlock) -> (CiphertextBlock)]
             }
-            IopInstructionSet::ExtractCtBlock { .. } => sig![(Ciphertext) -> (CiphertextBlock)],
-            IopInstructionSet::ExtractPtBlock { .. } => sig![(Plaintext) -> (PlaintextBlock)],
-            IopInstructionSet::StoreCtBlock { .. } => {
+            ExtractCtBlock { .. } => sig![(Ciphertext) -> (CiphertextBlock)],
+            ExtractPtBlock { .. } => sig![(Plaintext) -> (PlaintextBlock)],
+            StoreCtBlock { .. } => {
                 sig![(CiphertextBlock, Ciphertext) -> (Ciphertext)]
             }
-            IopInstructionSet::Pbs { .. } => sig![(CiphertextBlock) -> (CiphertextBlock)],
-            IopInstructionSet::Pbs2 { .. } => {
+            Pbs { .. } => sig![(CiphertextBlock) -> (CiphertextBlock)],
+            Pbs2 { .. } => {
                 sig![(CiphertextBlock) -> (CiphertextBlock, CiphertextBlock)]
             }
-            IopInstructionSet::Inspect { typ } => sig![(typ.clone()) -> (typ.clone())],
+            Inspect { typ } => sig![(typ.clone()) -> (typ.clone())],
         }
     }
 }

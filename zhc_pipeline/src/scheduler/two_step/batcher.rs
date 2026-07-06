@@ -373,6 +373,7 @@ pub fn batch<'a, 'b>(
             Batch { .. } | BatchArg { .. } | BatchRet { .. } => {
                 panic!("Unexpected batch operations encountered.")
             }
+            _ => unreachable!(),
         }
     })
     .output

@@ -23,15 +23,25 @@
 //! a nested `IR<HpuLang>` sub-program. [`BatchArg`](HpuInstructionSet::BatchArg)
 //! and [`BatchRet`](HpuInstructionSet::BatchRet) define the batch
 //! boundary interface inside the nested IR.
+//!
+//! For multi-HPU execution the dialect also models placement. [`HpuId`]
+//! names a board, [`HpuLocality`] describes where a value resides across
+//! boards, and [`insert_transfers`] splices
+//! [`Transfer`](HpuInstructionSet::Transfer) operations — identified by a
+//! [`TransferId`] — wherever a value crosses a partition boundary.
 
 mod batch_statistics;
 mod dialect;
+mod insert_transfers;
 mod instruction_set;
 pub mod interpretation;
+mod locality;
 mod type_system;
 
 pub use batch_statistics::*;
 pub use dialect::*;
+pub use insert_transfers::*;
 pub use instruction_set::*;
 pub use interpretation::*;
+pub use locality::*;
 pub use type_system::*;

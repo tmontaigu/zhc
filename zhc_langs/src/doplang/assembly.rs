@@ -15,7 +15,7 @@ use zhc_utils::svec;
 /// Emits a textual assembly listing from a DOP instruction stream.
 ///
 /// Walks `ir` in linear order and formats each instruction as a newline-terminated line containing
-/// the opcode mnemonic followed by space-separated operand representations. The `_INIT`
+/// the opcode mnemonic followed by space-separated operand representations. The `_START` and `_END`
 /// pseudo-instruction is omitted from the output. For `WAIT`, the slot operand appears only when
 /// present.
 ///
@@ -25,6 +25,8 @@ pub fn emit_assembly(ir: &IR<DopLang>) -> String {
     for op in ir.walk_ops_linear() {
         use DopInstructionSet::*;
         match op.get_instruction() {
+            _START => Ok(()),
+            _END => Ok(()),
             ADD { dst, src1, src2 } => {
                 writeln!(output, "ADD {} {} {}", dst.asm(), src1.asm(), src2.asm())
             }
@@ -95,7 +97,22 @@ pub fn emit_assembly(ir: &IR<DopLang>) -> String {
                 lut.asm()
             ),
             SYNC => writeln!(output, "SYNC"),
-            _INIT => Ok(()),
+            WAIT { flag, slot } => match slot {
+                Some(slot) => writeln!(output, "WAIT {} {}", flag.asm(), slot.asm()),
+                None => writeln!(output, "WAIT {}", flag.asm()),
+            },
+            NOTIFY {
+                virt_id,
+                flag,
+                slot,
+            } => writeln!(
+                output,
+                "NOTIFY {} {} {}",
+                virt_id.asm(),
+                flag.asm(),
+                slot.asm()
+            ),
+            LD_B2B { flag, slot } => writeln!(output, "LD_B2B {} {}", flag.asm(), slot.asm()),
         }
         .unwrap();
     }
@@ -191,6 +208,22 @@ fn parse_argument(s: &str, reg_mask: usize) -> Result<Argument, String> {
         return Ok(Argument::LutId { id });
     }
 
+    // UserFlag: FN
+    if let Some(rest) = s.strip_prefix('F') {
+        let flag = rest
+            .parse::<u8>()
+            .map_err(|_| format!("invalid flag: {rest}"))?;
+        return Ok(Argument::UserFlag { flag });
+    }
+
+    // VirtId: NN
+    if let Some(rest) = s.strip_prefix('N') {
+        let id = rest
+            .parse::<u8>()
+            .map_err(|_| format!("invalid virt id: {rest}"))?;
+        return Ok(Argument::VirtId { id });
+    }
+
     Err(format!("unrecognized argument: {s}"))
 }
 
@@ -214,8 +247,8 @@ fn parse_var_bracket(s: &str) -> Result<(usize, usize), String> {
 /// Parses a textual assembly listing into a DOP instruction stream.
 ///
 /// Each non-empty line must contain `OPCODE arg0 arg1 ...` (whitespace-separated). Empty lines and
-/// lines containing only whitespace are ignored. A synthetic `_INIT` instruction is prepended to
-/// produce the initial context token.
+/// lines containing only whitespace are ignored. Synthetic `_START` and `_END` instructions are
+/// added to produce and consume the context token.
 ///
 /// Register masks for `CtReg` arguments are inferred from instruction type:
 /// - `PBS_ML2`, `PBS_ML2_F` → `MASK_PBS2`
@@ -225,8 +258,8 @@ fn parse_var_bracket(s: &str) -> Result<(usize, usize), String> {
 pub fn parse_assembly(input: &str) -> Result<IR<DopLang>, ParseError> {
     let mut ir = IR::empty();
 
-    // Synthesize _INIT to get the initial context token.
-    let (_, rets) = ir.add_op(DopInstructionSet::_INIT, svec![]);
+    // Synthesize _START to get the initial context token.
+    let (_, rets) = ir.add_op(DopInstructionSet::_START, svec![]);
     let mut ctx = rets[0];
 
     for (line_idx, line) in input.lines().enumerate() {
@@ -371,6 +404,30 @@ pub fn parse_assembly(input: &str) -> Result<IR<DopLang>, ParseError> {
                 DopInstructionSet::PBS_ML8_F { dst, src, lut }
             }
             "SYNC" => DopInstructionSet::SYNC,
+            "WAIT" => {
+                let flag = parse_arg(0, MASK_NONE)?;
+                let slot = if args.len() > 1 {
+                    Some(parse_arg(1, MASK_NONE)?)
+                } else {
+                    None
+                };
+                DopInstructionSet::WAIT { flag, slot }
+            }
+            "NOTIFY" => {
+                let virt_id = parse_arg(0, MASK_NONE)?;
+                let flag = parse_arg(1, MASK_NONE)?;
+                let slot = parse_arg(2, MASK_NONE)?;
+                DopInstructionSet::NOTIFY {
+                    virt_id,
+                    flag,
+                    slot,
+                }
+            }
+            "LD_B2B" => {
+                let flag = parse_arg(0, MASK_NONE)?;
+                let slot = parse_arg(1, MASK_NONE)?;
+                DopInstructionSet::LD_B2B { flag, slot }
+            }
             _ => {
                 return Err(ParseError {
                     line: line_num,

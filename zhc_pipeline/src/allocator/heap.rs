@@ -45,6 +45,17 @@ impl Heap {
         }
     }
 
+    /// Returns a fresh heap slot not associated with any value.
+    ///
+    /// Advances the heap's high-water mark so the returned slot is reserved and
+    /// never handed out again. Unlike [`get`](Self::get), the slot is not keyed
+    /// to a value and cannot be looked up; it serves transfer operations that
+    /// need scratch heap space of their own.
+    pub fn get_unmapped(&mut self) -> HeapSlot {
+        let next = HeapSlot(self.last.0 + 1);
+        std::mem::replace(&mut self.last, next)
+    }
+
     #[allow(unused)]
     pub fn size(&self) -> usize {
         self.last.0.sas()

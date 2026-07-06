@@ -210,3 +210,22 @@ impl Default for HpuConfig {
         Self::from(PhysicalConfig::tuniform_64b_pfail128_psi64())
     }
 }
+
+/// Configuration for a multi-HPU system: a per-board config replicated across a
+/// fixed number of boards.
+#[derive(Clone, Debug, Serialize, PartialEq, Eq, Hash)]
+pub struct MultiHpuConfig {
+    /// Configuration shared by every board in the system.
+    pub hpu_config: HpuConfig,
+    /// Number of HPU boards in the system.
+    pub n_hpus: u8,
+}
+
+impl Default for MultiHpuConfig {
+    fn default() -> Self {
+        MultiHpuConfig {
+            hpu_config: HpuConfig::default(),
+            n_hpus: 4,
+        }
+    }
+}

@@ -5,20 +5,7 @@ use serde::Serialize;
 use std::fmt::{Debug, Display};
 use zhc_ir::{DialectInstructionSet, Format, FormatContext, Signature, sig};
 
-/// Register address mask that compares all bits (single-output PBS or
-/// plain register).
-pub const MASK_NONE: usize = usize::MAX;
-/// Register address mask that ignores the lowest bit, grouping pairs
-/// of consecutive registers produced by a 2-output PBS.
-pub const MASK_PBS2: usize = usize::MAX << 1;
-/// Register address mask that ignores the two lowest bits, grouping
-/// quads of consecutive registers produced by a 4-output PBS.
-pub const MASK_PBS4: usize = usize::MAX << 2;
-/// Register address mask that ignores the three lowest bits, grouping
-/// octets of consecutive registers produced by an 8-output PBS.
-pub const MASK_PBS8: usize = usize::MAX << 3;
-
-pub const LUT_ALIASES: [&str; 76] = [
+pub(crate) const LUT_ALIASES: [&str; 76] = [
     "None",
     "MsgOnly",
     "CarryOnly",
@@ -97,6 +84,19 @@ pub const LUT_ALIASES: [&str; 76] = [
     "Manyl2mPropBit0MsgSplit",
 ];
 
+/// Register address mask that compares all bits (single-output PBS or
+/// plain register).
+pub const MASK_NONE: usize = usize::MAX;
+/// Register address mask that ignores the lowest bit, grouping pairs
+/// of consecutive registers produced by a 2-output PBS.
+pub const MASK_PBS2: usize = usize::MAX << 1;
+/// Register address mask that ignores the two lowest bits, grouping
+/// quads of consecutive registers produced by a 4-output PBS.
+pub const MASK_PBS4: usize = usize::MAX << 2;
+/// Register address mask that ignores the three lowest bits, grouping
+/// octets of consecutive registers produced by an 8-output PBS.
+pub const MASK_PBS8: usize = usize::MAX << 3;
+
 /// Inline operand carried by DOP instructions.
 ///
 /// Supports two stream modes. *Unpatched* streams use symbolic
@@ -114,24 +114,52 @@ pub const LUT_ALIASES: [&str; 76] = [
 #[derive(Debug, Clone, Eq, Hash)]
 pub enum Argument {
     /// Constant immediate plaintext value.
-    PtConst { val: u8 },
+    PtConst {
+        val: u8,
+    },
     /// Ciphertext block located on the heap.
-    CtHeap { addr: usize },
+    CtHeap {
+        addr: usize,
+    },
     /// Ciphertext block located in I/O memory.
-    CtIo { addr: usize },
+    CtIo {
+        addr: usize,
+    },
     /// Symbolic ciphertext source variable, patched to a physical address by
     /// the microcontroller.
-    CtSrcVar { id: usize, block: usize },
+    CtSrcVar {
+        id: usize,
+        block: usize,
+    },
     /// Symbolic ciphertext destination variable, patched to a physical address by
     /// the microcontroller.
-    CtDstVar { id: usize, block: usize },
+    CtDstVar {
+        id: usize,
+        block: usize,
+    },
     /// Symbolic plaintext source variable, patched to a `PtConst` by the
     /// microcontroller.
-    PtSrcVar { id: usize, block: usize },
+    PtSrcVar {
+        id: usize,
+        block: usize,
+    },
     /// Physical ciphertext register with an alignment mask.
-    CtReg { mask: usize, addr: usize },
+    CtReg {
+        mask: usize,
+        addr: usize,
+    },
     /// Lookup table identifier.
-    LutId { id: usize },
+    LutId {
+        id: usize,
+    },
+    // Event uid
+    UserFlag {
+        flag: u8,
+    },
+    // Board identifier
+    VirtId {
+        id: u8,
+    },
 }
 
 impl Argument {
@@ -211,7 +239,9 @@ impl Argument {
             Argument::CtDstVar { id, block } => format!("TD[{id}].{block}"),
             Argument::PtSrcVar { id, block } => format!("TI[{id}].{block}"),
             Argument::CtReg { addr, .. } => format!("R{addr}"),
-            Argument::LutId { id } => LUT_ALIASES[*id].into(),
+            Argument::LutId { id } => format!("Pbs{}", LUT_ALIASES[*id]),
+            Argument::UserFlag { flag } => format!("F{flag}"),
+            Argument::VirtId { id } => format!("N{id}"),
         }
     }
 }
@@ -263,6 +293,10 @@ impl PartialEq for Argument {
                 },
             ) => (lhs_id, lhs_block) == (rhs_id, rhs_block),
             (Argument::LutId { id: lhs_id }, Argument::LutId { id: rhs_id }) => lhs_id == rhs_id,
+            (Argument::UserFlag { flag: lhs_flag }, Argument::UserFlag { flag: rhs_flag }) => {
+                lhs_flag == rhs_flag
+            }
+            (Argument::VirtId { id: lhs_id }, Argument::VirtId { id: rhs_id }) => lhs_id == rhs_id,
             _ => false,
         }
     }
@@ -284,6 +318,8 @@ impl Display for Argument {
             }
             Argument::PtSrcVar { id, block } => write!(f, "TI({id}, {block})"),
             Argument::LutId { id } => write!(f, "LUT({id})"),
+            Argument::UserFlag { flag } => write!(f, "F({flag})"),
+            Argument::VirtId { id } => write!(f, "N({id})"),
         }
     }
 }
@@ -322,12 +358,18 @@ impl Display for Affinity {
 /// Instructions fall into four categories matching the [`Affinity`]
 /// lanes: register arithmetic (`ADD`, `SUB`, `MAC`, `ADDS`, `SUBS`,
 /// `SSUB`, `MULS`), memory transfer (`LD`, `ST`), programmable
-/// bootstrapping (`PBS` family), and control (`_INIT`, `SYNC`).
+/// bootstrapping (`PBS` family), and control (`_START`, `_END`).
 /// Scalar-operand arithmetic variants (`ADDS`, `SUBS`, `SSUB`,
 /// `MULS`) take a plaintext constant in `cst`.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(non_camel_case_types)]
 pub enum DopInstructionSet {
+    /// Stream start marker. Produces the initial context
+    /// token.
+    _START,
+    /// Stream end marker. Consumes the context token, ensuring
+    /// all preceding instructions have completed.
+    _END,
     /// `dst = src1 + src2` — ciphertext addition.
     ADD {
         dst: Argument,
@@ -423,42 +465,62 @@ pub enum DopInstructionSet {
         src: Argument,
         lut: Argument,
     },
-    /// Stream initialization marker. Produces the initial context
-    /// token.
-    _INIT,
-    /// Synchronization barrier. Consumes the context token, ensuring
-    /// all preceding instructions have completed.
+    /// Synchronization barrier.
     SYNC,
+    /// Wait virtual op for Multi-HPU
+    WAIT {
+        flag: Argument,
+        slot: Option<Argument>,
+    },
+    /// Notify virtual op for Multi-HPU
+    NOTIFY {
+        virt_id: Argument,
+        flag: Argument,
+        slot: Argument,
+    },
+    /// Load B2B virtual op for Multi-HPU
+    LD_B2B { flag: Argument, slot: Argument },
 }
 
 impl Format for DopInstructionSet {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>, _ctx: &FormatContext) -> std::fmt::Result {
         use DopInstructionSet::*;
         match self {
-            ADD { dst, src1, src2 } => write!(f, "ADD<{}, {}, {}>", dst, src1, src2),
-            SUB { dst, src1, src2 } => write!(f, "SUB<{}, {}, {}>", dst, src1, src2),
+            ADD { dst, src1, src2 } => write!(f, "ADD<{dst}, {src1}, {src2}>"),
+            SUB { dst, src1, src2 } => write!(f, "SUB<{dst}, {src1}, {src2}>"),
             MAC {
                 dst,
                 src1,
                 src2,
                 cst,
-            } => write!(f, "MAC<{}, {}, {}, {}>", dst, src1, src2, cst),
-            ADDS { dst, src, cst } => write!(f, "ADDS<{}, {}, {}>", dst, src, cst),
-            SUBS { dst, src, cst } => write!(f, "SUBS<{}, {}, {}>", dst, src, cst),
-            SSUB { dst, src, cst } => write!(f, "SSUB<{}, {}, {}>", dst, src, cst),
-            MULS { dst, src, cst } => write!(f, "MULS<{}, {}, {}>", dst, src, cst),
-            LD { dst, src } => write!(f, "LD<{}, {}>", dst, src),
-            ST { dst, src } => write!(f, "ST<{}, {}>", dst, src),
-            PBS { dst, src, lut } => write!(f, "PBS<{}, {}, {}>", dst, src, lut),
-            PBS_ML2 { dst, src, lut } => write!(f, "PBS2<{}, {}, {}>", dst, src, lut),
-            PBS_ML4 { dst, src, lut } => write!(f, "PBS4<{}, {}, {}>", dst, src, lut),
-            PBS_ML8 { dst, src, lut } => write!(f, "PBS8<{}, {}, {}>", dst, src, lut),
-            PBS_F { dst, src, lut } => write!(f, "PBSF<{}, {}, {}>", dst, src, lut),
-            PBS_ML2_F { dst, src, lut } => write!(f, "PBS2F<{}, {}, {}>", dst, src, lut),
-            PBS_ML4_F { dst, src, lut } => write!(f, "PBS4F<{}, {}, {}>", dst, src, lut),
-            PBS_ML8_F { dst, src, lut } => write!(f, "PBS8F<{}, {}, {}>", dst, src, lut),
-            _INIT => write!(f, "_INIT"),
+            } => write!(f, "MAC<{dst}, {src1}, {src2}, {cst}>"),
+            ADDS { dst, src, cst } => write!(f, "ADDS<{dst}, {src}, {cst}>"),
+            SUBS { dst, src, cst } => write!(f, "SUBS<{dst}, {src}, {cst}>"),
+            SSUB { dst, src, cst } => write!(f, "SSUB<{dst}, {src}, {cst}>"),
+            MULS { dst, src, cst } => write!(f, "MULS<{dst}, {src}, {cst}>"),
+            LD { dst, src } => write!(f, "LD<{dst}, {src}>"),
+            ST { dst, src } => write!(f, "ST<{dst}, {src}>"),
+            PBS { dst, src, lut } => write!(f, "PBS<{dst}, {src}, {lut}>"),
+            PBS_ML2 { dst, src, lut } => write!(f, "PBS2<{dst}, {src}, {lut}>"),
+            PBS_ML4 { dst, src, lut } => write!(f, "PBS4<{dst}, {src}, {lut}>"),
+            PBS_ML8 { dst, src, lut } => write!(f, "PBS8<{dst}, {src}, {lut}>"),
+            PBS_F { dst, src, lut } => write!(f, "PBSF<{dst}, {src}, {lut}>"),
+            PBS_ML2_F { dst, src, lut } => write!(f, "PBS2F<{dst}, {src}, {lut}>"),
+            PBS_ML4_F { dst, src, lut } => write!(f, "PBS4F<{dst}, {src}, {lut}>"),
+            PBS_ML8_F { dst, src, lut } => write!(f, "PBS8F<{dst}, {src}, {lut}>"),
+            _START => write!(f, "_START"),
+            _END => write!(f, "_END"),
             SYNC => write!(f, "SYNC"),
+            WAIT { flag, slot } => match slot {
+                Some(slot) => write!(f, "WAIT<{flag}, {slot}>"),
+                None => write!(f, "WAIT<{flag}>"),
+            },
+            NOTIFY {
+                virt_id,
+                flag,
+                slot,
+            } => write!(f, "NOTIFY<{virt_id}, {flag}, {slot}>"),
+            LD_B2B { flag, slot } => write!(f, "LD_B2B<{flag}, {slot}>"),
         }
     }
 }
@@ -511,15 +573,23 @@ impl DopInstructionSet {
             PBS_ML2_F { .. } => Pbs,
             PBS_ML4_F { .. } => Pbs,
             PBS_ML8_F { .. } => Pbs,
-            _INIT => Ctl,
+            _START => Ctl,
+            _END => Ctl,
             SYNC => Ctl,
+            NOTIFY { .. } => Ctl,
+            WAIT { .. } => Ctl,
+            LD_B2B { .. } => Ctl,
         }
     }
 
     /// Returns true if this instruction reads from the given argument.
     ///
     /// Only checks ciphertext source operands (`src`, `src1`, `src2`),
-    /// not `cst` or `lut` fields. Returns false for `_INIT` and `SYNC`.
+    /// not `cst` or `lut` fields. Returns false for `_START`, `_END`, and `SYNC`.
+    ///
+    /// # Panics
+    ///
+    /// Panics for the Multi-HPU instructions `WAIT`, `NOTIFY`, and `LD_B2B`.
     pub fn has_source(&self, arg: &Argument) -> bool {
         use DopInstructionSet::*;
         match self {
@@ -540,12 +610,18 @@ impl DopInstructionSet {
             PBS_ML2_F { src, .. } => arg == src,
             PBS_ML4_F { src, .. } => arg == src,
             PBS_ML8_F { src, .. } => arg == src,
-            _INIT => false,
+            _START => false,
+            _END => false,
             SYNC => false,
+            LD_B2B { .. } | WAIT { .. } | NOTIFY { .. } => panic!(),
         }
     }
 
-    /// Returns the destination operand, or `None` for `_INIT` and `SYNC`.
+    /// Returns the destination operand, or `None` for `_START`, `_END`, and `SYNC`.
+    ///
+    /// # Panics
+    ///
+    /// Panics for the Multi-HPU instructions `WAIT`, `NOTIFY`, and `LD_B2B`.
     pub fn get_dst(&self) -> Option<&Argument> {
         use DopInstructionSet::*;
         match self {
@@ -566,13 +642,19 @@ impl DopInstructionSet {
             PBS_ML2_F { dst, .. } => Some(dst),
             PBS_ML4_F { dst, .. } => Some(dst),
             PBS_ML8_F { dst, .. } => Some(dst),
-            _INIT => None,
+            _START => None,
+            _END => None,
             SYNC => None,
+            LD_B2B { .. } | WAIT { .. } | NOTIFY { .. } => panic!(),
         }
     }
 
-    /// Returns the first source operand, or `None` for `_INIT` and
+    /// Returns the first source operand, or `None` for `_START`, `_END`, and
     /// `SYNC`.
+    ///
+    /// # Panics
+    ///
+    /// Panics for the Multi-HPU instructions `WAIT`, `NOTIFY`, and `LD_B2B`.
     pub fn get_src1(&self) -> Option<&Argument> {
         use DopInstructionSet::*;
         match self {
@@ -593,8 +675,10 @@ impl DopInstructionSet {
             PBS_ML2_F { src, .. } => Some(src),
             PBS_ML4_F { src, .. } => Some(src),
             PBS_ML8_F { src, .. } => Some(src),
-            _INIT => None,
+            _START => None,
+            _END => None,
             SYNC => None,
+            LD_B2B { .. } | WAIT { .. } | NOTIFY { .. } => panic!(),
         }
     }
 
@@ -602,6 +686,10 @@ impl DopInstructionSet {
     /// with fewer than two ciphertext sources.
     ///
     /// Only `ADD`, `SUB`, and `MAC` carry a second source.
+    ///
+    /// # Panics
+    ///
+    /// Panics for the Multi-HPU virtual instructions `WAIT`, `NOTIFY`, and `LD_B2B`.
     pub fn get_src2(&self) -> Option<&Argument> {
         use DopInstructionSet::*;
         match self {
@@ -622,8 +710,10 @@ impl DopInstructionSet {
             PBS_ML2_F { .. } => None,
             PBS_ML4_F { .. } => None,
             PBS_ML8_F { .. } => None,
-            _INIT => None,
+            _START => None,
+            _END => None,
             SYNC => None,
+            LD_B2B { .. } | WAIT { .. } | NOTIFY { .. } => panic!(),
         }
     }
 }
@@ -651,9 +741,13 @@ impl DialectInstructionSet for DopInstructionSet {
             | PBS_F { .. }
             | PBS_ML2_F { .. }
             | PBS_ML4_F { .. }
-            | PBS_ML8_F { .. } => sig![(Ctx(0)) -> (Ctx(0))],
-            _INIT => sig![() -> (Ctx(0))],
-            SYNC => sig![(Ctx(0)) -> ()],
+            | PBS_ML8_F { .. }
+            | SYNC
+            | WAIT { .. }
+            | NOTIFY { .. }
+            | LD_B2B { .. } => sig![(Ctx(0)) -> (Ctx(0))],
+            _START => sig![() -> (Ctx(0))],
+            _END => sig![(Ctx(0)) -> ()],
         }
     }
 }

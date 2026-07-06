@@ -90,6 +90,7 @@ pub fn batch(ir: &IR<HpuLang>, sched: Vec<SchedElm>) -> IR<HpuLang> {
             Batch { .. } | BatchArg { .. } | BatchRet { .. } => {
                 panic!("Unexpected batch operations encountered.")
             }
+            _ => unreachable!(),
         }
     })
     .output

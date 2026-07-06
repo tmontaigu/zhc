@@ -11,11 +11,19 @@ use crate::allocator::{
     register_file::RegId,
 };
 
+/// Lowers a register-allocated HPU program into a DOP instruction stream.
+///
+/// Walks `ir` — an HPU IR annotated with the allocator's [`Alloc`] decisions —
+/// and emits, for each operation, the concrete DOP instructions realizing it:
+/// the spills and unspills as `ST`/`LD`, the compute ops against their bound
+/// registers, and inter-HPU transfers as the `WAIT`/`NOTIFY`/`LD_B2B` handshake
+/// over the operation's reserved heap slots. The resulting stream is bracketed
+/// between a leading `_START` and a trailing `_END` context marker.
 pub fn translate<'ir>(ir: &AnnIR<'ir, HpuLang, Alloc, ()>) -> IR<DopLang> {
     use HpuInstructionSet::*;
 
     let mut output = IR::empty();
-    let (_, val) = output.add_op(DopInstructionSet::_INIT, svec![]);
+    let (_, val) = output.add_op(DopInstructionSet::_START, svec![]);
     let mut ctx = val[0];
 
     let mut add_op = |dop| {
@@ -24,11 +32,26 @@ pub fn translate<'ir>(ir: &AnnIR<'ir, HpuLang, Alloc, ()>) -> IR<DopLang> {
     };
 
     for op in ir.walk_ops_linear() {
+        let Alloc { slots, .. } = op.get_annotation();
+
+        match op.get_instruction() {
+            TransferIn { id, .. } => {
+                add_op(DopInstructionSet::LD_B2B {
+                    flag: Argument::UserFlag { flag: id.0 },
+                    slot: Argument::ct_heap(slots[0].0 as usize),
+                });
+            }
+            _ => {}
+        }
+    }
+
+    for op in ir.walk_ops_linear() {
         let Alloc {
             spills,
             unspills,
             srcs,
             dsts,
+            slots,
         } = op.get_annotation();
 
         for Spill { from, to } in spills.iter() {
@@ -54,6 +77,27 @@ pub fn translate<'ir>(ir: &AnnIR<'ir, HpuLang, Alloc, ()>) -> IR<DopLang> {
                         from.block_pos.try_into().unwrap(),
                     ),
                 });
+            }
+            TransferOut { to, id, .. } => {
+                add_op(DopInstructionSet::ST {
+                    dst: Argument::ct_heap(slots[0].0 as usize),
+                    src: Argument::ct_reg(srcs[0].0),
+                });
+                add_op(DopInstructionSet::NOTIFY {
+                    virt_id: Argument::VirtId { id: to.0 },
+                    flag: Argument::UserFlag { flag: id.0 },
+                    slot: Argument::ct_heap(slots[0].0 as usize),
+                });
+            }
+            TransferIn { id, .. } => {
+                add_op(DopInstructionSet::WAIT {
+                    flag: Argument::UserFlag { flag: id.0 },
+                    slot: Some(Argument::ct_heap(slots[0].0 as usize)),
+                });
+                add_op(DopInstructionSet::LD {
+                    dst: Argument::ct_reg(dsts[0].0),
+                    src: Argument::ct_heap(slots[0].0 as usize),
+                })
             }
             DstSt { to } => {
                 add_op(DopInstructionSet::ST {
@@ -295,6 +339,8 @@ pub fn translate<'ir>(ir: &AnnIR<'ir, HpuLang, Alloc, ()>) -> IR<DopLang> {
             ),
         }
     }
+
+    output.add_op(DopInstructionSet::_END, svec![ctx]);
 
     output
 }

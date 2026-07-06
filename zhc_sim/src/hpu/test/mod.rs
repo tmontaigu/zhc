@@ -4,7 +4,7 @@ use super::*;
 use crate::Cycle;
 use crate::Simulator;
 
-mod legacy;
+pub mod legacy;
 
 macro_rules! test_hpu_simulation {
     ($($name: ident => $cycles: literal),+) => {
@@ -14,10 +14,10 @@ macro_rules! test_hpu_simulation {
         fn $name() {
             let mut config = HpuConfig::from(PhysicalConfig::gaussian_64b_fast());
             config.pbs_timeout = Cycle(100_000);
-            let mut sim = Simulator::from_simulatable(config.freq, Hpu::new(&config), TracingLevel::None);
+            let mut sim = Simulator::from_simulatable(config.freq, Hpu::new(&config, HpuId(0)), TracingLevel::None);
             let (stream, leg_lat) = legacy::$name();
-            sim.dispatch(Events::IscPushDOps(stream.collect()));
-            sim.play_until_event(Events::IscProcessOver);
+            sim.dispatch(Events::UCorePushDOps(stream.collect()));
+            sim.play_until_event(Events::UCoreStarved);
             // sim.dump_trace("test.json");
 
             // Check that there are no diff with previous execution
@@ -36,52 +36,52 @@ macro_rules! test_hpu_simulation {
     }
 }
 test_hpu_simulation!(
-    ADDS => 79876,
-    SUBS => 88112,
-    SSUB => 88124,
-    MULS => 153212,
-    DIVS => 2805520,
-    MODS => 2752055,
-    OVF_ADDS => 72215,
-    OVF_SUBS => 80451,
-    OVF_SSUB => 80463,
-    OVF_MULS => 270778,
-    SHIFTS_R => 14507,
-    SHIFTS_L => 14507,
-    ROTS_R => 14507,
-    ROTS_L => 14507,
-    ADD => 64481,
-    SUB => 72214,
-    MUL => 137594,
-    DIV => 2651019,
-    MOD => 2545099,
-    OVF_ADD => 56819,
-    OVF_SUB => 60453,
-    OVF_MUL => 255443,
-    SHIFT_R => 351361,
-    SHIFT_L => 347066,
-    ROT_R => 367988,
-    ROT_L => 367923,
-    BW_AND => 23102,
-    BW_OR => 23102,
-    BW_XOR => 23102,
-    CMP_GT => 54960,
-    CMP_GTE => 54960,
-    CMP_LT => 54960,
-    CMP_LTE => 54960,
-    CMP_EQ => 54960,
-    CMP_NEQ => 54960,
-    IF_THEN_ZERO => 23066,
-    IF_THEN_ELSE => 38213,
-    ERC_20 => 160709,
-    MEMCPY => 4289,
-    ILOG2 => 271039,
-    COUNT0 => 129094,
-    COUNT1 => 129094,
-    LEAD0 => 356220,
-    LEAD1 => 368101,
-    TRAIL0 => 356220,
-    TRAIL1 => 358395,
-    ADD_SIMD => 192421,
-    ERC_20_SIMD => 891826
+    ADDS => 79875,
+    SUBS => 88111,
+    SSUB => 88123,
+    MULS => 153211,
+    DIVS => 2805519,
+    MODS => 2752054,
+    OVF_ADDS => 72214,
+    OVF_SUBS => 80450,
+    OVF_SSUB => 80462,
+    OVF_MULS => 270777,
+    SHIFTS_R => 14506,
+    SHIFTS_L => 14506,
+    ROTS_R => 14506,
+    ROTS_L => 14506,
+    ADD => 64480,
+    SUB => 72213,
+    MUL => 137593,
+    DIV => 2651018,
+    MOD => 2545098,
+    OVF_ADD => 56818,
+    OVF_SUB => 60452,
+    OVF_MUL => 255442,
+    SHIFT_R => 351360,
+    SHIFT_L => 347065,
+    ROT_R => 367987,
+    ROT_L => 367922,
+    BW_AND => 23101,
+    BW_OR => 23101,
+    BW_XOR => 23101,
+    CMP_GT => 54959,
+    CMP_GTE => 54959,
+    CMP_LT => 54959,
+    CMP_LTE => 54959,
+    CMP_EQ => 54959,
+    CMP_NEQ => 54959,
+    IF_THEN_ZERO => 23065,
+    IF_THEN_ELSE => 38212,
+    ERC_20 => 160708,
+    MEMCPY => 4288,
+    ILOG2 => 271038,
+    COUNT0 => 129093,
+    COUNT1 => 129093,
+    LEAD0 => 356219,
+    LEAD1 => 368100,
+    TRAIL0 => 356219,
+    TRAIL1 => 358394,
+    ADD_SIMD => 192420,
+    ERC_20_SIMD => 891825
 );

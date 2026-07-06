@@ -499,7 +499,7 @@ pub fn generate_translation_table(ir: &IR<DopLang>) -> Vec<DOpRepr> {
                         .0,
                 );
             }
-            SYNC | _INIT => {}
+            _START | _END => {}
             a => {
                 panic!("Unexpected Doplang Operation encountered: {a}")
             }

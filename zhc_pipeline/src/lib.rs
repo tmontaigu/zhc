@@ -5,6 +5,7 @@
 //! pipeline consists of translation from IOP language to HPU language,
 //! operation scheduling, register allocation, and final code generation.
 
+use crate::scheduler::SchedPolicy;
 use allocator::allocate_registers;
 use std::f64;
 use std::path::Path;
@@ -15,8 +16,6 @@ use zhc_langs::hpulang::{HpuLang, get_batch_statistics};
 use zhc_langs::ioplang::IopLang;
 use zhc_sim::MHz;
 use zhc_sim::hpu::HpuConfig;
-
-use crate::scheduler::SchedPolicy;
 
 pub mod allocator;
 pub mod compat;

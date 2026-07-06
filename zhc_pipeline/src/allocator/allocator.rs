@@ -35,6 +35,7 @@ pub struct Alloc {
     pub unspills: SmallVec<Unspill>,
     pub srcs: SmallVec<RegId>,
     pub dsts: SmallVec<RegId>,
+    pub slots: SmallVec<HeapSlot>,
 }
 
 pub struct Allocator<'ir> {
@@ -136,6 +137,14 @@ impl<'ir> Allocator<'ir> {
             });
         for to_retire in retiring {
             self.register_file[to_retire].retire();
+        }
+    }
+
+    fn acquire_heap_slots(&mut self, op: OpRef<'ir, HpuLang>) -> SmallVec<HeapSlot> {
+        use HpuInstructionSet::*;
+        match op.get_instruction() {
+            TransferIn { .. } | TransferOut { .. } => svec![self.heap.get_unmapped()],
+            _ => svec![],
         }
     }
 
@@ -241,6 +250,7 @@ impl<'ir> Allocator<'ir> {
             }
 
             let (mut spills, unspills) = self.acquire_src_registers(op.clone());
+            let slots = self.acquire_heap_slots(op.clone());
             self.retire_registers();
             let more_spills = self.acquire_dst_registers(op.clone());
 
@@ -264,6 +274,7 @@ impl<'ir> Allocator<'ir> {
                             _ => None,
                         })
                         .collect(),
+                    slots,
                 },
             );
 
@@ -300,10 +311,9 @@ fn get_ranges<'ir>(op: &OpRef<'ir, HpuLang>) -> impl Iterator<Item = SmallVec<Va
         | CstSub { .. }
         | MulCst { .. }
         | CstCt { .. }
-        | SrcLd { .. } => std::iter::once(svec![op.get_return_valids()[0]]).reconcile_1_of_3(),
-
-        ImmLd { .. } | DstSt { .. } => std::iter::empty().reconcile_2_of_3(),
-
+        | SrcLd { .. }
+        | TransferIn { .. } => std::iter::once(svec![op.get_return_valids()[0]]).reconcile_1_of_3(),
+        ImmLd { .. } | DstSt { .. } | TransferOut { .. } => std::iter::empty().reconcile_2_of_3(),
         Batch { block } => {
             let batch_map = BatchMap::from_op(&op);
             block
@@ -330,7 +340,6 @@ fn get_ranges<'ir>(op: &OpRef<'ir, HpuLang>) -> impl Iterator<Item = SmallVec<Va
                 .into_iter()
                 .reconcile_3_of_3()
         }
-
         _ => unreachable!(),
     }
 }

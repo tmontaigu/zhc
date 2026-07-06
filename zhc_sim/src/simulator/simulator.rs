@@ -4,7 +4,7 @@ use super::*;
 use std::path::Path;
 use zhc_utils::tracing::Microseconds;
 
-static DUMP_TRACE_ON_PANIC: bool = false;
+static DUMP_TRACE_ON_PANIC: bool = true;
 static S_IN_US: f64 = 1_000_000.;
 
 /// Represents a frequency in megahertz for simulation timing.
@@ -19,6 +19,14 @@ impl MHz {
     /// Calculates the period duration in microseconds for this frequency.
     pub const fn period(&self) -> Microseconds {
         (1. / self.as_raw_hertz()) * S_IN_US
+    }
+
+    /// Returns the number of whole cycles spanning `duration` at this frequency.
+    ///
+    /// The result is truncated toward zero, so a `duration` shorter than one
+    /// period yields zero.
+    pub const fn n_cycles(&self, duration: Microseconds) -> usize {
+        (duration / self.period()) as usize
     }
 }
 
@@ -45,7 +53,7 @@ where
 {
     pub simulatable: S,
     quantum: Microseconds,
-    tracer: Tracer<S::Event>,
+    tracer: Tracer,
     dispatcher: Dispatcher<S::Event>,
     tracing_level: TracingLevel,
 }
@@ -106,7 +114,7 @@ where
     pub fn from_raw_parts(
         simulatable: S,
         quantum: Microseconds,
-        tracer: Tracer<S::Event>,
+        tracer: Tracer,
         dispatcher: Dispatcher<S::Event>,
         tracing_level: TracingLevel,
     ) -> Self {
@@ -168,7 +176,7 @@ where
                 if let Err(e) = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                     self.simulatable.handle(&mut self.dispatcher, trigger);
                 })) {
-                    self.dump_trace("test.json");
+                    self.dump_trace("simulation_panicked.json");
                     eprintln!("Panic caught during simulatable.handle(): {:?}", e);
                     panic!();
                 }
@@ -244,7 +252,7 @@ where
         self.tracer.dump(self.now(), path);
     }
 
-    pub fn get_tracer(&self) -> &Tracer<S::Event> {
+    pub fn get_tracer(&self) -> &Tracer {
         &self.tracer
     }
 

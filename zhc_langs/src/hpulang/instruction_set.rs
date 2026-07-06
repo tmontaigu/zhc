@@ -3,6 +3,8 @@ use std::fmt::{Debug, Display};
 use zhc_ir::{DialectInstructionSet, Format, FormatContext, IR, Signature, sig};
 use zhc_utils::iter::CollectInSmallVec;
 
+use crate::hpulang::{HpuId, TransferId};
+
 use super::{HpuLang, type_system::HpuTypeSystem};
 
 /// Plaintext constant inlined into an HPU instruction.
@@ -105,6 +107,12 @@ impl Display for TImmId {
 /// containing a group of PBS operations. `BatchArg` and `BatchRet`
 /// appear inside the nested IR to define the batch boundary interface.
 ///
+/// **Inter-HPU transfer.** `Transfer` moves a ciphertext register from
+/// one HPU to another within a partitioned multi-HPU program; it is
+/// later split by the pipeline into a matched `TransferOut`/`TransferIn`
+/// pair, identified by a shared [`TransferId`], that respectively export
+/// and import the register on the two boards.
+///
 /// All signatures are available via the [`DialectInstructionSet`] impl.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum HpuInstructionSet {
@@ -186,9 +194,27 @@ pub enum HpuInstructionSet {
     /// Batch output at positional slot `pos`. Appears inside a
     /// [`Batch`](Self::Batch) block. `(ty) → ()`
     BatchRet { pos: u8, ty: HpuTypeSystem },
+    /// Uncut transfer from one HPU to another.
+    /// (CtRegister) -> (CtRegister)
+    Transfer { from: HpuId, to: HpuId },
+    /// Cut transfer in from one HPU to another.
+    /// () -> (CtRegister)
+    TransferIn {
+        from: HpuId,
+        to: HpuId,
+        id: TransferId,
+    },
+    /// Cut transfer out from one HPU to another.
+    /// (CtRegister) -> ()
+    TransferOut {
+        from: HpuId,
+        to: HpuId,
+        id: TransferId,
+    },
 }
 
 impl HpuInstructionSet {
+    /// Returns whether this instruction is a PBS (any regular or flush variant).
     pub fn is_pbs(&self) -> bool {
         match self {
             HpuInstructionSet::Pbs { .. }
@@ -203,8 +229,28 @@ impl HpuInstructionSet {
         }
     }
 
+    /// Returns whether this instruction is a `Batch`.
     pub fn is_batch(&self) -> bool {
         matches!(self, HpuInstructionSet::Batch { .. })
+    }
+
+    /// Returns whether this instruction is an uncut `Transfer`.
+    ///
+    /// Only the unsplit [`Transfer`](Self::Transfer) form qualifies; the
+    /// `TransferIn`/`TransferOut` halves it lowers to do not.
+    pub fn is_transfer(&self) -> bool {
+        matches!(self, HpuInstructionSet::Transfer { .. })
+    }
+
+    /// Returns whether this instruction may be replicated across HPUs.
+    ///
+    /// Replicable instructions produce a ciphertext or immediate with no
+    /// ciphertext input (`CstCt`, `ImmLd`, `SrcLd`), so a value they define
+    /// can be re-materialized on each HPU that uses it instead of being
+    /// transferred across the partition boundary.
+    pub fn is_replicable(&self) -> bool {
+        use HpuInstructionSet::*;
+        matches!(self, CstCt { .. } | ImmLd { .. } | SrcLd { .. })
     }
 }
 
@@ -243,6 +289,9 @@ impl Format for HpuInstructionSet {
             }
             HpuInstructionSet::BatchArg { pos, ty } => write!(f, "batch_arg<{pos}, {ty}>"),
             HpuInstructionSet::BatchRet { pos, ty } => write!(f, "batch_ret<{pos}, {ty}>"),
+            HpuInstructionSet::Transfer { from, to } => write!(f, "transfer<{from}, {to}>"),
+            HpuInstructionSet::TransferIn { id, .. } => write!(f, "transfer_in<{id}>"),
+            HpuInstructionSet::TransferOut { id, .. } => write!(f, "transfer_out<{id}>"),
         }
     }
 }
@@ -313,6 +362,9 @@ impl DialectInstructionSet for HpuInstructionSet {
             }
             HpuInstructionSet::BatchArg { ty, .. } => sig![() -> (ty.clone())],
             HpuInstructionSet::BatchRet { ty, .. } => sig![(ty.clone()) -> ()],
+            HpuInstructionSet::Transfer { .. } => sig![(CtRegister) -> (CtRegister)],
+            HpuInstructionSet::TransferIn { .. } => sig![() -> (CtRegister)],
+            HpuInstructionSet::TransferOut { .. } => sig![(CtRegister) -> ()],
         }
     }
 }

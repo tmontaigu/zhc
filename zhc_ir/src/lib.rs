@@ -25,6 +25,7 @@
 pub mod cse;
 pub mod dce;
 pub mod interpretation;
+pub mod partition;
 pub mod scheduler;
 pub mod slack;
 pub mod translation;

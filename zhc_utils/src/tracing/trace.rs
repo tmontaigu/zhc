@@ -59,6 +59,7 @@ impl Trace {
         }));
     }
 
+    /// Define thread name and enforce tid based ordering
     pub fn set_thread_name<S: AsRef<str>>(&mut self, pid: Pid, tid: Tid, name: S) {
         self.trace_events.push(Event::Metadata(MetadataEvent {
             name: Metadata::ThreadName,
@@ -69,15 +70,32 @@ impl Trace {
             },
             ..MetadataEvent::default()
         }));
+        // Define sort on tid basis
+        self.trace_events.push(Event::Metadata(MetadataEvent {
+            name: Metadata::ThreadSortIndex,
+            pid,
+            tid,
+            args: MetadataArgs::ThreadSortIndex { sort_index: tid },
+            ..MetadataEvent::default()
+        }));
     }
 
+    /// Define process name and enforce pid based ordering
     pub fn set_process_name<S: AsRef<str>>(&mut self, pid: Pid, name: S) {
+        // Define process name
         self.trace_events.push(Event::Metadata(MetadataEvent {
             name: Metadata::ProcessName,
             pid,
             args: MetadataArgs::ProcessName {
                 name: name.as_ref().into(),
             },
+            ..MetadataEvent::default()
+        }));
+        // Define sort on pid basis
+        self.trace_events.push(Event::Metadata(MetadataEvent {
+            name: Metadata::ProcessSortIndex,
+            pid,
+            args: MetadataArgs::ProcessSortIndex { sort_index: pid },
             ..MetadataEvent::default()
         }));
     }

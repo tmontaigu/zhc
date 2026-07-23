@@ -509,9 +509,13 @@ impl EmulatedCiphertext {
 
     pub fn shift_right(self, amount: Self) -> EmulatedCiphertext {
         assert_eq!(self.spec, amount.spec(), "Spec mismatch.");
-        let w = self.spec.int_size() as u32;
-        let n = (amount.storage as u32) % w;
-        let storage = (self.storage >> n) & self.spec.int_mask();
+        let w = self.spec.int_size() as u128;
+        let n = amount.storage as u128;
+        let storage = if n >= w {
+            0
+        } else {
+            (self.storage >> n) & self.spec.int_mask()
+        };
         EmulatedCiphertext {
             storage,
             spec: self.spec,
@@ -520,9 +524,13 @@ impl EmulatedCiphertext {
 
     pub fn shift_left(self, amount: Self) -> EmulatedCiphertext {
         assert_eq!(self.spec, amount.spec(), "Spec mismatch.");
-        let w = self.spec.int_size() as u32;
-        let n = (amount.storage as u32) % w;
-        let storage = (self.storage << n) & self.spec.int_mask();
+        let w = self.spec.int_size() as u128;
+        let n = amount.storage as u128;
+        let storage = if n >= w {
+            0
+        } else {
+            (self.storage << n) & self.spec.int_mask()
+        };
         EmulatedCiphertext {
             storage,
             spec: self.spec,

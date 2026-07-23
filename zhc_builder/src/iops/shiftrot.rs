@@ -2,7 +2,7 @@ use zhc_crypto::integer_semantics::CiphertextSpec;
 use zhc_langs::ioplang::Lut1Def;
 
 use crate::{
-    CiphertextBlock,
+    CiphertextBlock, NU, NU_BOOL,
     builder::{Builder, Ciphertext},
 };
 
@@ -31,12 +31,14 @@ enum CondPos {
 /// Creates an IR for logical right shift of an encrypted integer.
 ///
 /// Convenience wrapper that calls [`Builder::iop_shiftrot`] with
-/// [`ShiftRotKind::ShiftRight`]. See that method for algorithm details.
+/// [`ShiftRotKind::ShiftRight`], followed by overshift detection. When
+/// `amount >= int_size`, the result is zeroed.
 pub fn shift_right(spec: CiphertextSpec) -> Builder {
     let builder = Builder::new(spec.block_spec());
     let src = builder.ciphertext_input(spec.int_size());
     let amount = builder.ciphertext_input(spec.int_size());
-    let res = builder.iop_shiftrot(&src, &amount, ShiftRotKind::ShiftRight);
+    let shifted = builder.iop_shiftrot(&src, &amount, ShiftRotKind::ShiftRight);
+    let res = builder.iop_overshift_zero(&shifted, &amount);
     builder.ciphertext_output(res);
     builder
 }
@@ -44,12 +46,14 @@ pub fn shift_right(spec: CiphertextSpec) -> Builder {
 /// Creates an IR for logical left shift of an encrypted integer.
 ///
 /// Convenience wrapper that calls [`Builder::iop_shiftrot`] with
-/// [`ShiftRotKind::ShiftLeft`]. See that method for algorithm details.
+/// [`ShiftRotKind::ShiftLeft`], followed by overshift detection. When
+/// `amount >= int_size`, the result is zeroed.
 pub fn shift_left(spec: CiphertextSpec) -> Builder {
     let builder = Builder::new(spec.block_spec());
     let src = builder.ciphertext_input(spec.int_size());
     let amount = builder.ciphertext_input(spec.int_size());
-    let res = builder.iop_shiftrot(&src, &amount, ShiftRotKind::ShiftLeft);
+    let shifted = builder.iop_shiftrot(&src, &amount, ShiftRotKind::ShiftLeft);
+    let res = builder.iop_overshift_zero(&shifted, &amount);
     builder.ciphertext_output(res);
     builder
 }
@@ -259,6 +263,104 @@ impl Builder {
             // No swap source — zero the block when condition is true.
             self.block_lookup(&pack_orig, lut_true_zeroed)
         }
+    }
+
+    /// Zeros `shifted` when `amount >= int_size` (unsigned overshift).
+    ///
+    /// The barrel shifter from iop_shiftrot consumes `num_stages = log₂(int_size)` bits of
+    /// `amount`.  Any bit set above that range means `amount >= int_size`,
+    /// so the result must be zero.
+    ///
+    /// Instead of a full integer comparison, only the blocks *not* consumed
+    /// by the barrel shifter ("high blocks") are tested for non-zero.  Raw
+    /// high blocks are summed in groups of [`NU`] with [`block_add`]
+    /// operations before a single [`IsSome`] PBS per group, reducing the PBS
+    /// count from one-per-block to ⌈n/NU⌉.  When `num_stages` is not a
+    /// multiple of `msg_w`, the topmost consumed block has an unused high
+    /// bit; that bit is extracted with [`IfPos1FalseZeroed`] (valid for
+    /// `msg_w = 2`).
+    ///
+    /// The resulting boolean signals (each 0 or 1) are reduced by summing
+    /// them with [`block_add`] operations (no PBS needed since the sum
+    /// stays within the carry budget), then a single [`IsSome`] PBS checks
+    /// whether the sum is non-zero.  This is repeated in chunks of
+    /// size [`NU_BOOL`].
+    pub fn iop_overshift_zero(&self, shifted: &Ciphertext, amount: &Ciphertext) -> Ciphertext {
+        let amount_blocks = self.ciphertext_split(amount);
+        let msg_w = self.spec().message_size() as usize;
+        let blk_w = amount_blocks.len();
+        let num_stages = (2 * blk_w).ilog2() as usize; // = log₂(int_size)
+        let num_low_blocks = num_stages.div_ceil(msg_w);
+
+        self.push_comment("Overshift detection");
+
+        let mut nz_signals: Vec<CiphertextBlock> = Vec::new();
+
+        // Mixed block: the topmost low block may have unused high bit(s)
+        // that signal overshift.  For msg_w = 2, only bit 1 (Pos1) is
+        // unused when num_stages is odd.  Extract it via pack + IfPos1FalseZeroed.
+        if num_stages % msg_w != 0 {
+            let mixed = &amount_blocks[num_low_blocks - 1];
+            let one = self.block_let_ciphertext(1);
+            let packed = self.block_pack(mixed, &one);
+            nz_signals.push(self.block_lookup(&packed, Lut1Def::IfPos1FalseZeroed));
+        }
+
+        // High blocks: sum raw blocks in groups of NU,
+        // then one IsSome PBS per group.
+        let high_blocks = &amount_blocks[num_low_blocks..];
+        for chunk in high_blocks.chunks(NU) {
+            let sum = chunk[1..]
+                .iter()
+                .fold(chunk[0], |acc, b| self.block_add(&acc, b));
+            self.push_comment("IsSome on chunk");
+            nz_signals.push(self.block_lookup(&sum, Lut1Def::IsSome));
+            self.pop_comment();
+        }
+
+        self.pop_comment();
+
+        if nz_signals.is_empty() {
+            // All amount bits are consumed by the barrel shifter —
+            // no overshift is possible.
+            return *shifted;
+        }
+
+        // Reduce: sum boolean signals in chunks of NU_BOOL,
+        // then apply one IsSome PBS per chunk.  Repeat until a
+        // single boolean block remains.
+        self.push_comment("Overshift reduce");
+        while nz_signals.len() > 1 {
+            nz_signals = nz_signals
+                .chunks(NU_BOOL)
+                .map(|chunk| {
+                    let sum = chunk[1..]
+                        .iter()
+                        .fold(chunk[0], |acc, b| self.block_add(&acc, b));
+                    if chunk.len() > 1 {
+                        self.block_lookup(&sum, Lut1Def::IsSome)
+                    } else {
+                        // Single element — already a boolean, no PBS needed.
+                        sum
+                    }
+                })
+                .collect();
+        }
+        self.pop_comment();
+
+        self.push_comment("return 0 if overshift");
+        // nz_signals[0] is 1 if overshift, 0 otherwise.
+        // IfTrueZeroed: if cond != 0 → 0; if cond == 0 → value.
+        let shifted_blocks = self.ciphertext_split(shifted);
+        let output_blocks: Vec<CiphertextBlock> = shifted_blocks
+            .iter()
+            .map(|b| {
+                let packed = self.block_pack(&nz_signals[0], b);
+                self.block_lookup(&packed, Lut1Def::IfTrueZeroed)
+            })
+            .collect();
+        self.pop_comment();
+        self.ciphertext_join(output_blocks, None)
     }
 }
 

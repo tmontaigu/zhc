@@ -273,18 +273,18 @@ impl Builder {
     ///
     /// Instead of a full integer comparison, only the blocks *not* consumed
     /// by the barrel shifter ("high blocks") are tested for non-zero.  Raw
-    /// high blocks are summed in groups of [`NU`] with [`block_add`]
-    /// operations before a single [`IsSome`] PBS per group, reducing the PBS
+    /// high blocks are summed in groups of NU with block_add
+    /// operations before a single IsSome PBS per group, reducing the PBS
     /// count from one-per-block to ⌈n/NU⌉.  When `num_stages` is not a
     /// multiple of `msg_w`, the topmost consumed block has an unused high
-    /// bit; that bit is extracted with [`IfPos1FalseZeroed`] (valid for
+    /// bit; that bit is extracted with IfPos1FalseZeroed (valid for
     /// `msg_w = 2`).
     ///
     /// The resulting boolean signals (each 0 or 1) are reduced by summing
-    /// them with [`block_add`] operations (no PBS needed since the sum
-    /// stays within the carry budget), then a single [`IsSome`] PBS checks
+    /// them with block_add operations (no PBS needed since the sum
+    /// stays within the carry budget), then a single IsSome PBS checks
     /// whether the sum is non-zero.  This is repeated in chunks of
-    /// size [`NU_BOOL`].
+    /// size NU_BOOL.
     pub fn iop_overshift_zero(&self, shifted: &Ciphertext, amount: &Ciphertext) -> Ciphertext {
         let amount_blocks = self.ciphertext_split(amount);
         let msg_w = self.spec().message_size() as usize;

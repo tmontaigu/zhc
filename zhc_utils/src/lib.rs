@@ -10,6 +10,7 @@ pub mod files;
 pub mod graphics;
 pub mod iter;
 pub mod small;
+pub mod topology;
 pub mod tracing;
 pub mod units;
 
@@ -36,6 +37,7 @@ pub use store::*;
 pub use type_name::*;
 
 pub use zhc_utils_macro::DisplayVariant;
+pub use zhc_utils_macro::StoreIndex;
 pub use zhc_utils_macro::assert_display_is;
 pub use zhc_utils_macro::existential_enum;
 pub use zhc_utils_macro::fsm;

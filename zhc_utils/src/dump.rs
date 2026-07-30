@@ -32,7 +32,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::{small::SmallVec, units::Microseconds};
+use crate::units::Microseconds;
 
 /// A type that can render itself as a human-readable string for debugging.
 ///
@@ -168,6 +168,12 @@ pub trait Dumpable {
     }
 }
 
+impl<E: Dumpable> Dumpable for &E {
+    fn dump_to_string(&self) -> String {
+        (*self).dump_to_string()
+    }
+}
+
 impl<E: Dumpable> Dumpable for [E] {
     fn dump_to_string(&self) -> String {
         let elements: Vec<String> = self.iter().map(|e| e.dump_to_string()).collect();
@@ -182,13 +188,6 @@ impl Dumpable for str {
 }
 
 impl<E: Dumpable> Dumpable for VecDeque<E> {
-    fn dump_to_string(&self) -> String {
-        let elements: Vec<String> = self.iter().map(|e| e.dump_to_string()).collect();
-        format!("[{}]", elements.join(", "))
-    }
-}
-
-impl<E: Dumpable> Dumpable for SmallVec<E> {
     fn dump_to_string(&self) -> String {
         let elements: Vec<String> = self.iter().map(|e| e.dump_to_string()).collect();
         format!("[{}]", elements.join(", "))

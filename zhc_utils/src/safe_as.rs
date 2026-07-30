@@ -1,10 +1,12 @@
+use std::fmt::Display;
+
 pub trait SafeAs {
     fn sas<T>(self) -> T
     where
         Self: TryInto<T>;
 }
 
-impl<A> SafeAs for A {
+impl<A: Display + Copy> SafeAs for A {
     #[track_caller]
     fn sas<T>(self) -> T
     where
@@ -14,7 +16,12 @@ impl<A> SafeAs for A {
             Ok(v) => v,
             Err(_) => {
                 let loc = std::panic::Location::caller();
-                panic!("Failed to safe cast at {}:{}", loc.file(), loc.line());
+                panic!(
+                    "Failed to safe cast {} at {}:{}",
+                    self,
+                    loc.file(),
+                    loc.line()
+                );
             }
         }
     }

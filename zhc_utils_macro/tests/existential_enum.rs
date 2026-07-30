@@ -53,8 +53,19 @@ fn variant_name_reports_the_type_tag() {
 }
 
 #[test]
+fn tests_discriminate_the_held_variant() {
+    let artifact = Artifact::IopLang(vec![1]);
+    assert!(artifact.is_iop_lang());
+    assert!(!artifact.is_builder());
+    assert!(!artifact.is_hpu_lang_translated());
+    assert!(!artifact.is_html_file());
+    assert!(Artifact::HTMLFile('c').is_html_file());
+}
+
+#[test]
 fn single_variant_enum_needs_no_fallback_arm() {
     assert_eq!(Single::Only(3).unwrap_only(), 3);
+    assert!(Single::Only(3).is_only());
 }
 
 #[test]
@@ -63,6 +74,7 @@ fn generics_are_forwarded() {
     *owned.unwrap_owned_mut() += 1;
     assert_eq!(owned.unwrap_owned(), 2);
     assert_eq!(Generic::Many(vec!['a']).unwrap_many(), vec!['a']);
+    assert!(Generic::Many(vec!['a']).is_many());
 }
 
 #[test]

@@ -4,7 +4,7 @@ use std::{
 };
 
 use serde::Serialize;
-use zhc_utils::{Dumpable, SafeAs, StoreIndex};
+use zhc_utils::{Dumpable, StoreIndex};
 
 use crate::{Dialect, OpRef};
 
@@ -43,8 +43,12 @@ macro_rules! impl_index {
         pub type $raw = $raw_type;
 
         #[doc = $doc]
-        #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
-        pub struct $name(pub $raw);
+        #[derive(
+            Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, StoreIndex,
+        )]
+        // Spelled as the primitive rather than through `$raw`: `StoreIndex` only derives for a
+        // literal unsigned type, a derive macro seeing tokens and not resolved aliases.
+        pub struct $name(pub $raw_type);
 
         impl Add<$raw> for $name {
             type Output = $name;
@@ -66,22 +70,6 @@ macro_rules! impl_index {
             /// Creates an iterator over a range of identifiers from `start` to `end`.
             pub fn range(start: $raw, end: $raw) -> impl DoubleEndedIterator<Item = $name> {
                 (start..end).map(|a| $name(a))
-            }
-        }
-
-        impl StoreIndex for $name {
-            type Raw = $raw;
-            fn as_usize(&self) -> usize {
-                self.0.sas()
-            }
-            fn as_raw(&self) -> $raw {
-                self.0
-            }
-            fn raw_from_usize(val: usize) -> $raw {
-                val.sas()
-            }
-            fn from_usize(val: usize) -> $name {
-                $name(val.sas())
             }
         }
 

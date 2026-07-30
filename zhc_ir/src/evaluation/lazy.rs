@@ -89,6 +89,15 @@ where
         }
     }
 
+    pub fn into_val(mut self, valid: impl AsValId) -> Result<V, EvalError> {
+        match self.valmap.remove(valid) {
+            None => Err(EvalError::UnknownValId),
+            Some(ValState::Pending) => Err(EvalError::PendingValId),
+            Some(ValState::PoisonedBy(opid)) => Err(EvalError::PoisonedValId(opid)),
+            Some(ValState::Evaluated(v)) => Ok(v),
+        }
+    }
+
     /// Evaluates whatever is needed to produce the given value.
     ///
     /// Resolves `valid` to its producing operation and pulls that operation against `context`. The

@@ -1,0 +1,69 @@
+use criterion::{Criterion, criterion_group, criterion_main};
+use std::{hint::black_box, time::Instant};
+use zhc_config::vm::VmConfig;
+use zhc_utils::Dumpable;
+
+use tfhe::{
+    integer::RadixCiphertext,
+    shortint::parameters::v1_6::V1_6_PARAM_MESSAGE_2_CARRY_2_KS32_PBS_TUNIFORM_2M128,
+};
+use zhc::{builder::CiphertextSpec, pipeline::compat::Iop, prelude::Pipeline};
+use zhc_vm::{Value, ValueMut, Vm, VmConfigExt};
+
+fn bench_vm(c: &mut Criterion) {
+    let p = V1_6_PARAM_MESSAGE_2_CARRY_2_KS32_PBS_TUNIFORM_2M128;
+    let spec = CiphertextSpec::new(64, 2, 2);
+    let n_blocks = 64 / 2; // 2 message bits per block over a 64-bit integer.
+
+    let config = VmConfig::from_ks32_params(p, 1024);
+
+    let (ck, sk) = tfhe::generate_keys(tfhe::ConfigBuilder::with_custom_parameters(p));
+    let ck = ck.into_raw_parts().0;
+    let mut vm = Vm::new(&config, None);
+    vm.set_server_key(sk);
+
+    let mut group = c.benchmark_group("vm");
+
+    for iop in [Iop::BwAnd] {
+        let t = Instant::now();
+        let builder = iop.to_builder(spec);
+        let mut pipeline = Pipeline::new()
+            .with_builder(builder)
+            .with_vm_config(config.clone());
+        let sig = pipeline.get_prototype().to_owned();
+        let plan = pipeline.into_vm_execution_plan();
+        println!("Compiling {:?} took {} us", iop, t.elapsed().as_micros());
+
+        let n_in = sig.get_args_arity();
+        let n_out = sig.get_returns_arity();
+
+        let in_cts: Vec<RadixCiphertext> = (0..n_in)
+            .map(|_| ck.encrypt_radix(99u64, n_blocks))
+            .collect();
+        let mut out_cts: Vec<RadixCiphertext> = (0..n_out)
+            .map(|_| ck.encrypt_radix(0u64, n_blocks))
+            .collect();
+
+        let in_vals: Vec<Value> = in_cts
+            .iter()
+            .map(|c| Value::FheUint(c as *const RadixCiphertext))
+            .collect();
+        let mut out_vals: Vec<ValueMut> = out_cts
+            .iter_mut()
+            .map(|c| ValueMut::FheUint(c as *mut RadixCiphertext))
+            .collect();
+
+        vm.reset_statistics();
+
+        group.bench_function(format!("{iop:?}"), |b| {
+            b.iter(|| vm.execute(black_box(&plan), black_box(&in_vals), &mut out_vals));
+        });
+
+        vm.get_statistics().dump();
+    }
+
+    group.finish();
+}
+
+criterion_group!(benches, bench_vm);
+criterion_main!(benches);

@@ -1,8 +1,9 @@
 //! Intermediate Operation (IOP) dialect for the ZHC compiler IR.
 //!
 //! This dialect models FHE computations at the block-operation level, sitting
-//! between the high-level builder API and the hardware-oriented HPU/DOP
-//! dialects. Programs in this dialect operate on multi-block ciphertexts and
+//! between the high-level builder API and the target-specific backend
+//! dialects (HPU/DOP for hardware, VM for software). Programs in this
+//! dialect operate on multi-block ciphertexts and
 //! plaintexts, with explicit block extraction, storage, arithmetic, and
 //! programmable bootstrapping (PBS) instructions.
 //!

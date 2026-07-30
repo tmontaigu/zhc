@@ -28,6 +28,11 @@ pub enum PipelineTypeSystem {
     MultiHpuTrace,
     MultiHpuStream,
     MultiHpuAssembly,
+    // Vm
+    VmConfig,
+    Topology,
+    VmLang,
+    VmExecutionPlan,
 }
 
 impl DialectTypeSystem for PipelineTypeSystem {}

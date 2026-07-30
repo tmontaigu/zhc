@@ -7,3 +7,4 @@ target
 **.html
 **.json
 **.asm
+**.trace

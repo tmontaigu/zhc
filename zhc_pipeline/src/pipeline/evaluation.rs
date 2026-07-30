@@ -10,7 +10,7 @@ use zhc_utils::{
     svec,
 };
 
-use crate::{SchedPolicy, hpu, misc, multi_hpu, pipeline::context::PipelineContext};
+use crate::{SchedPolicy, hpu, misc, multi_hpu, pipeline::context::PipelineContext, vm};
 
 use super::PipelineArtifact;
 
@@ -41,6 +41,10 @@ impl EvaluatesTo<PipelineArtifact> for PipelineTypeSystem {
             PipelineArtifact::MultiHpuStream(_) => PipelineTypeSystem::MultiHpuStream,
             PipelineArtifact::MultiHpuAssembly(_) => PipelineTypeSystem::MultiHpuAssembly,
             PipelineArtifact::Prototype(_) => PipelineTypeSystem::Prototype,
+            PipelineArtifact::VmConfig(_) => PipelineTypeSystem::VmConfig,
+            PipelineArtifact::Topology(_) => PipelineTypeSystem::Topology,
+            PipelineArtifact::VmLang(_) => PipelineTypeSystem::VmLang,
+            PipelineArtifact::VmExecutionPlan(_) => PipelineTypeSystem::VmExecutionPlan,
         }
     }
 }
@@ -135,7 +139,6 @@ impl Evaluable<PipelineArtifact> for PipelineInstructionSet {
                 let file = misc::draw_slack(ioplang);
                 svec![PipelineArtifact::SlackDrawing(file)]
             }
-
             PipelineInstructionSet::GenerateHpuAssembly => {
                 let doplang = arguments[0].unwrap_dop_lang_ref();
                 let file = FileHandle::random(Extension::Asm);
@@ -210,6 +213,31 @@ impl Evaluable<PipelineArtifact> for PipelineInstructionSet {
                     })
                     .collect();
                 svec![PipelineArtifact::MultiHpuAssembly(files)]
+            }
+            PipelineInstructionSet::InputVmConfig => {
+                let config = context.vm_config.clone().unwrap();
+                svec![PipelineArtifact::VmConfig(config)]
+            }
+            PipelineInstructionSet::InputTopology => {
+                let topology = context.topology.clone();
+                svec![PipelineArtifact::Topology(topology)]
+            }
+            PipelineInstructionSet::IopLangToVmLang => {
+                let ioplang = arguments[0].unwrap_iop_lang_ref();
+                let vmlang = vm::lowering::lower_iop_to_vm(ioplang);
+                svec![PipelineArtifact::VmLang(vmlang)]
+            }
+            PipelineInstructionSet::GenerateVmExecutionPlan => {
+                let vmlang = arguments[0].unwrap_vm_lang_ref();
+                let config = arguments[1].unwrap_vm_config_ref();
+                let topology = arguments[2].unwrap_topology_ref();
+                let exec = vm::scheduler::schedule(
+                    vmlang,
+                    config,
+                    topology,
+                    SchedPolicy::AsSoonAsPossible,
+                );
+                svec![PipelineArtifact::VmExecutionPlan(exec)]
             }
         }
     }

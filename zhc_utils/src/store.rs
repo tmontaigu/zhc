@@ -1,16 +1,19 @@
+use serde::Serialize;
 use std::{
     iter::FromIterator,
     marker::PhantomData,
     ops::{Index, IndexMut},
 };
 
+use crate::Dumpable;
+
 /// A vector-like container that uses typed indices for element access.
 ///
 /// The `Store` provides safe, typed access to elements using custom index types
 /// that implement `StoreIndex`. This prevents mixing up indices between different
 /// stores and provides better type safety than raw `usize` indices.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Store<I: StoreIndex, V>(Vec<V>, PhantomData<I>);
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Store<I: StoreIndex, V>(pub Vec<V>, PhantomData<I>);
 
 impl<I: StoreIndex, V> Store<I, V> {
     /// Creates an empty store.
@@ -34,6 +37,11 @@ impl<I: StoreIndex, V> Store<I, V> {
     /// Returns the number of elements in the store as the index type's raw representation.
     pub fn len(&self) -> I::Raw {
         I::raw_from_usize(self.0.len())
+    }
+
+    /// Returns `true` if the store contains no elements.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
     }
 
     /// Appends an element to the store and returns its typed index.
@@ -146,4 +154,16 @@ pub trait StoreIndex: Copy {
 
     /// Creates an index from a `usize`.
     fn from_usize(val: usize) -> Self;
+}
+
+impl<I: StoreIndex, V: Dumpable> Dumpable for Store<I, V> {
+    fn dump_to_string(&self) -> String {
+        let elements: Vec<String> = self
+            .0
+            .iter()
+            .enumerate()
+            .map(|(i, v)| format!("{}: {}", i, v.dump_to_string()))
+            .collect();
+        format!("[{}]", elements.join(", "))
+    }
 }

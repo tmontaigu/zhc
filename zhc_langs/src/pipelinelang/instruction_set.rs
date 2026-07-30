@@ -29,6 +29,11 @@ pub enum PipelineInstructionSet {
     GenerateMultiHpuStream,
     TraceMultiHpuExecution,
     GenerateMultiHpuAssembly,
+    // Vm
+    InputVmConfig,
+    InputTopology,
+    IopLangToVmLang,
+    GenerateVmExecutionPlan,
 }
 
 impl Format for PipelineInstructionSet {
@@ -40,9 +45,9 @@ impl Format for PipelineInstructionSet {
             BuilderToIopLang => write!(f, "builder_to_iop_lang"),
             BuilderToPrototype => write!(f, "builder_to_prototype"),
             ComputePbsMetrics => write!(f, "compute_pbs_metrics"),
-            IopLangToHpuLang => write!(f, "iop_lang_to_hpu_lang"),
-            ScheduleHpuLang => write!(f, "schedule_hpu_lang"),
-            AllocateDopLang => write!(f, "allocate_dop_lang"),
+            IopLangToHpuLang => write!(f, "ioplang_to_hpulang"),
+            ScheduleHpuLang => write!(f, "schedule_hpulang"),
+            AllocateDopLang => write!(f, "allocate_doplang"),
             GenerateHpuStream => write!(f, "generate_hpu_stream"),
             ComputeHpuMetrics => write!(f, "compute_hpu_metrics"),
             TraceHpuExecution => write!(f, "trace_hpu_execution"),
@@ -50,12 +55,16 @@ impl Format for PipelineInstructionSet {
             BuilderToPartitions => write!(f, "builder_to_partitions"),
             GenerateHpuAssembly => write!(f, "generate_hpu_assembly"),
             InputMultiHpuConfig => write!(f, "input_multi_hpu_config"),
-            IopLangToMultiHpu => write!(f, "iop_lang_to_multi_hpu"),
-            ScheduleMultiHpuLang => write!(f, "schedule_multi_hpu_lang"),
-            AllocateMultiDopLang => write!(f, "allocate_multi_dop_lang"),
+            IopLangToMultiHpu => write!(f, "ioplang_to_multi_hpu"),
+            ScheduleMultiHpuLang => write!(f, "schedule_multi_hpulang"),
+            AllocateMultiDopLang => write!(f, "allocate_multi_doplang"),
             GenerateMultiHpuStream => write!(f, "generate_multi_hpu_stream"),
             TraceMultiHpuExecution => write!(f, "trace_multi_hpu_execution"),
             GenerateMultiHpuAssembly => write!(f, "generate_multi_hpu_assembly"),
+            InputVmConfig => write!(f, "input_vm_config"),
+            InputTopology => write!(f, "input_topology"),
+            IopLangToVmLang => write!(f, "ioplang_to_vmlang"),
+            GenerateVmExecutionPlan => write!(f, "generate_vm_execution_plan"),
         }
     }
 }
@@ -98,6 +107,10 @@ impl DialectInstructionSet for PipelineInstructionSet {
             GenerateMultiHpuStream => sig![(MultiDopLang) -> (MultiHpuStream)],
             TraceMultiHpuExecution => sig![(MultiDopLang, MultiHpuConfig) -> (MultiHpuTrace)],
             GenerateMultiHpuAssembly => sig![(MultiDopLang) -> (MultiHpuAssembly)],
+            InputVmConfig => sig![() -> (VmConfig)],
+            InputTopology => sig![() -> (Topology)],
+            IopLangToVmLang => sig![(IopLang) -> (VmLang)],
+            GenerateVmExecutionPlan => sig![(VmLang, VmConfig, Topology) -> (VmExecutionPlan)],
         }
     }
 }

@@ -571,14 +571,7 @@ pub(crate) fn lower_iop_to_hpu(ir: &IR<IopLang>) -> Translation<HpuLang> {
                 let lut = match GIDS1.get(&lut) {
                     Some(v) => *v,
                     None => {
-                        if *lut.spec() == CiphertextBlockSpec(2, 2) {
-                            eprintln!(
-                                "Encountered non-builtin Lut when lowering. Patching with any lut."
-                            );
-                            LutId(0)
-                        } else {
-                            panic!("Failed to lookup the gid for key: {lut:?}")
-                        }
+                        panic!("Failed to lookup the gid for key: {lut:?}")
                     }
                 };
                 translator.direct_translation(&op, HpuInstructionSet::Pbs { lut });
@@ -587,14 +580,7 @@ pub(crate) fn lower_iop_to_hpu(ir: &IR<IopLang>) -> Translation<HpuLang> {
                 let lut = match GIDS2.get(&lut) {
                     Some(v) => *v,
                     None => {
-                        if *lut.spec() == CiphertextBlockSpec(2, 2) {
-                            eprintln!(
-                                "Encountered non-builtin Lut when lowering. Patching with any lut."
-                            );
-                            LutId(18)
-                        } else {
-                            panic!("Failed to lookup the gid for key: {lut:?}")
-                        }
+                        panic!("Failed to lookup the gid for key: {lut:?}")
                     }
                 };
                 translator.direct_translation(&op, HpuInstructionSet::Pbs2 { lut });

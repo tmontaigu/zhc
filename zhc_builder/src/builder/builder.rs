@@ -25,7 +25,6 @@ use std::{
     cell::{Ref, RefCell, RefMut},
     fmt::Debug,
     iter::repeat_n,
-    path::Path,
     rc::Rc,
 };
 use zhc_crypto::integer_semantics::{
@@ -44,6 +43,7 @@ use zhc_langs::ioplang::{
 };
 use zhc_utils::{
     Dumpable, FastSet, SafeAs, Store,
+    files::FileHandle,
     iter::{Chunk, ChunkIt},
     small::SmallVec,
     svec,
@@ -357,7 +357,7 @@ impl Builder {
         }
     }
 
-    /// Renders the IR as an interactive HTML visualization and writes it to the given path.
+    /// Renders the IR as an interactive HTML visualization.
     ///
     /// The visualization displays the IR as an SVG graph where operations appear as nodes and
     /// data dependencies as edges. Operations sharing the same comment hierarchy are grouped
@@ -365,11 +365,13 @@ impl Builder {
     /// resulting HTML file supports interactive features such as zooming and panning.
     ///
     /// This is primarily a debugging and exploration tool — call it at any point during
-    /// construction to inspect the current state of the IR.
+    /// construction to inspect the current state of the IR. The returned handle points at a
+    /// freshly created temporary file, which can be displayed in the default browser with its
+    /// `open` method.
     ///
     /// # Panics
     ///
-    /// Panics if the file cannot be written to the given path.
+    /// Panics if the file cannot be written.
     ///
     /// # Examples
     ///
@@ -377,9 +379,9 @@ impl Builder {
     /// # use zhc_builder::*;
     /// # let builder = Builder::new(CiphertextBlockSpec(2, 2));
     /// # let ct = builder.ciphertext_input(4);
-    /// builder.draw("debug.html", IrKind::Original);
+    /// builder.draw(IrKind::Original).open().unwrap();
     /// ```
-    pub fn draw(&self, path: impl AsRef<Path>, kind: IrKind) {
+    pub fn draw(&self, kind: IrKind) -> FileHandle {
         let ir = match kind {
             IrKind::Original => &self.ir(),
             IrKind::Optimized => &self.optimize_ir(),
@@ -390,8 +392,7 @@ impl Builder {
                 self.ir()
                     .partially_mapped_opmap(|op| self.inner().hierarchies.get(*op).cloned()),
             ),
-            path,
-        );
+        )
     }
 
     /// Renders the given IR as an interactive HTML visualization, coloured by partition.
@@ -399,12 +400,12 @@ impl Builder {
     /// This behaves like [`draw`](Self::draw) — an SVG graph of operations and data
     /// dependencies grouped by comment hierarchy — but additionally shades each operation
     /// according to the partition it belongs to, giving a quick visual read on how the program
-    /// is split into units of computation. The IR to render is supplied as `ir` and the output
-    /// HTML is written to `path`.
+    /// is split into units of computation. The returned handle points at a freshly created
+    /// temporary file, which can be displayed in the default browser with its `open` method.
     ///
     /// # Panics
     ///
-    /// Panics if the file cannot be written to the given path.
+    /// Panics if the file cannot be written.
     ///
     /// # Examples
     ///
@@ -412,9 +413,9 @@ impl Builder {
     /// # use zhc_builder::*;
     /// # let builder = Builder::new(CiphertextBlockSpec(2, 2));
     /// # let ct = builder.ciphertext_input(4);
-    /// builder.draw_partitions("debug.html", IrKind::Original);
+    /// builder.draw_partitions(IrKind::Original).open().unwrap();
     /// ```
-    pub fn draw_partitions(&self, path: impl AsRef<Path>, kind: IrKind) {
+    pub fn draw_partitions(&self, kind: IrKind) -> FileHandle {
         let ir = match kind {
             IrKind::Original => &self.ir(),
             IrKind::Optimized => &self.optimize_ir(),
@@ -426,8 +427,7 @@ impl Builder {
                 self.ir()
                     .partially_mapped_opmap(|op| self.inner().hierarchies.get(*op).cloned()),
             ),
-            path,
-        );
+        )
     }
 
     /// Returns a new builder handle with the given comment appended to the annotation stack.

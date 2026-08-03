@@ -6,7 +6,6 @@
 
 use std::{
     cell::{Ref, RefCell},
-    path::Path,
     rc::Rc,
 };
 use zhc_crypto::integer_semantics::CiphertextBlockSpec;
@@ -17,7 +16,7 @@ use zhc_ir::{
     },
 };
 use zhc_langs::ioplang::{IopInterepreterContext, IopValue};
-use zhc_utils::{Dumpable, FastMap, small::SmallVec};
+use zhc_utils::{Dumpable, FastMap, files::FileHandle, small::SmallVec};
 
 use crate::builder::InnerBuilder;
 
@@ -86,10 +85,13 @@ impl Interpreter {
     /// Operations sharing the same comment hierarchy are grouped together visually. The
     /// resulting HTML file supports interactive features such as zooming and panning.
     ///
+    /// The returned handle points at a freshly created temporary file, which can be
+    /// displayed in the default browser with its `open` method.
+    ///
     /// # Panics
     ///
     /// Panics if interpretation fails (e.g., due to a malformed graph or missing inputs), or
-    /// if the file cannot be written to the given path.
+    /// if the file cannot be written.
     ///
     /// # Examples
     ///
@@ -100,9 +102,11 @@ impl Interpreter {
     /// # builder.ciphertext_output(&a);
     /// builder.interpret()
     ///     .with_inputs(&[a.make_value(42)])
-    ///     .draw("interpretation_trace.html");
+    ///     .draw()
+    ///     .open()
+    ///     .unwrap();
     /// ```
-    pub fn draw(self, path: impl AsRef<Path>) {
+    pub fn draw(self) -> FileHandle {
         let mut context = IopInterepreterContext {
             spec: self.spec,
             inputs: self.inputs.iter().cloned().enumerate().collect(),
@@ -138,14 +142,13 @@ impl Interpreter {
                             |op| self.inner.borrow().hierarchies.get(*op).cloned(),
                         ),
                     ),
-                    path,
-                );
+                )
             }
             Err(interp_ir) => panic!(
                 "Failed to get outputs of interpretation:\n{}\nInterpretation panicked...",
                 interp_ir.format()
             ),
-        };
+        }
     }
 }
 

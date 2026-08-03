@@ -5,8 +5,8 @@ use crate::visualization::{Hierarchy, draw_ir_to_html};
 use crate::{
     Analysing, AnnIR, AnnOpRef, Annotation, AsOpId, AsValId, Formatted, ValMap, ValOrigin, ValUse,
 };
-use std::path::Path;
 use std::{cmp::max, fmt::Debug};
+use zhc_utils::files::FileHandle;
 use zhc_utils::iter::MultiZip;
 use zhc_utils::{Dumpable, SafeAs, svec};
 use zhc_utils::{Store, small::SmallVec};
@@ -938,11 +938,13 @@ impl<D: Dialect> IR<D> {
 
     /// Renders this IR graph as an interactive HTML file.
     ///
+    /// The returned handle points at a freshly created temporary file.
+    ///
     /// # Panics
     ///
-    /// Panics if the file cannot be written to the given path.
-    pub fn draw_to_html(&self, hierarchy_ann: Option<OpMap<Hierarchy>>, path: impl AsRef<Path>) {
-        draw_ir_to_html(self, hierarchy_ann, path);
+    /// Panics if the file cannot be written.
+    pub fn draw_to_html(&self, hierarchy_ann: Option<OpMap<Hierarchy>>) -> FileHandle {
+        draw_ir_to_html(self, hierarchy_ann)
     }
 
     /// Creates a configurable formatter for the entire IR.

@@ -10,6 +10,7 @@ pub enum Extension {
     Json,
     Html,
     Asm,
+    Svg,
 }
 
 pub fn random_path(ext: Extension) -> PathBuf {
@@ -18,6 +19,7 @@ pub fn random_path(ext: Extension) -> PathBuf {
         Extension::Json => ".json",
         Extension::Html => ".html",
         Extension::Asm => ".asm",
+        Extension::Svg => ".svg",
     };
     temp_dir().join(format!(
         "zhc-{}-{}{}",

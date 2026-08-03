@@ -85,7 +85,7 @@ use zhc_langs::{
     pipelinelang::{PipelineInstructionSet, PipelineLang},
 };
 use zhc_utils::{
-    files::{Extension, FileHandle, PerfettoTrace, random_path},
+    files::{FileHandle, PerfettoTrace},
     svec,
 };
 
@@ -311,9 +311,7 @@ impl Pipeline {
     /// Pipeline::new().draw_state().open().unwrap();
     /// ```
     pub fn draw_state(&self) -> FileHandle {
-        let path = random_path(Extension::Html);
-        self.eval.as_view().draw_to_html(None, &path);
-        FileHandle::from(path)
+        self.eval.as_view().draw_to_html(None)
     }
 
     /// Sets the circuit to compile.
@@ -629,7 +627,7 @@ impl Pipeline {
     /// #     .with_builder(Builder::new(CiphertextBlockSpec(2, 2)))
     /// #     .with_hpu_config(HpuConfig::default());
     /// // Draws the scheduled program, whose operations are laid out in execution order.
-    /// pipeline.get_scheduled_hpulang().draw_to_html(None, "schedule.html");
+    /// pipeline.get_scheduled_hpulang().draw_to_html(None).open().unwrap();
     /// ```
     pub fn get_scheduled_hpulang(&mut self) -> &IR<HpuLang> {
         self.eval

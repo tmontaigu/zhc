@@ -1,6 +1,7 @@
-use std::{ops::Deref, path::Path};
+use std::ops::Deref;
 
 use zhc_utils::Dumpable;
+use zhc_utils::files::FileHandle;
 
 use super::*;
 use crate::{
@@ -185,16 +186,16 @@ impl<'ir, 'ann, D: Dialect, OpAnn: Annotation, ValAnn: Annotation>
     /// Renders this annotated view as an interactive HTML file.
     ///
     /// Equivalent to [`draw_ann_ir_to_html`], requiring `OpAnn` to implement
-    /// [`VisualAnnotation`].
+    /// [`VisualAnnotation`]. The returned handle points at a freshly created temporary file.
     ///
     /// # Panics
     ///
-    /// Panics if the file cannot be written to the given path.
-    pub fn draw_to_html(&self, hierarchy_ann: Option<OpMap<Hierarchy>>, path: impl AsRef<Path>)
+    /// Panics if the file cannot be written.
+    pub fn draw_to_html(&self, hierarchy_ann: Option<OpMap<Hierarchy>>) -> FileHandle
     where
         OpAnn: VisualAnnotation,
     {
-        draw_ann_ir_to_html(self, hierarchy_ann, path);
+        draw_ann_ir_to_html(self, hierarchy_ann)
     }
 
     /// Creates a configurable formatter for the annotated IR.

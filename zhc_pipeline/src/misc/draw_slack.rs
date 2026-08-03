@@ -1,11 +1,10 @@
-use std::path::Path;
-
 use zhc_ir::{
     IR, OpIdRaw,
     slack::compute_slack,
     visualization::{StyleModifier, VisualAnnotation, draw_ann_ir_to_html},
 };
 use zhc_langs::ioplang::IopLang;
+use zhc_utils::files::FileHandle;
 use zhc_utils::graphics::ColorScale;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -26,7 +25,7 @@ impl VisualAnnotation for RelativeSlack {
     }
 }
 
-pub fn draw_slack(ir: &IR<IopLang>, path: impl AsRef<Path>) {
+pub fn draw_slack(ir: &IR<IopLang>) -> FileHandle {
     let ann_ir = compute_slack(&ir);
     let max_slack = ann_ir
         .walk_ops_linear()
@@ -37,5 +36,5 @@ pub fn draw_slack(ir: &IR<IopLang>, path: impl AsRef<Path>) {
         slack: op.get_annotation().0,
         max_slack,
     });
-    draw_ann_ir_to_html(&ann_ir.view(), None, path);
+    draw_ann_ir_to_html(&ann_ir.view(), None)
 }

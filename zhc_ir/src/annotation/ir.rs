@@ -4,7 +4,8 @@ use crate::{
     annotation::view::AnnIRView,
     visualization::{Hierarchy, VisualAnnotation},
 };
-use std::{ops::Deref, path::Path};
+use std::ops::Deref;
+use zhc_utils::files::FileHandle;
 use zhc_utils::{Dumpable, iter::MultiZip, small::SmallVec};
 
 /// IR container with parallel annotation storage for operations and values.
@@ -276,16 +277,17 @@ impl<'ir, D: Dialect, OpAnn: Annotation, ValAnn: Annotation> AnnIR<'ir, D, OpAnn
     /// Renders this annotated IR graph as an interactive HTML file.
     ///
     /// Equivalent to [`draw_ann_ir_to_html`](crate::visualization::draw_ann_ir_to_html), requiring
-    /// `OpAnn` to implement [`VisualAnnotation`].
+    /// `OpAnn` to implement [`VisualAnnotation`]. The returned handle points at a freshly
+    /// created temporary file.
     ///
     /// # Panics
     ///
-    /// Panics if the file cannot be written to the given path.
-    pub fn draw_to_html(&self, hierarchy_ann: Option<OpMap<Hierarchy>>, path: impl AsRef<Path>)
+    /// Panics if the file cannot be written.
+    pub fn draw_to_html(&self, hierarchy_ann: Option<OpMap<Hierarchy>>) -> FileHandle
     where
         OpAnn: VisualAnnotation,
     {
-        self.view().draw_to_html(hierarchy_ann, path);
+        self.view().draw_to_html(hierarchy_ann)
     }
 }
 

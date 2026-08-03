@@ -1,5 +1,5 @@
 use crate::{AnnIR, AnnIRView, Annotation, Dialect, IR, OpMap, visualization::svg::Svg};
-use std::path::Path;
+use zhc_utils::files::{Extension, FileHandle};
 
 mod composition;
 mod hierarchy;
@@ -51,17 +51,20 @@ fn draw_ann_ir<D: Dialect, OpAnn: Annotation + VisualAnnotation, ValAnn: Annotat
 /// custom per-operation visual annotations (e.g., computed values), use
 /// [`draw_ann_ir_to_svg`] instead.
 ///
+/// The returned handle points at a freshly created temporary file.
+///
 /// # Panics
 ///
-/// Panics if the file cannot be written to the given path.
+/// Panics if the file cannot be written.
 pub fn draw_ir_to_svg<D: Dialect>(
     ir: &IR<D>,
     hierarchy_ann: Option<OpMap<Hierarchy>>,
-    path: impl AsRef<Path>,
-) {
+) -> FileHandle {
     let svg_output = draw_ir(ir, hierarchy_ann);
     let svg_content = format!("{}", svg_output);
-    std::fs::write(path, svg_content).expect("Failed to write SVG file");
+    let handle = FileHandle::random(Extension::Svg);
+    std::fs::write(&handle, svg_content).expect("Failed to write SVG file");
+    handle
 }
 
 /// Renders an annotated IR graph as a static SVG file.
@@ -73,17 +76,20 @@ pub fn draw_ir_to_svg<D: Dialect>(
 ///
 /// For an interactive version with zoom and pan, use [`draw_ann_ir_to_html`].
 ///
+/// The returned handle points at a freshly created temporary file.
+///
 /// # Panics
 ///
-/// Panics if the file cannot be written to the given path.
+/// Panics if the file cannot be written.
 pub fn draw_ann_ir_to_svg<D: Dialect, OpAnn: Annotation + VisualAnnotation, ValAnn: Annotation>(
     ir: &AnnIRView<D, OpAnn, ValAnn>,
     hierarchy_ann: Option<OpMap<Hierarchy>>,
-    path: impl AsRef<Path>,
-) {
+) -> FileHandle {
     let svg_output = draw_ann_ir(ir, hierarchy_ann);
     let svg_content = format!("{}", svg_output);
-    std::fs::write(path, svg_content).expect("Failed to write SVG file");
+    let handle = FileHandle::random(Extension::Svg);
+    std::fs::write(&handle, svg_content).expect("Failed to write SVG file");
+    handle
 }
 
 /// Renders an IR graph as an interactive HTML file.
@@ -97,18 +103,21 @@ pub fn draw_ann_ir_to_svg<D: Dialect, OpAnn: Annotation + VisualAnnotation, ValA
 /// per-operation visual annotations (e.g., computed values), use [`draw_ann_ir_to_html`]
 /// instead.
 ///
+/// The returned handle points at a freshly created temporary file.
+///
 /// # Panics
 ///
-/// Panics if the file cannot be written to the given path.
+/// Panics if the file cannot be written.
 pub fn draw_ir_to_html<D: Dialect>(
     ir: &IR<D>,
     hierarchy_ann: Option<OpMap<Hierarchy>>,
-    path: impl AsRef<Path>,
-) {
+) -> FileHandle {
     let svg_output = draw_ir(ir, hierarchy_ann);
     let html_output = html::wrap_svg(svg_output);
     let html_content = format!("{}", html_output);
-    std::fs::write(path, html_content).expect("Failed to write HTML file");
+    let handle = FileHandle::random(Extension::Html);
+    std::fs::write(&handle, html_content).expect("Failed to write HTML file");
+    handle
 }
 
 /// Renders an annotated IR graph as an interactive HTML file.
@@ -121,16 +130,19 @@ pub fn draw_ir_to_html<D: Dialect>(
 ///
 /// For a static SVG without interactivity, use [`draw_ann_ir_to_svg`].
 ///
+/// The returned handle points at a freshly created temporary file.
+///
 /// # Panics
 ///
-/// Panics if the file cannot be written to the given path.
+/// Panics if the file cannot be written.
 pub fn draw_ann_ir_to_html<D: Dialect, OpAnn: Annotation + VisualAnnotation, ValAnn: Annotation>(
     ir: &AnnIRView<D, OpAnn, ValAnn>,
     hierarchy_ann: Option<OpMap<Hierarchy>>,
-    path: impl AsRef<Path>,
-) {
+) -> FileHandle {
     let svg_output = draw_ann_ir(ir, hierarchy_ann);
     let html_output = html::wrap_svg(svg_output);
     let html_content = format!("{}", html_output);
-    std::fs::write(path, html_content).expect("Failed to write HTML file");
+    let handle = FileHandle::random(Extension::Html);
+    std::fs::write(&handle, html_content).expect("Failed to write HTML file");
+    handle
 }

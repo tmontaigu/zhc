@@ -132,8 +132,7 @@ impl Evaluable<PipelineArtifact> for PipelineInstructionSet {
             }
             PipelineInstructionSet::DrawSlack => {
                 let ioplang = arguments[0].unwrap_iop_lang_ref();
-                let file = FileHandle::random(Extension::Html);
-                misc::draw_slack(ioplang, &file);
+                let file = misc::draw_slack(ioplang);
                 svec![PipelineArtifact::SlackDrawing(file)]
             }
 

@@ -346,7 +346,7 @@ mod test {
         );
         let res = builder.ciphertext_join(res, None);
         builder.ciphertext_output(res);
-        builder.draw("testttttt.html", crate::IrKind::Original);
+        builder.draw(crate::IrKind::Original);
     }
 
     #[test]

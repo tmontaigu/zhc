@@ -105,13 +105,14 @@ impl<E: Renderable, C: Class> Renderable for VStack<E, C> {
             for i in 0..self.content.len() - 1 {
                 let child_frame = self.content[i].get_frame();
                 let next_frame = self.content[i + 1].get_frame();
-                let sep_y = (child_frame.bottom_left().y.0 + next_frame.top_left().y.0) / 2.0;
+                let sep_y =
+                    (child_frame.bottom_left().y.as_f64() + next_frame.top_left().y.as_f64()) / 2.0;
 
                 elements.push(separator_rect(
                     &style,
-                    frame.position.x.0,
+                    frame.position.x.as_f64(),
                     sep_y,
-                    frame.size.width.0.0,
+                    frame.size.width.as_f64(),
                 ));
             }
         }

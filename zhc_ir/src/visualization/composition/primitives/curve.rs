@@ -1,7 +1,7 @@
 use super::*;
 use crate::ValId;
 use crate::visualization::svg::PathCommand;
-use zhc_utils::graphics::{Frame, Position, Size, Y};
+use zhc_utils::graphics::{Frame, Position, Size};
 
 /// A curve connecting points through waypoints.
 /// Reads positions from watched cells at render time.
@@ -80,14 +80,14 @@ impl<C: Class> Renderable for Curve<C> {
             let end = positions[i + 1];
 
             // Control points: vertical offset for smooth curves
-            let dy = (end.y.0 - start.y.0) / 3.0;
+            let dy = (end.y - start.y) / 3;
             let cp1 = Position {
                 x: start.x,
-                y: Y::new(start.y.0 + dy),
+                y: start.y + dy,
             };
             let cp2 = Position {
                 x: end.x,
-                y: Y::new(end.y.0 - dy),
+                y: end.y - dy,
             };
 
             commands.push(PathCommand::CubicTo(cp1, cp2, end));
@@ -110,7 +110,7 @@ impl<C: Class> Renderable for Curve<C> {
                 commands,
                 fill: Some("none".into()),
                 stroke: Some(style.border_color.to_string()),
-                stroke_width: Some(style.border_width.0),
+                stroke_width: Some(style.border_width.as_f64()),
                 class: Some("link".into()),
                 id: None,
                 title: None,

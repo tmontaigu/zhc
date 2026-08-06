@@ -24,25 +24,24 @@ use std::{
 
 use crate::{Dumpable, iter::CollectInSmallVec};
 
+/// Fixed-point scale for layout measurements: one unit is `1 / SCALE`.
+///
+/// Measurements are stored as scaled `i64` values instead of `f64` so that
+/// addition, subtraction, and the invariant checks below are exact and
+/// never need an epsilon tolerance.
+const SCALE: f64 = 1_000_000.0;
+
 /// Font family identifier using static string references.
 #[derive(Debug, Clone)]
 pub struct Font(pub &'static str);
 
 /// Font size measurement with text dimension calculation capabilities.
-#[derive(Debug, Clone, PartialEq, PartialOrd, Copy)]
-pub struct FontSize(pub f64, ());
-
-impl Eq for FontSize {}
-
-impl Ord for FontSize {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.0.partial_cmp(&other.0).unwrap()
-    }
-}
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Copy)]
+pub struct FontSize(i64);
 
 impl FontSize {
     /// Zero font size constant.
-    pub const ZERO: Self = FontSize(0., ());
+    pub const ZERO: Self = FontSize(0);
 
     /// Creates a new font size from the given value.
     ///
@@ -50,19 +49,19 @@ impl FontSize {
     ///
     /// Panics if `raw` is not finite or is negative.
     pub const fn new(raw: f64) -> Self {
-        let output = Self(raw, ());
-        assert!(output.is_valid());
-        output
+        assert!(raw.is_finite() && raw >= 0.0);
+        Self((raw * SCALE).round() as i64)
     }
 
-    const fn is_valid(&self) -> bool {
-        self.0.is_finite() && self.0 >= 0.0
+    /// Returns the raw value as a floating-point number of units.
+    pub const fn as_f64(&self) -> f64 {
+        self.0 as f64 / SCALE
     }
 
     fn char_size(&self) -> Size {
         Size {
-            width: Width::new(self.0 * 0.6),
-            height: Height::new(self.0 * 1.2),
+            width: Width::new(self.as_f64() * 0.6),
+            height: Height::new(self.as_f64() * 1.2),
         }
     }
 
@@ -80,21 +79,12 @@ impl FontSize {
 }
 
 /// Non-negative thickness measurement serving as the base unit for dimensions.
-#[derive(Debug, Clone, PartialEq, PartialOrd, Copy)]
-pub struct Thickness(pub f64, ());
-
-impl Eq for Thickness {}
-
-impl Ord for Thickness {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.0.partial_cmp(&other.0).unwrap()
-    }
-}
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Copy)]
+pub struct Thickness(i64);
 
 impl Thickness {
     /// Zero thickness constant.
-    pub const ZERO: Self = Thickness(0., ());
-    pub const EPSILON: Self = Thickness(1e-10, ());
+    pub const ZERO: Self = Thickness(0);
 
     /// Creates a new thickness from the given value.
     ///
@@ -102,13 +92,13 @@ impl Thickness {
     ///
     /// Panics if `raw` is not finite or is negative.
     pub const fn new(raw: f64) -> Self {
-        let output = Self(raw, ());
-        assert!(output.is_valid());
-        output
+        assert!(raw.is_finite() && raw >= 0.0);
+        Self((raw * SCALE).round() as i64)
     }
 
-    const fn is_valid(&self) -> bool {
-        self.0.is_finite() && self.0 >= 0.0
+    /// Returns the raw value as a floating-point number of units.
+    pub const fn as_f64(&self) -> f64 {
+        self.0 as f64 / SCALE
     }
 }
 
@@ -116,8 +106,7 @@ impl Add for Thickness {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
-        assert!(self.is_valid() && rhs.is_valid());
-        Thickness(self.0 + rhs.0, ())
+        Thickness(self.0 + rhs.0)
     }
 }
 
@@ -125,9 +114,8 @@ impl Sub for Thickness {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        assert!(self.is_valid() && rhs.is_valid());
         assert!(self >= rhs);
-        Thickness(self.0 - rhs.0, ())
+        Thickness(self.0 - rhs.0)
     }
 }
 
@@ -135,9 +123,9 @@ impl Div<usize> for Thickness {
     type Output = Self;
 
     fn div(self, rhs: usize) -> Self::Output {
-        assert!(self.is_valid());
         assert!(rhs != 0);
-        Thickness(self.0 / rhs as f64, ())
+        let rhs = rhs as i64;
+        Thickness((self.0 + rhs / 2) / rhs)
     }
 }
 
@@ -145,8 +133,7 @@ impl Mul<usize> for Thickness {
     type Output = Self;
 
     fn mul(self, rhs: usize) -> Self::Output {
-        assert!(self.is_valid());
-        Thickness(self.0 * rhs as f64, ())
+        Thickness(self.0 * rhs as i64)
     }
 }
 
@@ -164,13 +151,12 @@ impl Width {
     ///
     /// Panics if `raw` is not finite or is negative.
     pub const fn new(raw: f64) -> Self {
-        let output = Self(Thickness::new(raw));
-        assert!(output.is_valid());
-        output
+        Self(Thickness::new(raw))
     }
 
-    const fn is_valid(&self) -> bool {
-        self.0.is_valid()
+    /// Returns the raw value as a floating-point number of units.
+    pub const fn as_f64(&self) -> f64 {
+        self.0.as_f64()
     }
 }
 
@@ -178,7 +164,6 @@ impl Add<Thickness> for Width {
     type Output = Self;
 
     fn add(self, rhs: Thickness) -> Self::Output {
-        assert!(self.is_valid() && rhs.is_valid());
         Width(self.0 + rhs)
     }
 }
@@ -187,7 +172,6 @@ impl Add<Width> for Width {
     type Output = Self;
 
     fn add(self, rhs: Width) -> Self::Output {
-        assert!(self.is_valid() && rhs.is_valid());
         Width(self.0 + rhs.0)
     }
 }
@@ -196,8 +180,6 @@ impl Sub<Width> for Width {
     type Output = Self;
 
     fn sub(self, rhs: Width) -> Self::Output {
-        assert!(self.is_valid() && rhs.is_valid());
-        assert!(self >= rhs);
         Width(self.0 - rhs.0)
     }
 }
@@ -206,7 +188,6 @@ impl Mul<usize> for Width {
     type Output = Self;
 
     fn mul(self, rhs: usize) -> Self::Output {
-        assert!(self.is_valid());
         Width(self.0 * rhs)
     }
 }
@@ -215,8 +196,6 @@ impl Div<usize> for Width {
     type Output = Self;
 
     fn div(self, rhs: usize) -> Self::Output {
-        assert!(self.is_valid());
-        assert!(rhs != 0);
         Width(self.0 / rhs)
     }
 }
@@ -235,13 +214,12 @@ impl Height {
     ///
     /// Panics if `raw` is not finite or is negative.
     pub const fn new(raw: f64) -> Self {
-        let output = Self(Thickness::new(raw));
-        assert!(output.is_valid());
-        output
+        Self(Thickness::new(raw))
     }
 
-    const fn is_valid(&self) -> bool {
-        self.0.is_valid()
+    /// Returns the raw value as a floating-point number of units.
+    pub const fn as_f64(&self) -> f64 {
+        self.0.as_f64()
     }
 }
 
@@ -249,7 +227,6 @@ impl Add<Thickness> for Height {
     type Output = Self;
 
     fn add(self, rhs: Thickness) -> Self::Output {
-        assert!(self.is_valid() && rhs.is_valid());
         Height(self.0 + rhs)
     }
 }
@@ -258,7 +235,6 @@ impl Add<Height> for Height {
     type Output = Self;
 
     fn add(self, rhs: Height) -> Self::Output {
-        assert!(self.is_valid() && rhs.is_valid());
         Height(self.0 + rhs.0)
     }
 }
@@ -267,10 +243,7 @@ impl Sub<Height> for Height {
     type Output = Self;
 
     fn sub(self, rhs: Height) -> Self::Output {
-        assert!(self.is_valid() && rhs.is_valid());
-        const EPS: f64 = 1e-10;
-        assert!(self.0.0 + EPS >= rhs.0.0, "Failed {self:?} {rhs:?}");
-        Height(Thickness::new((self.0.0 - rhs.0.0).max(0.0)))
+        Height(self.0 - rhs.0)
     }
 }
 
@@ -278,7 +251,6 @@ impl Mul<usize> for Height {
     type Output = Self;
 
     fn mul(self, rhs: usize) -> Self::Output {
-        assert!(self.is_valid());
         Height(self.0 * rhs)
     }
 }
@@ -287,16 +259,23 @@ impl Div<usize> for Height {
     type Output = Self;
 
     fn div(self, rhs: usize) -> Self::Output {
-        assert!(self.is_valid());
-        assert!(rhs != 0);
         Height(self.0 / rhs)
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct Delta(pub f64);
+/// Signed motion along a single axis, sharing X/Y's fixed-point scale.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Delta(i64);
 
 impl Delta {
+    /// Zero delta constant.
+    pub const ZERO: Self = Delta(0);
+
+    /// Returns the raw value as a floating-point number of units.
+    pub const fn as_f64(&self) -> f64 {
+        self.0 as f64 / SCALE
+    }
+
     pub fn abs(mut self) -> Self {
         self.0 = self.0.abs();
         self
@@ -307,7 +286,7 @@ impl Div<usize> for Delta {
     type Output = Self;
 
     fn div(self, rhs: usize) -> Self::Output {
-        Delta(self.0 / rhs as f64)
+        Delta((self.as_f64() / rhs as f64 * SCALE).round() as i64)
     }
 }
 
@@ -315,7 +294,7 @@ impl Mul<usize> for Delta {
     type Output = Self;
 
     fn mul(self, rhs: usize) -> Self::Output {
-        Delta(self.0 * rhs as f64)
+        Delta(self.0 * rhs as i64)
     }
 }
 
@@ -323,7 +302,7 @@ impl Div<f64> for Delta {
     type Output = Self;
 
     fn div(self, rhs: f64) -> Self::Output {
-        Delta(self.0 / rhs)
+        Delta((self.as_f64() / rhs * SCALE).round() as i64)
     }
 }
 
@@ -331,7 +310,7 @@ impl Mul<f64> for Delta {
     type Output = Self;
 
     fn mul(self, rhs: f64) -> Self::Output {
-        Delta(self.0 * rhs)
+        Delta((self.as_f64() * rhs * SCALE).round() as i64)
     }
 }
 
@@ -344,32 +323,26 @@ impl Neg for Delta {
 }
 
 /// Horizontal position coordinate with arithmetic operations for width and thickness.
-#[derive(Debug, Clone, PartialEq, PartialOrd, Copy)]
-pub struct X(pub f64, ());
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct X(i64);
 
-impl Eq for X {}
-impl Ord for X {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.0.partial_cmp(&other.0).unwrap()
-    }
-}
 impl X {
     /// Zero X coordinate constant.
-    pub const ZERO: Self = X(0., ());
+    pub const ZERO: Self = X(0);
 
     /// Creates a new X coordinate from the given value.
     ///
     /// # Panics
     ///
-    /// Panics if `raw` is not finite or is negative.
+    /// Panics if `raw` is not finite.
     pub const fn new(raw: f64) -> Self {
-        let output = Self(raw, ());
-        assert!(output.is_valid());
-        output
+        assert!(raw.is_finite());
+        Self((raw * SCALE).round() as i64)
     }
 
-    const fn is_valid(&self) -> bool {
-        self.0.is_finite()
+    /// Returns the raw value as a floating-point number of units.
+    pub const fn as_f64(&self) -> f64 {
+        self.0 as f64 / SCALE
     }
 }
 
@@ -377,8 +350,7 @@ impl Add<Width> for X {
     type Output = X;
 
     fn add(self, rhs: Width) -> Self::Output {
-        assert!(self.is_valid() && rhs.is_valid());
-        X(self.0 + rhs.0.0, ())
+        X(self.0 + rhs.0.0)
     }
 }
 
@@ -386,8 +358,7 @@ impl Add<Thickness> for X {
     type Output = X;
 
     fn add(self, rhs: Thickness) -> Self::Output {
-        assert!(self.is_valid() && rhs.is_valid());
-        X(self.0 + rhs.0, ())
+        X(self.0 + rhs.0)
     }
 }
 
@@ -395,8 +366,7 @@ impl Add<Delta> for X {
     type Output = X;
 
     fn add(self, rhs: Delta) -> Self::Output {
-        assert!(self.is_valid());
-        X(self.0 + rhs.0, ())
+        X(self.0 + rhs.0)
     }
 }
 
@@ -404,8 +374,7 @@ impl Sub<Delta> for X {
     type Output = X;
 
     fn sub(self, rhs: Delta) -> Self::Output {
-        assert!(self.is_valid());
-        X(self.0 - rhs.0, ())
+        X(self.0 - rhs.0)
     }
 }
 
@@ -413,9 +382,8 @@ impl Sub<Width> for X {
     type Output = X;
 
     fn sub(self, rhs: Width) -> Self::Output {
-        assert!(self.is_valid() && rhs.is_valid());
         assert!(self.0 >= rhs.0.0);
-        X(self.0 - rhs.0.0, ())
+        X(self.0 - rhs.0.0)
     }
 }
 
@@ -423,9 +391,8 @@ impl Sub<Thickness> for X {
     type Output = X;
 
     fn sub(self, rhs: Thickness) -> Self::Output {
-        assert!(self.is_valid() && rhs.is_valid());
         assert!(self.0 >= rhs.0);
-        X(self.0 - rhs.0, ())
+        X(self.0 - rhs.0)
     }
 }
 
@@ -438,32 +405,26 @@ impl Sub<X> for X {
 }
 
 /// Vertical position coordinate with arithmetic operations for height and thickness.
-#[derive(Debug, Clone, PartialEq, PartialOrd, Copy)]
-pub struct Y(pub f64, ());
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Y(i64);
 
-impl Eq for Y {}
-impl Ord for Y {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.0.partial_cmp(&other.0).unwrap()
-    }
-}
 impl Y {
     /// Zero Y coordinate constant.
-    pub const ZERO: Self = Y(0., ());
+    pub const ZERO: Self = Y(0);
 
     /// Creates a new Y coordinate from the given value.
     ///
     /// # Panics
     ///
-    /// Panics if `raw` is not finite or is negative.
+    /// Panics if `raw` is not finite.
     pub const fn new(raw: f64) -> Self {
-        let output = Self(raw, ());
-        assert!(output.is_valid());
-        output
+        assert!(raw.is_finite());
+        Self((raw * SCALE).round() as i64)
     }
 
-    const fn is_valid(&self) -> bool {
-        self.0.is_finite()
+    /// Returns the raw value as a floating-point number of units.
+    pub const fn as_f64(&self) -> f64 {
+        self.0 as f64 / SCALE
     }
 }
 
@@ -471,8 +432,7 @@ impl Add<Height> for Y {
     type Output = Y;
 
     fn add(self, rhs: Height) -> Self::Output {
-        assert!(self.is_valid() && rhs.is_valid());
-        Y(self.0 + rhs.0.0, ())
+        Y(self.0 + rhs.0.0)
     }
 }
 
@@ -480,8 +440,7 @@ impl Add<Thickness> for Y {
     type Output = Y;
 
     fn add(self, rhs: Thickness) -> Self::Output {
-        assert!(self.is_valid() && rhs.is_valid());
-        Y(self.0 + rhs.0, ())
+        Y(self.0 + rhs.0)
     }
 }
 
@@ -489,8 +448,7 @@ impl Add<Delta> for Y {
     type Output = Y;
 
     fn add(self, rhs: Delta) -> Self::Output {
-        assert!(self.is_valid());
-        Y(self.0 + rhs.0, ())
+        Y(self.0 + rhs.0)
     }
 }
 
@@ -498,8 +456,7 @@ impl Sub<Delta> for Y {
     type Output = Y;
 
     fn sub(self, rhs: Delta) -> Self::Output {
-        assert!(self.is_valid());
-        Y(self.0 - rhs.0, ())
+        Y(self.0 - rhs.0)
     }
 }
 
@@ -507,9 +464,8 @@ impl Sub<Height> for Y {
     type Output = Y;
 
     fn sub(self, rhs: Height) -> Self::Output {
-        assert!(self.is_valid() && rhs.is_valid());
         assert!(self.0 >= rhs.0.0);
-        Y(self.0 - rhs.0.0, ())
+        Y(self.0 - rhs.0.0)
     }
 }
 
@@ -517,9 +473,8 @@ impl Sub<Thickness> for Y {
     type Output = Y;
 
     fn sub(self, rhs: Thickness) -> Self::Output {
-        assert!(self.is_valid() && rhs.is_valid());
         assert!(self.0 >= rhs.0);
-        Y(self.0 - rhs.0, ())
+        Y(self.0 - rhs.0)
     }
 }
 
@@ -740,10 +695,10 @@ impl Frame {
     /// Checks if the frame has zero width or height.
     pub fn assert_collapsed(&self) {
         assert!(
-            self.size.height.0 < Thickness::EPSILON || self.size.width.0 < Thickness::EPSILON,
+            self.size.height.0 == Thickness::ZERO || self.size.width.0 == Thickness::ZERO,
             "Not collapsed: {:?} x {:?}",
-            self.size.height.0,
-            self.size.width.0
+            self.size.height.0.as_f64(),
+            self.size.width.0.as_f64()
         )
     }
 
@@ -971,11 +926,7 @@ impl Frame {
     ///
     /// Panics if `width` is greater than the current frame width.
     pub fn resize_horizontal(self, width: Width, align: HAlign) -> Frame {
-        assert!(width.0 <= self.size.width.0 + Thickness::EPSILON);
-        // Clamp within the epsilon this just tolerated: `Sub` below has no
-        // such tolerance, and a `width` that's a hair over `self.size.width`
-        // (float accumulation, not a real overflow) would panic there.
-        let width = Width(width.0.min(self.size.width.0));
+        assert!(width <= self.size.width);
         let x_offset = match align {
             HAlign::Left => Width::ZERO,
             HAlign::Center => (self.size.width - width) / 2,
@@ -1000,8 +951,7 @@ impl Frame {
     ///
     /// Panics if `height` is greater than the current frame height.
     pub fn resize_vertical(self, height: Height, align: VAlign) -> Frame {
-        assert!(height.0 <= self.size.height.0 + Thickness::EPSILON);
-        let height = Height(height.0.min(self.size.height.0));
+        assert!(height <= self.size.height);
         let y_offset = match align {
             VAlign::Top => Height::ZERO,
             VAlign::Center => (self.size.height - height) / 2,

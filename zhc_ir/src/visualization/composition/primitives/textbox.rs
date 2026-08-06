@@ -63,23 +63,25 @@ impl<C: Class> Renderable for TextBox<C> {
         // The anchor y and its paired dominant-baseline both come from
         // `font_valign` — they need to agree, or text renders off from
         // where its box says it should sit.
-        let line_height = style.font_size.0 * 1.2;
+        let line_height = style.font_size.as_f64() * 1.2;
         let n_lines = self.content.lines().count().max(1) as f64;
         let block_height = line_height * n_lines;
 
         let (first_line_y, dominant_baseline) = match style.font_valign {
             VAlign::Top => (
-                frame.position.y.0 + style.padding.0,
+                frame.position.y.as_f64() + style.padding.as_f64(),
                 DominantBaseline::Hanging,
             ),
             VAlign::Center => (
-                frame.position.y.0
-                    + (frame.size.height.0.0 - block_height) / 2.0
+                frame.position.y.as_f64()
+                    + (frame.size.height.as_f64() - block_height) / 2.0
                     + line_height / 2.0,
                 DominantBaseline::Middle,
             ),
             VAlign::Bottom => (
-                frame.position.y.0 + frame.size.height.0.0 - style.padding.0 - block_height
+                frame.position.y.as_f64() + frame.size.height.as_f64()
+                    - style.padding.as_f64()
+                    - block_height
                     + line_height,
                 DominantBaseline::Auto,
             ),
@@ -87,10 +89,10 @@ impl<C: Class> Renderable for TextBox<C> {
 
         for (line_index, line) in self.content.lines().enumerate() {
             elements.push(SvgElement::Text {
-                x: frame.position.x.0 + style.padding.0,
+                x: frame.position.x.as_f64() + style.padding.as_f64(),
                 y: first_line_y + line_index as f64 * line_height,
                 content: line.to_string(),
-                font_size: style.font_size.0,
+                font_size: style.font_size.as_f64(),
                 font_family: Some(style.font.0.to_string()),
                 fill: Some(style.font_color.to_string()),
                 text_anchor: TextAnchor::from(style.font_halign),

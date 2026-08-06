@@ -291,13 +291,18 @@ impl std::fmt::Display for SvgElement {
 impl std::fmt::Display for PathCommand {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            PathCommand::MoveTo(pos) => write!(f, "M {} {} ", pos.x.0, pos.y.0),
-            PathCommand::LineTo(pos) => write!(f, "L {} {} ", pos.x.0, pos.y.0),
+            PathCommand::MoveTo(pos) => write!(f, "M {} {} ", pos.x.as_f64(), pos.y.as_f64()),
+            PathCommand::LineTo(pos) => write!(f, "L {} {} ", pos.x.as_f64(), pos.y.as_f64()),
             PathCommand::CubicTo(cp1, cp2, pos) => {
                 write!(
                     f,
                     "C {} {} {} {} {} {} ",
-                    cp1.x.0, cp1.y.0, cp2.x.0, cp2.y.0, pos.x.0, pos.y.0
+                    cp1.x.as_f64(),
+                    cp1.y.as_f64(),
+                    cp2.x.as_f64(),
+                    cp2.y.as_f64(),
+                    pos.x.as_f64(),
+                    pos.y.as_f64()
                 )
             }
             PathCommand::EllipticalArc {
@@ -316,8 +321,8 @@ impl std::fmt::Display for PathCommand {
                     x_axis_rotation,
                     if *large_arc { 1 } else { 0 },
                     if *sweep { 1 } else { 0 },
-                    end.x.0,
-                    end.y.0
+                    end.x.as_f64(),
+                    end.y.as_f64()
                 )
             }
             PathCommand::ClosePath => write!(f, "Z "),

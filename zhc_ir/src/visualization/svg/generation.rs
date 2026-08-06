@@ -6,8 +6,8 @@ use crate::visualization::composition::SceneElement;
 pub fn draw(scene: &impl Renderable) -> Svg {
     let frame = scene.get_frame();
     Svg {
-        width: frame.size.width.0.0,
-        height: frame.size.height.0.0,
+        width: frame.size.width.as_f64(),
+        height: frame.size.height.as_f64(),
         elements: scene.render(),
     }
 }

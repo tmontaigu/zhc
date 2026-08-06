@@ -45,7 +45,7 @@ macro_rules! vstack_fixed {
                 let mut has_content = false;
                 $(
                     let child_size = self.$efield.get_size();
-                    if child_size.height.0.0 > 0.0 {
+                    if child_size.height > Height::ZERO {
                         if has_content {
                             size = size.pad_bottom(style.spacing);
                         }
@@ -72,7 +72,7 @@ macro_rules! vstack_fixed {
                 let mut has_content = false;
                 $(
                     let child_height = self.$efield.get_size().height;
-                    if child_height.0.0 > 0.0 {
+                    if child_height > Height::ZERO {
                         if has_content {
                             remaining = remaining.crop_top(Height(style.spacing));
                         }
@@ -103,18 +103,18 @@ macro_rules! vstack_fixed {
                 // Collect non-zero-height child frames for separator rendering
                 let child_frames: Vec<Frame> = vec![$(self.$efield.get_frame()),*]
                     .into_iter()
-                    .filter(|f| f.size.height.0.0 > 0.0)
+                    .filter(|f| f.size.height > Height::ZERO)
                     .collect();
 
                 // Render separators between non-empty children if enabled
                 if style.draw_separators && child_frames.len() > 1 {
                     for i in 0..child_frames.len() - 1 {
-                        let sep_y = (child_frames[i].bottom_left().y.0 + child_frames[i + 1].top_left().y.0) / 2.0;
+                        let sep_y = (child_frames[i].bottom_left().y.as_f64() + child_frames[i + 1].top_left().y.as_f64()) / 2.0;
                         elements.push(separator_rect(
                             &style,
-                            frame.position.x.0,
+                            frame.position.x.as_f64(),
                             sep_y,
-                            frame.size.width.0.0,
+                            frame.size.width.as_f64(),
                         ));
                     }
                 }

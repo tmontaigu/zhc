@@ -1,6 +1,6 @@
 use super::*;
 use crate::visualization::composition::{CardShape, Style};
-use zhc_utils::graphics::{Color, Frame, Position, X, Y};
+use zhc_utils::graphics::{Color, Frame, Position, Thickness, X, Y};
 
 /// Background rect for a styled container, in the literal `fill`/`stroke`
 /// colors from `style` (so a `StyleModifier` override from `VisualAnnotation`
@@ -11,14 +11,14 @@ pub(crate) fn background_rect(style: &Style, frame: &Frame) -> Option<SvgElement
         return None;
     }
     Some(SvgElement::Rect {
-        x: frame.position.x.0,
-        y: frame.position.y.0,
-        width: frame.size.width.0.0,
-        height: frame.size.height.0.0,
-        rx: (style.corner_radius.0 > 0.0).then_some(style.corner_radius.0),
+        x: frame.position.x.as_f64(),
+        y: frame.position.y.as_f64(),
+        width: frame.size.width.as_f64(),
+        height: frame.size.height.as_f64(),
+        rx: (style.corner_radius > Thickness::ZERO).then(|| style.corner_radius.as_f64()),
         fill: Some(style.fill_color.to_string()),
         stroke: Some(style.border_color.to_string()),
-        stroke_width: Some(style.border_width.0),
+        stroke_width: Some(style.border_width.as_f64()),
         class: None,
         id: None,
         data_val: None,
@@ -29,12 +29,12 @@ pub(crate) fn background_rect(style: &Style, frame: &Frame) -> Option<SvgElement
 /// border color. Inset by the border width on each side, so it stops at the
 /// border stroke's inner edge instead of painting over it.
 pub(crate) fn separator_rect(style: &Style, x: f64, y_mid: f64, width: f64) -> SvgElement {
-    let inset = style.border_width.0;
+    let inset = style.border_width.as_f64();
     SvgElement::Rect {
         x: x + inset,
-        y: y_mid - style.border_width.0 / 2.0,
+        y: y_mid - inset / 2.0,
         width: (width - 2.0 * inset).max(0.0),
-        height: style.border_width.0,
+        height: inset,
         rx: None,
         fill: Some(style.border_color.to_string()),
         stroke: None,
@@ -65,10 +65,10 @@ pub(crate) fn rail_rects(style: &Style, frame: &Frame) -> Vec<SvgElement> {
     }
     let inset = 6.0;
     let rail_width = 4.0;
-    let x0 = frame.position.x.0;
-    let x1 = x0 + frame.size.width.0.0;
-    let y = frame.position.y.0 + inset;
-    let height = (frame.size.height.0.0 - 2.0 * inset).max(0.0);
+    let x0 = frame.position.x.as_f64();
+    let x1 = x0 + frame.size.width.as_f64();
+    let y = frame.position.y.as_f64() + inset;
+    let height = (frame.size.height.as_f64() - 2.0 * inset).max(0.0);
     let fill = Some(style.accent_color.to_string());
     [x0 + 5.0, x1 - rail_width - 5.0]
         .into_iter()
@@ -122,11 +122,11 @@ fn zigzag_edge(x0: f64, x1: f64, base_y: f64, outward: f64) -> Vec<PathCommand> 
 }
 
 fn sawtooth_path(style: &Style, frame: &Frame, teeth_on_top: bool) -> SvgElement {
-    let x0 = frame.position.x.0;
-    let y0 = frame.position.y.0;
-    let x1 = x0 + frame.size.width.0.0;
-    let y1 = y0 + frame.size.height.0.0;
-    let r = style.corner_radius.0;
+    let x0 = frame.position.x.as_f64();
+    let y0 = frame.position.y.as_f64();
+    let x1 = x0 + frame.size.width.as_f64();
+    let y1 = y0 + frame.size.height.as_f64();
+    let r = style.corner_radius.as_f64();
     let pos = |x: f64, y: f64| Position {
         x: X::new(x),
         y: Y::new(y),
@@ -165,7 +165,7 @@ fn sawtooth_path(style: &Style, frame: &Frame, teeth_on_top: bool) -> SvgElement
         commands,
         fill: Some(style.fill_color.to_string()),
         stroke: Some(style.border_color.to_string()),
-        stroke_width: Some(style.border_width.0),
+        stroke_width: Some(style.border_width.as_f64()),
         class: None,
         id: None,
         title: None,

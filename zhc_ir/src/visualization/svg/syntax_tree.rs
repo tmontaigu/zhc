@@ -58,6 +58,7 @@ pub enum SvgElement {
 #[derive(Debug, Clone)]
 pub enum PathCommand {
     MoveTo(Position),
+    LineTo(Position),
     CubicTo(Position, Position, Position),
     EllipticalArc {
         rx: f64,
@@ -291,6 +292,7 @@ impl std::fmt::Display for PathCommand {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             PathCommand::MoveTo(pos) => write!(f, "M {} {} ", pos.x.0, pos.y.0),
+            PathCommand::LineTo(pos) => write!(f, "L {} {} ", pos.x.0, pos.y.0),
             PathCommand::CubicTo(cp1, cp2, pos) => {
                 write!(
                     f,

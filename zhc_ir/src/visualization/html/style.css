@@ -1,3 +1,17 @@
+/* Chrome/effect constants — content color always comes from literal SVG
+   attributes computed in Rust, not from here. */
+:root {
+    --grid: #e8eaee;
+    --shadow-rgb: 0 0 0;
+    --shadow-y: 0px;
+    --shadow-blur: 5px;
+    --shadow-alpha: 0.05;
+
+    --ui-bg: rgba(255, 255, 255, 0.86);
+    --ui-border: #d1d6de;
+    --ui-text: #333a44;
+}
+
 /* Reset and full viewport */
 * {
     margin: 0;
@@ -12,12 +26,18 @@ html, body {
     background: #ffffff;
 }
 
-/* Viewport container - catches mouse events */
+/* The dot grid sits here rather than in the SVG so it tiles across the whole
+   page. Size/position are driven from script.js (tied to layout units and
+   the canvas transform, so it scales with zoom and pans with the canvas);
+   the size below is just the pre-JS initial paint. */
 #viewport {
     width: 100%;
     height: 100%;
     overflow: hidden;
     cursor: grab;
+    background-color: #ffffff;
+    background-image: radial-gradient(circle, var(--grid) 8%, transparent 8%);
+    background-size: 30px 30px;
 }
 
 #viewport.grabbing {
@@ -39,32 +59,32 @@ html, body {
     display: block;
 }
 
-/* Hover highlighting for values */
-.input-port, .output-port, .link {
-    transition: opacity 0.15s ease, stroke-width 0.15s ease;
+/* Gated behind `#canvas.elevated` (JS only adds it above a minimum zoom
+   level) — SVG filters aren't LOD-culled by the browser, so ungating this
+   would cost a filter pass per card even fully zoomed out. */
+#canvas.elevated .card,
+#canvas.elevated .group-box {
+    filter: drop-shadow(0 var(--shadow-y) var(--shadow-blur)
+                        rgb(var(--shadow-rgb) / var(--shadow-alpha)));
 }
+
+/* Card/pill/sep/group-box/group-title/link colors all come from literal
+   `fill`/`stroke` attributes computed in Rust, not CSS — so a per-instance
+   `StyleModifier` override (VisualAnnotation) always shows. `.card`/
+   `.group-box` still exist as classes, just for the elevation gate above and
+   the color-picker lookup in script.js. */
+
+/* -- links -------------------------------------------------------- */
+.link { stroke-linecap: round; transition: stroke 0.14s ease; }
 
 /* Hitarea for links - wider invisible stroke for easier hover detection */
 .link-hitarea {
     pointer-events: stroke;
 }
 
-.input-port.highlight, .output-port.highlight {
-    filter: drop-shadow(0 0 4px rgba(0, 100, 200, 0.8));
-}
-
+/* -- hover: accent the traced value, dim nothing ------------------ */
 .link.highlight {
-    stroke-width: 3px !important;
-    filter: drop-shadow(0 0 3px rgba(0, 100, 200, 0.6));
-}
-
-.input-port.dimmed, .output-port.dimmed, .link.dimmed {
-    opacity: 0.15;
-}
-
-/* Pinned elements stay visible even when others are dimmed */
-.input-port.pinned, .output-port.pinned, .link.pinned {
-    opacity: 1 !important;
+    stroke: #3d9ae8;
 }
 
 /* Per-node color picker popup */
@@ -99,6 +119,39 @@ html, body {
     font-size: 16px;
     line-height: 1;
 }
+
+/* ============================================ */
+/* Overlays (hint, legend, search)               */
+/* ============================================ */
+
+.overlay {
+    position: fixed;
+    z-index: 10;
+    background: var(--ui-bg);
+    border: 1px solid var(--ui-border);
+    color: var(--ui-text);
+    border-radius: 9px;
+    backdrop-filter: blur(12px);
+    font: 12px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+}
+
+#legend {
+    left: 14px; bottom: 14px;
+    padding: 10px 12px;
+    display: grid; gap: 6px;
+}
+#legend .row { display: flex; align-items: center; gap: 8px; }
+#legend .swatch { width: 4px; height: 14px; border-radius: 2px; }
+#legend .k { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; }
+
+#hint {
+    left: 14px; top: 14px;
+    padding: 8px 12px;
+    color: #7d8794;
+    font-size: 11px;
+    line-height: 1.6;
+}
+#hint b { color: var(--ui-text); font-weight: 600; }
 
 /* ============================================ */
 /* Search box                                   */

@@ -1,6 +1,8 @@
 use std::fmt::{Debug, Display};
 use zhc_ir::{DialectInstructionSet, Format, FormatContext, Signature, sig};
 
+use crate::pipelinelang::Affinity;
+
 use super::PipelineTypeSystem;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -34,6 +36,33 @@ pub enum PipelineInstructionSet {
     InputTopology,
     IopLangToVmLang,
     GenerateVmExecutionPlan,
+}
+
+impl PipelineInstructionSet {
+    pub fn get_affinity(&self) -> Affinity {
+        use PipelineInstructionSet::*;
+        match self {
+            InputBuilder | BuilderToIopLang | BuilderToPartitions | BuilderToPrototype
+            | ComputePbsMetrics | DrawSlack => Affinity::Commons,
+
+            InputHpuConfig | IopLangToHpuLang | ScheduleHpuLang | AllocateDopLang
+            | GenerateHpuStream | ComputeHpuMetrics | TraceHpuExecution | GenerateHpuAssembly => {
+                Affinity::Hpu
+            }
+
+            InputMultiHpuConfig
+            | IopLangToMultiHpu
+            | ScheduleMultiHpuLang
+            | AllocateMultiDopLang
+            | GenerateMultiHpuStream
+            | TraceMultiHpuExecution
+            | GenerateMultiHpuAssembly => Affinity::MultiHpu,
+
+            InputVmConfig | InputTopology | IopLangToVmLang | GenerateVmExecutionPlan => {
+                Affinity::Vm
+            }
+        }
+    }
 }
 
 impl Format for PipelineInstructionSet {

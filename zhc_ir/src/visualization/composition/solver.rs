@@ -136,13 +136,14 @@ fn gen_node_content<'ir, 'ann>(
                 sol: variable.get_variable_cell(),
                 args: svec![],
                 rets: variable
+                    .0
                     .e4
                     .content
                     .iter()
                     .map(|s| s.get_variable_cell())
                     .collect(),
-                body: variable.e1.get_variable_cell(),
-                comment: variable.e2.maybe_variable_cell(),
+                body: variable.0.e1.get_variable_cell(),
+                comment: variable.0.e2.maybe_variable_cell(),
             };
             (NodeInputOpVar(variable), ann)
         }
@@ -152,14 +153,15 @@ fn gen_node_content<'ir, 'ann>(
             let ann = CompositionVariable::Op {
                 sol: variable.get_variable_cell(),
                 args: variable
+                    .0
                     .e1
                     .content
                     .iter()
                     .map(|s| s.get_variable_cell())
                     .collect(),
                 rets: svec![],
-                body: variable.e2.get_variable_cell(),
-                comment: variable.e3.maybe_variable_cell(),
+                body: variable.0.e2.get_variable_cell(),
+                comment: variable.0.e3.maybe_variable_cell(),
             };
             (NodeEffectOpVar(variable), ann)
         }
@@ -168,14 +170,16 @@ fn gen_node_content<'ir, 'ann>(
             let ann = CompositionVariable::Op {
                 sol: variable.get_variable_cell(),
                 args: variable
+                    .0
                     .e1
                     .content
                     .iter()
                     .map(|s| s.get_variable_cell())
                     .collect(),
-                body: variable.e2.get_variable_cell(),
-                comment: variable.e3.maybe_variable_cell(),
+                body: variable.0.e2.get_variable_cell(),
+                comment: variable.0.e3.maybe_variable_cell(),
                 rets: variable
+                    .0
                     .e5
                     .content
                     .iter()
@@ -391,7 +395,7 @@ fn gen_group_node<'ir, 'ann>(
             .collect(),
     );
 
-    (Group(V4::new(None, title, inputs, content, outputs)), opmap)
+    (Group::new(None, title, inputs, content, outputs), opmap)
 }
 
 /// Generates curves by tracing value flows through the IR.

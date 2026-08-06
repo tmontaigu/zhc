@@ -1,4 +1,4 @@
-use zhc_utils::graphics::{Color, Frame, Size};
+use zhc_utils::graphics::{Frame, Size, VAlign};
 
 use super::*;
 use crate::visualization::svg::{DominantBaseline, TextAnchor};
@@ -58,36 +58,43 @@ impl<C: Class> Renderable for TextBox<C> {
         let frame = self.get_frame();
         let mut elements = Vec::new();
 
-        // Background rect if visible
-        if style.fill_color != Color::TRANSPARENT || style.border_color != Color::TRANSPARENT {
-            elements.push(SvgElement::Rect {
-                x: frame.position.x.0,
-                y: frame.position.y.0,
-                width: frame.size.width.0.0,
-                height: frame.size.height.0.0,
-                rx: (style.corner_radius.0 > 0.0).then_some(style.corner_radius.0),
-                fill: Some(style.fill_color.to_string()),
-                stroke: Some(style.border_color.to_string()),
-                stroke_width: Some(style.border_width.0),
-                class: None,
-                id: None,
-                data_val: None,
-            });
-        }
+        elements.extend(background_rect(&style, &frame));
 
-        // Text content (one element per line)
+        // The anchor y and its paired dominant-baseline both come from
+        // `font_valign` — they need to agree, or text renders off from
+        // where its box says it should sit.
+        let line_height = style.font_size.0 * 1.2;
+        let n_lines = self.content.lines().count().max(1) as f64;
+        let block_height = line_height * n_lines;
+
+        let (first_line_y, dominant_baseline) = match style.font_valign {
+            VAlign::Top => (
+                frame.position.y.0 + style.padding.0,
+                DominantBaseline::Hanging,
+            ),
+            VAlign::Center => (
+                frame.position.y.0
+                    + (frame.size.height.0.0 - block_height) / 2.0
+                    + line_height / 2.0,
+                DominantBaseline::Middle,
+            ),
+            VAlign::Bottom => (
+                frame.position.y.0 + frame.size.height.0.0 - style.padding.0 - block_height
+                    + line_height,
+                DominantBaseline::Auto,
+            ),
+        };
+
         for (line_index, line) in self.content.lines().enumerate() {
             elements.push(SvgElement::Text {
                 x: frame.position.x.0 + style.padding.0,
-                y: frame.position.y.0
-                    + style.padding.0
-                    + (line_index as f64 * style.font_size.0 * 1.2),
+                y: first_line_y + line_index as f64 * line_height,
                 content: line.to_string(),
                 font_size: style.font_size.0,
                 font_family: Some(style.font.0.to_string()),
                 fill: Some(style.font_color.to_string()),
                 text_anchor: TextAnchor::from(style.font_halign),
-                dominant_baseline: DominantBaseline::Hanging,
+                dominant_baseline: dominant_baseline.clone(),
                 class: None,
                 id: None,
             });

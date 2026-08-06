@@ -10,10 +10,48 @@ let startY = 0;
 
 const viewport = document.getElementById('viewport');
 const canvas = document.getElementById('canvas');
+const svgEl = canvas.querySelector('svg');
+
+// Below this scale the drop-shadows are switched off — see style.css.
+const SHADOW_MIN_SCALE = 0.3;
+
+// Dot spacing in layout units — the same units node padding/corner-radius/
+// font-size are measured in (composition/style.rs), not CSS pixels. The
+// SVG's viewBox is sized to the diagram's content, so a 3-node diagram and a
+// 300-node one have wildly different viewBox-to-viewport ratios at the same
+// JS zoom `scale`; anchoring the grid to layout units instead of raw CSS
+// pixels is what keeps its density relative to a node constant across both.
+const GRID_TILE_UNITS = 30;
+
+// CSS px per layout unit at JS `scale` 1 — how much `preserveAspectRatio`
+// shrinks/grows the viewBox to fit the viewport. Only changes if the window
+// or the diagram's own size changes, so it's cached rather than recomputed
+// every pan/zoom frame.
+let unitScale = 1;
+
+function computeUnitScale() {
+    const rect = viewport.getBoundingClientRect();
+    const viewBox = svgEl.viewBox.baseVal;
+    unitScale = Math.min(rect.width / viewBox.width, rect.height / viewBox.height);
+}
+
+computeUnitScale();
+window.addEventListener('resize', () => {
+    computeUnitScale();
+    updateTransform();
+});
 
 // Apply current transform
 function updateTransform() {
     canvas.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+
+    // Drag the page-wide dot grid along with the canvas.
+    const tile = GRID_TILE_UNITS * unitScale * scale;
+    viewport.style.backgroundSize = `${tile}px ${tile}px`;
+    viewport.style.backgroundPosition = `${translateX}px ${translateY}px`;
+    // Below ~4px the dots stop reading as a grid and turn into noise.
+    viewport.style.backgroundImage = tile < 4 ? 'none' : '';
+    canvas.classList.toggle('elevated', scale >= SHADOW_MIN_SCALE);
 }
 
 // Zoom with mouse wheel (Ctrl/Cmd + scroll)
@@ -128,12 +166,43 @@ window.addEventListener('keydown', (e) => {
 updateTransform();
 
 // ============================================
-// Hover highlighting for values
+// Value tracing — hover a link and every other element carrying the same
+// data-val takes the accent. Nothing is dimmed.
 // ============================================
 
-const highlightableSelector = '.input-port[data-val], .output-port[data-val], .link[data-val], .link-hitarea[data-val]';
+const traceableSelector = '[data-val]';
 
-// Pinned values: Map<valId, color>
+function trace(valId) {
+    document.querySelectorAll(traceableSelector).forEach(el => {
+        el.classList.toggle('highlight', el.getAttribute('data-val') === valId);
+    });
+}
+
+function clearTrace() {
+    document.querySelectorAll(traceableSelector).forEach(el => el.classList.remove('highlight'));
+}
+
+viewport.addEventListener('mouseover', (e) => {
+    if (isPanning) return;
+    const target = e.target.closest('[data-val]');
+    if (target) {
+        trace(target.getAttribute('data-val'));
+    }
+});
+
+viewport.addEventListener('mouseout', (e) => {
+    const target = e.target.closest('[data-val]');
+    const related = e.relatedTarget ? e.relatedTarget.closest('[data-val]') : null;
+    if (target && (!related || related.getAttribute('data-val') !== target.getAttribute('data-val'))) {
+        clearTrace();
+    }
+});
+
+// ============================================
+// Double-click to pin a color onto a value (port or link), independent of
+// the hover trace above. Map<valId, color>, in-memory, lost on reload.
+// ============================================
+
 const pinnedValues = new Map();
 
 function randomColor() {
@@ -156,40 +225,13 @@ function clearPinnedStyle(el) {
 }
 
 function refreshPinnedStyles() {
-    // Reapply all pinned styles
-    const all = document.querySelectorAll(highlightableSelector);
-    all.forEach(el => {
+    document.querySelectorAll(traceableSelector).forEach(el => {
         const valId = el.getAttribute('data-val');
         if (pinnedValues.has(valId)) {
             applyPinnedStyle(el, pinnedValues.get(valId));
-            el.classList.add('pinned');
         } else {
             clearPinnedStyle(el);
-            el.classList.remove('pinned');
         }
-    });
-}
-
-function highlightValue(valId) {
-    const all = document.querySelectorAll(highlightableSelector);
-    all.forEach(el => {
-        if (el.getAttribute('data-val') === valId) {
-            el.classList.add('highlight');
-            el.classList.remove('dimmed');
-        } else if (!pinnedValues.has(el.getAttribute('data-val'))) {
-            el.classList.add('dimmed');
-            el.classList.remove('highlight');
-        } else {
-            // Pinned but not hovered: don't dim
-            el.classList.remove('highlight', 'dimmed');
-        }
-    });
-}
-
-function clearHighlight() {
-    const all = document.querySelectorAll(highlightableSelector);
-    all.forEach(el => {
-        el.classList.remove('highlight', 'dimmed');
     });
 }
 
@@ -201,22 +243,6 @@ function togglePin(valId) {
     }
     refreshPinnedStyles();
 }
-
-viewport.addEventListener('mouseover', (e) => {
-    if (isPanning) return;
-    const target = e.target.closest('[data-val]');
-    if (target) {
-        highlightValue(target.getAttribute('data-val'));
-    }
-});
-
-viewport.addEventListener('mouseout', (e) => {
-    const target = e.target.closest('[data-val]');
-    const related = e.relatedTarget ? e.relatedTarget.closest('[data-val]') : null;
-    if (target && (!related || related.getAttribute('data-val') !== target.getAttribute('data-val'))) {
-        clearHighlight();
-    }
-});
 
 // ============================================
 // Per-node color customization
@@ -230,10 +256,11 @@ const PALETTE = [
     '#4dabf7', '#9775fa', '#f783ac', '#868e96',
 ];
 
-// The body rect is the V4/V5 background, emitted first by the composition
-// primitive — so it's the first direct <rect> child of the node group.
+// The body is the V4/V5 background — a plain <rect> for most nodes, but a
+// ticket-stub <path> for input/effect ops, so match on the shared "card"
+// class rather than assuming both shape and child order.
 function getNodeBody(group) {
-    return group.querySelector(':scope > rect');
+    return group.querySelector(':scope > .card');
 }
 
 function applyNodeColor(group, color) {
@@ -341,10 +368,12 @@ function redrawSearchBoxes() {
     searchMatches.forEach((el, i) => addSearchBox(el, i === searchIndex));
 }
 
-// Pan/zoom so `el` sits centered in the viewport at a readable size. We invert
-// the current transform to recover the element's canvas-local center, then
-// solve for the translate that maps it to the viewport center at targetScale.
-function centerOnElement(el) {
+// Pan/zoom so `el` sits centered in the viewport. We invert the current
+// transform to recover the element's canvas-local center, then solve for the
+// translate that maps it to the viewport center at targetScale. With
+// `keepZoom` set, targetScale is just the current scale, so stepping through
+// results only pans — it won't fight a zoom level the user set by hand.
+function centerOnElement(el, keepZoom) {
     const vp = viewport.getBoundingClientRect();
     const rect = el.getBoundingClientRect();
 
@@ -355,7 +384,7 @@ function centerOnElement(el) {
 
     // Pick a zoom that renders the match at a comfortable on-screen height.
     const localHeight = rect.height / scale;
-    const targetScale = Math.min(Math.max(48 / localHeight, 1), 8);
+    const targetScale = keepZoom ? scale : Math.min(Math.max(48 / localHeight, 1), 8);
 
     scale = targetScale;
     translateX = vp.width / 2 - targetScale * localX;
@@ -393,7 +422,7 @@ function stepSearch(delta) {
     searchIndex = (searchIndex + delta + searchMatches.length) % searchMatches.length;
     redrawSearchBoxes();
     updateSearchCount();
-    centerOnElement(searchMatches[searchIndex]);
+    centerOnElement(searchMatches[searchIndex], true);
 }
 
 function openSearch() {

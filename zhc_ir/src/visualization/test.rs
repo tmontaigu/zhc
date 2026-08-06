@@ -1180,7 +1180,7 @@ fn test_ann_style_modifier() {
     impl VisualAnnotation for OpAnn {
         fn style_modifier(&self) -> Option<composition::StyleModifier> {
             Some(StyleModifier {
-                fill_color: Some(ColorScale::TRAFFIC_LIGHT.interpolate(self.0 as f64 / 5.)),
+                fill_color: Some(ColorScale::RAINBOW.interpolate(self.0 as f64 / 5.)),
                 ..Default::default()
             })
         }

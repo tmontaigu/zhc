@@ -972,6 +972,10 @@ impl Frame {
     /// Panics if `width` is greater than the current frame width.
     pub fn resize_horizontal(self, width: Width, align: HAlign) -> Frame {
         assert!(width.0 <= self.size.width.0 + Thickness::EPSILON);
+        // Clamp within the epsilon this just tolerated: `Sub` below has no
+        // such tolerance, and a `width` that's a hair over `self.size.width`
+        // (float accumulation, not a real overflow) would panic there.
+        let width = Width(width.0.min(self.size.width.0));
         let x_offset = match align {
             HAlign::Left => Width::ZERO,
             HAlign::Center => (self.size.width - width) / 2,
@@ -997,6 +1001,7 @@ impl Frame {
     /// Panics if `height` is greater than the current frame height.
     pub fn resize_vertical(self, height: Height, align: VAlign) -> Frame {
         assert!(height.0 <= self.size.height.0 + Thickness::EPSILON);
+        let height = Height(height.0.min(self.size.height.0));
         let y_offset = match align {
             VAlign::Top => Height::ZERO,
             VAlign::Center => (self.size.height - height) / 2,
@@ -1325,6 +1330,37 @@ impl Color {
         self
     }
 
+    /// Parses an opaque color from a `#rrggbb` hex string.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `hex` is not exactly 7 bytes starting with `#` followed by six hex digits.
+    pub const fn from_hex(hex: &str) -> Self {
+        let bytes = hex.as_bytes();
+        assert!(
+            bytes.len() == 7 && bytes[0] == b'#',
+            "expected a `#rrggbb` hex color string"
+        );
+        Self::rgb(
+            Self::hex_byte(bytes[1], bytes[2]),
+            Self::hex_byte(bytes[3], bytes[4]),
+            Self::hex_byte(bytes[5], bytes[6]),
+        )
+    }
+
+    const fn hex_digit(c: u8) -> u8 {
+        match c {
+            b'0'..=b'9' => c - b'0',
+            b'a'..=b'f' => c - b'a' + 10,
+            b'A'..=b'F' => c - b'A' + 10,
+            _ => panic!("invalid hex digit"),
+        }
+    }
+
+    const fn hex_byte(hi: u8, lo: u8) -> u8 {
+        Self::hex_digit(hi) * 16 + Self::hex_digit(lo)
+    }
+
     pub const TRANSPARENT: Self = Color::new(0, 0, 0, 0);
     pub const BLACK: Self = Color::rgb(0, 0, 0);
     pub const WHITE: Self = Color::rgb(255, 255, 255);
@@ -1505,21 +1541,30 @@ impl<const N: usize> Dumpable for ColorScale<N> {
 }
 
 impl ColorScale<3> {
-    /// Green-to-red traffic-light palette.
-    pub const TRAFFIC_LIGHT: Self = Self([Color::GREEN, Color::YELLOW, Color::RED]);
-    /// Red-to-green traffic-light palette.
-    pub const INVERSE_TRAFFIC_LIGHT: Self = Self([Color::RED, Color::YELLOW, Color::GREEN]);
+    /// Green-to-red traffic-light palette, in the visualization's light.
+    pub const TRAFFIC_LIGHT: Self = Self([
+        Color::from_hex("#32ff7e"),
+        Color::from_hex("#fff200"),
+        Color::from_hex("#ff4d4d"),
+    ]);
+    /// Red-to-green traffic-light palette, in the visualization's light.
+    pub const INVERSE_TRAFFIC_LIGHT: Self = Self([
+        Color::from_hex("#ff4d4d"),
+        Color::from_hex("#fff200"),
+        Color::from_hex("#32ff7e"),
+    ]);
 }
 impl ColorScale<7> {
-    /// Seven-stop violet-to-red rainbow palette.
+    /// Seven-stop violet-to-red rainbow palette, in the visualization's light, saturated accent
+    /// style.
     pub const RAINBOW: Self = Self([
-        Color::VIOLET,
-        Color::INDIGO,
-        Color::BLUE,
-        Color::GREEN,
-        Color::YELLOW,
-        Color::ORANGE,
-        Color::RED,
+        Color::from_hex("#cd84f1"), // violet
+        Color::from_hex("#7158e2"), // indigo
+        Color::from_hex("#17c0eb"), // blue
+        Color::from_hex("#3ae374"), // green
+        Color::from_hex("#fffa65"), // yellow
+        Color::from_hex("#ffaf40"), // orange
+        Color::from_hex("#ff4d4d"), // red
     ]);
 }
 

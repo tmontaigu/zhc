@@ -22,6 +22,17 @@ pub trait Class: 'static {
     const STYLE: Style = Style::DEFAULT;
 }
 
+/// Purely-decorative card outline; not part of the layout/box model.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CardShape {
+    /// Plain rounded rect on all four corners.
+    Rect,
+    /// Ticket-stub zigzag on the top edge, square top corners.
+    SawtoothTop,
+    /// Ticket-stub zigzag on the bottom edge, square bottom corners.
+    SawtoothBottom,
+}
+
 /// Visual styling properties for UI components.
 #[derive(Clone)]
 pub struct Style {
@@ -41,12 +52,14 @@ pub struct Style {
     pub hjustify: Justify,
     pub vjustify: Justify,
     pub draw_separators: bool,
+    pub accent_color: Color,
+    pub card_shape: CardShape,
 }
 
 impl Style {
     /// Default style configuration for all components.
     pub const DEFAULT: Self = Style {
-        font: Font("Courier"),
+        font: Font("'JetBrains Mono', 'DejaVu Sans Mono', 'Liberation Mono', 'Courier', monospace"),
         font_size: FontSize::new(10.),
         font_halign: HAlign::Left,
         font_valign: VAlign::Center,
@@ -62,6 +75,8 @@ impl Style {
         hjustify: Justify::Pack,
         vjustify: Justify::Pack,
         draw_separators: false,
+        accent_color: Color::TRANSPARENT,
+        card_shape: CardShape::Rect,
     };
 
     pub fn modify(self, modifier: StyleModifier) -> Style {
@@ -82,6 +97,8 @@ impl Style {
             hjustify: modifier.hjustify.unwrap_or(self.hjustify),
             vjustify: modifier.vjustify.unwrap_or(self.vjustify),
             draw_separators: modifier.draw_separators.unwrap_or(self.draw_separators),
+            accent_color: modifier.accent_color.unwrap_or(self.accent_color),
+            card_shape: modifier.card_shape.unwrap_or(self.card_shape),
         }
     }
 }
@@ -110,6 +127,8 @@ pub struct StyleModifier {
     pub hjustify: Option<Justify>,
     pub vjustify: Option<Justify>,
     pub draw_separators: Option<bool>,
+    pub accent_color: Option<Color>,
+    pub card_shape: Option<CardShape>,
 }
 
 impl Default for StyleModifier {
@@ -136,6 +155,8 @@ impl StyleModifier {
         hjustify: None,
         vjustify: None,
         draw_separators: None,
+        accent_color: None,
+        card_shape: None,
     };
 }
 
@@ -165,9 +186,13 @@ impl Class for NoClass {}
 pub struct OpInputPortClass;
 impl Class for OpInputPortClass {
     const STYLE: Style = Style {
-        fill_color: Color::AQUAMARINE,
-        border_color: Color::BLACK,
+        fill_color: Color::WHITE,
+        border_width: Thickness::new(1.),
+        border_color: Color::rgb(214, 218, 226),
+        font_color: Color::rgb(43, 49, 58),
         padding: Thickness::new(2.),
+        corner_radius: Thickness::new(5.),
+        font_size: FontSize::new(10.),
         ..Style::DEFAULT
     };
 }
@@ -177,7 +202,7 @@ impl Class for OpInputsClass {
     const STYLE: Style = Style {
         fill_color: Color::TRANSPARENT,
         border_color: Color::TRANSPARENT,
-        padding: Thickness::new(2.),
+        padding: Thickness::new(4.),
         ..Style::DEFAULT
     };
 }
@@ -186,6 +211,8 @@ pub struct OpBodyClass;
 impl Class for OpBodyClass {
     const STYLE: Style = Style {
         padding: Thickness::new(4.),
+        font_size: FontSize::new(10.),
+        font_color: Color::rgb(27, 31, 38),
         ..Style::DEFAULT
     };
 }
@@ -202,9 +229,13 @@ impl Class for OpCommentClass {
 pub struct OpOutputPortClass;
 impl Class for OpOutputPortClass {
     const STYLE: Style = Style {
-        fill_color: Color::AQUAMARINE,
-        border_color: Color::BLACK,
+        fill_color: Color::WHITE,
+        border_width: Thickness::new(1.),
+        border_color: Color::rgb(214, 218, 226),
+        font_color: Color::rgb(43, 49, 58),
         padding: Thickness::new(2.),
+        corner_radius: Thickness::new(5.),
+        font_size: FontSize::new(10.),
         ..Style::DEFAULT
     };
 }
@@ -214,7 +245,7 @@ impl Class for OpOutputsClass {
     const STYLE: Style = Style {
         fill_color: Color::TRANSPARENT,
         border_color: Color::TRANSPARENT,
-        padding: Thickness::new(2.),
+        padding: Thickness::new(4.),
         ..Style::DEFAULT
     };
 }
@@ -222,12 +253,15 @@ impl Class for OpOutputsClass {
 pub struct InputOpClass;
 impl Class for InputOpClass {
     const STYLE: Style = Style {
-        fill_color: Color::SEASHELL,
+        fill_color: Color::WHITE,
         valign: VAlign::Top,
-        border_color: Color::GRAY,
-        border_width: Thickness::new(0.7),
-        corner_radius: Thickness::new(4.),
+        border_color: Color::rgb(200, 207, 217),
+        border_width: Thickness::new(1.),
+        corner_radius: Thickness::new(6.),
+        padding: Thickness::new(10.), // clears the rail (6px inset + 4px width)
         draw_separators: true,
+        accent_color: Color::MEDIUMSEAGREEN,
+        card_shape: CardShape::SawtoothTop,
         ..Style::DEFAULT
     };
 }
@@ -235,12 +269,14 @@ impl Class for InputOpClass {
 pub struct OpClass;
 impl Class for OpClass {
     const STYLE: Style = Style {
-        fill_color: Color::ALICEBLUE,
+        fill_color: Color::WHITE,
         valign: VAlign::Top,
-        border_color: Color::GRAY,
-        border_width: Thickness::new(0.7),
-        corner_radius: Thickness::new(4.),
+        border_color: Color::rgb(200, 207, 217),
+        border_width: Thickness::new(1.),
+        corner_radius: Thickness::new(6.),
+        padding: Thickness::new(10.),
         draw_separators: true,
+        accent_color: Color::CORNFLOWERBLUE,
         ..Style::DEFAULT
     };
 }
@@ -248,12 +284,15 @@ impl Class for OpClass {
 pub struct EffectOpClass;
 impl Class for EffectOpClass {
     const STYLE: Style = Style {
-        fill_color: Color::HONEYDEW,
+        fill_color: Color::WHITE,
         valign: VAlign::Top,
-        border_color: Color::GRAY,
-        border_width: Thickness::new(0.7),
-        corner_radius: Thickness::new(4.),
+        border_color: Color::rgb(200, 207, 217),
+        border_width: Thickness::new(1.),
+        corner_radius: Thickness::new(6.),
+        padding: Thickness::new(10.),
         draw_separators: true,
+        accent_color: Color::DARKORANGE,
+        card_shape: CardShape::SawtoothBottom,
         ..Style::DEFAULT
     };
 }
@@ -298,8 +337,8 @@ impl Class for LayersClass {
 pub struct CurveClass;
 impl Class for CurveClass {
     const STYLE: Style = Style {
-        border_width: Thickness::new(1.),
-        border_color: Color::GRAY,
+        border_width: Thickness::new(2.),
+        border_color: Color::rgb(174, 182, 192),
         ..Style::DEFAULT
     };
 }
@@ -307,12 +346,12 @@ impl Class for CurveClass {
 pub struct GroupClass;
 impl Class for GroupClass {
     const STYLE: Style = Style {
-        fill_color: Color::CORNFLOWERBLUE.with_opacity(0.2),
+        fill_color: Color::rgb(96, 120, 152).with_opacity(0.12),
         corner_radius: Thickness::new(10.),
         padding: Thickness::new(4.),
         spacing: Thickness::new(2.),
         border_width: Thickness::new(1.),
-        border_color: Color::CORNFLOWERBLUE.with_opacity(0.3),
+        border_color: Color::rgb(213, 217, 225),
         valign: VAlign::Top,
         ..Style::DEFAULT
     };
@@ -321,8 +360,8 @@ impl Class for GroupClass {
 pub struct GroupTitleClass;
 impl Class for GroupTitleClass {
     const STYLE: Style = Style {
-        font_size: FontSize::new(8.),
-        font_color: Color::BLACK.with_opacity(0.6),
+        font_size: FontSize::new(20.),
+        font_color: Color::rgb(121, 130, 143),
         padding: Thickness::new(5.),
         spacing: Thickness::new(0.),
         font_halign: HAlign::Left,

@@ -1,5 +1,7 @@
 use crate::visualization::svg::Svg;
 
+const HTML_TEMPLATE: &str = include_str!("template.html");
+
 /// An HTML document wrapping an SVG visualization.
 #[derive(Debug, Clone)]
 pub struct Html {
@@ -15,60 +17,21 @@ pub struct Html {
 
 impl std::fmt::Display for Html {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "<!DOCTYPE html>")?;
-        writeln!(f, "<html>")?;
-        writeln!(f, "<head>")?;
-        writeln!(f, "  <meta charset=\"UTF-8\">")?;
-        writeln!(
-            f,
-            "  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">"
-        )?;
-        writeln!(f, "  <title>{}</title>", html_escape(&self.title))?;
-        writeln!(f, "  <style>")?;
-        writeln!(f, "{}", self.css)?;
-        writeln!(f, "  </style>")?;
-        writeln!(f, "</head>")?;
-        writeln!(f, "<body>")?;
-
-        // Search bar (hidden until Ctrl/Cmd+F). Lives outside #viewport so its
-        // clicks never reach the pan/zoom handlers.
-        writeln!(f, "  <div id=\"search-box\" class=\"hidden\">")?;
-        writeln!(
-            f,
-            "    <input id=\"search-input\" type=\"text\" placeholder=\"Search\u{2026}\" autocomplete=\"off\" spellcheck=\"false\" />"
-        )?;
-        writeln!(f, "    <span id=\"search-count\"></span>")?;
-        writeln!(
-            f,
-            "    <button id=\"search-prev\" title=\"Previous (Shift+Enter)\">\u{2191}</button>"
-        )?;
-        writeln!(
-            f,
-            "    <button id=\"search-next\" title=\"Next (Enter)\">\u{2193}</button>"
-        )?;
-        writeln!(
-            f,
-            "    <button id=\"search-close\" title=\"Close (Esc)\">\u{00d7}</button>"
-        )?;
-        writeln!(f, "  </div>")?;
-
-        writeln!(f, "  <div id=\"viewport\">")?;
-        writeln!(f, "    <div id=\"canvas\">")?;
-
-        // Emit SVG with viewBox and 100% dimensions
-        write!(f, "{}", self.svg_with_viewbox())?;
-
-        writeln!(f, "    </div>")?;
-        writeln!(f, "  </div>")?;
-        writeln!(f, "  <script>")?;
-        writeln!(f, "{}", self.javascript)?;
-        writeln!(f, "  </script>")?;
-        writeln!(f, "</body>")?;
-        writeln!(f, "</html>")
+        write!(f, "{}", self.render_document())
     }
 }
 
 impl Html {
+    /// Renders the full HTML document from the static template.
+    fn render_document(&self) -> String {
+        let title = html_escape(&self.title);
+        HTML_TEMPLATE
+            .replace("{{TITLE}}", &title)
+            .replace("{{CSS}}", &self.css)
+            .replace("{{SVG}}", &self.svg_with_viewbox())
+            .replace("{{JAVASCRIPT}}", &self.javascript)
+    }
+
     /// Renders the SVG with viewBox for proper scaling.
     fn svg_with_viewbox(&self) -> String {
         let svg = &self.svg;

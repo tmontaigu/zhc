@@ -1,6 +1,6 @@
 use super::*;
 use zhc_utils::{
-    graphics::{Color, Frame, Height, Justify, Size},
+    graphics::{Frame, Height, Justify, Size},
     iter::Separate,
 };
 
@@ -98,21 +98,7 @@ impl<E: Renderable, C: Class> Renderable for VStack<E, C> {
         let mut elements = Vec::new();
 
         // Background rect if visible
-        if style.fill_color != Color::TRANSPARENT || style.border_color != Color::TRANSPARENT {
-            elements.push(SvgElement::Rect {
-                x: frame.position.x.0,
-                y: frame.position.y.0,
-                width: frame.size.width.0.0,
-                height: frame.size.height.0.0,
-                rx: (style.corner_radius.0 > 0.0).then_some(style.corner_radius.0),
-                fill: Some(style.fill_color.to_string()),
-                stroke: Some(style.border_color.to_string()),
-                stroke_width: Some(style.border_width.0),
-                class: None,
-                id: None,
-                data_val: None,
-            });
-        }
+        elements.extend(background_rect(&style, &frame));
 
         // Render separators between children if enabled
         if style.draw_separators && self.content.len() > 1 {
@@ -121,19 +107,12 @@ impl<E: Renderable, C: Class> Renderable for VStack<E, C> {
                 let next_frame = self.content[i + 1].get_frame();
                 let sep_y = (child_frame.bottom_left().y.0 + next_frame.top_left().y.0) / 2.0;
 
-                elements.push(SvgElement::Rect {
-                    x: frame.position.x.0,
-                    y: sep_y - style.border_width.0 / 2.0,
-                    width: frame.size.width.0.0,
-                    height: style.border_width.0,
-                    rx: None,
-                    fill: Some(style.border_color.to_string()),
-                    stroke: None,
-                    stroke_width: None,
-                    class: None,
-                    id: None,
-                    data_val: None,
-                });
+                elements.push(separator_rect(
+                    &style,
+                    frame.position.x.0,
+                    sep_y,
+                    frame.size.width.0.0,
+                ));
             }
         }
 

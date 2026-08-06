@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{TITLE}}</title>
+  <style>
+    {{CSS}}
+  </style>
+</head>
+<body>
+  <div id="hint" class="overlay">
+    <b>drag</b> pan &nbsp;·&nbsp; <b>⌘/ctrl + wheel</b> zoom &nbsp;·&nbsp; <b>r</b> reset<br>
+    <b>double click link</b> random highlight color<br>
+    <b>double click node</b> color picker<br>
+    <b>⌘/ctrl + f</b> search &nbsp;·&nbsp; <b>hover link</b> trace value
+  </div>
+
+  <div id="legend" class="overlay">
+    <div class="row"><span class="swatch" style="background:#3cb371"></span><span class="k">input</span></div>
+    <div class="row"><span class="swatch" style="background:#6495ed"></span><span class="k">pure op</span></div>
+    <div class="row"><span class="swatch" style="background:#ff8c00"></span><span class="k">effect</span></div>
+  </div>
+
+  <div id="search-box" class="hidden">
+    <input id="search-input" type="text" placeholder="Search…" autocomplete="off" spellcheck="false" />
+    <span id="search-count"></span>
+    <button id="search-prev" title="Previous (Shift+Enter)">↑</button>
+    <button id="search-next" title="Next (Enter)">↓</button>
+    <button id="search-close" title="Close (Esc)">×</button>
+  </div>
+
+  <div id="viewport">
+    <div id="canvas">
+        {{SVG}}
+    </div>
+  </div>
+
+  <script>
+    {{JAVASCRIPT}}
+  </script>
+</body>
+</html>

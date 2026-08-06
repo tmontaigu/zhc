@@ -1,5 +1,6 @@
 use super::*;
-use zhc_utils::graphics::{Color, Frame, Height, Remaining, Size, Taken};
+use crate::visualization::svg::{card_background, rail_rects};
+use zhc_utils::graphics::{Frame, Height, Remaining, Size, Taken, Width};
 
 macro_rules! vstack_fixed {
     ($name:ident, $n:literal, [$($etype:ident, $efield:ident),*]) => {
@@ -54,6 +55,7 @@ macro_rules! vstack_fixed {
                     }
                 )*
                 size = size.pad_bottom(style.padding);
+                size = size.pad_horizontal(style.padding);
                 self.variable.set_size(size);
             }
 
@@ -63,7 +65,10 @@ macro_rules! vstack_fixed {
                 let frame = available.resize(&size, style.halign, style.valign);
                 self.variable.set_frame(frame.clone());
 
-                let mut remaining = frame.crop_top(Height(style.padding));
+                let mut remaining = frame
+                    .crop_top(Height(style.padding))
+                    .crop_left(Width(style.padding))
+                    .crop_right(Width(style.padding));
                 let mut has_content = false;
                 $(
                     let child_height = self.$efield.get_size().height;
@@ -93,22 +98,7 @@ macro_rules! vstack_fixed {
                 let frame = self.get_frame();
                 let mut elements = Vec::new();
 
-                // Background rect if visible
-                if style.fill_color != Color::TRANSPARENT || style.border_color != Color::TRANSPARENT {
-                    elements.push(SvgElement::Rect {
-                        x: frame.position.x.0,
-                        y: frame.position.y.0,
-                        width: frame.size.width.0.0,
-                        height: frame.size.height.0.0,
-                        rx: (style.corner_radius.0 > 0.0).then_some(style.corner_radius.0),
-                        fill: Some(style.fill_color.to_string()),
-                        stroke: Some(style.border_color.to_string()),
-                        stroke_width: Some(style.border_width.0),
-                        class: None,
-                        id: None,
-                        data_val: None,
-                    });
-                }
+                elements.extend(card_background(&style, &frame));
 
                 // Collect non-zero-height child frames for separator rendering
                 let child_frames: Vec<Frame> = vec![$(self.$efield.get_frame()),*]
@@ -120,24 +110,21 @@ macro_rules! vstack_fixed {
                 if style.draw_separators && child_frames.len() > 1 {
                     for i in 0..child_frames.len() - 1 {
                         let sep_y = (child_frames[i].bottom_left().y.0 + child_frames[i + 1].top_left().y.0) / 2.0;
-                        elements.push(SvgElement::Rect {
-                            x: frame.position.x.0,
-                            y: sep_y - style.border_width.0 / 2.0,
-                            width: frame.size.width.0.0,
-                            height: style.border_width.0,
-                            rx: None,
-                            fill: Some(style.border_color.to_string()),
-                            stroke: None,
-                            stroke_width: None,
-                            class: None,
-                            id: None,
-                            data_val: None,
-                        });
+                        elements.push(separator_rect(
+                            &style,
+                            frame.position.x.0,
+                            sep_y,
+                            frame.size.width.0.0,
+                        ));
                     }
                 }
 
                 // Render children
                 $(elements.extend(self.$efield.render());)*
+
+                // Rendered last so it sits on top of the separators/children
+                // instead of getting cut across by them.
+                elements.extend(rail_rects(&style, &frame));
 
                 elements
             }

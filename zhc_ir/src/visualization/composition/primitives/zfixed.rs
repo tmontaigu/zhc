@@ -1,5 +1,5 @@
 use super::*;
-use zhc_utils::graphics::{Color, Frame, Size};
+use zhc_utils::graphics::{Frame, Size};
 
 macro_rules! zstack_fixed {
     ($name:ident, $n:literal, [$($etype:ident, $efield:ident),*]) => {
@@ -62,21 +62,7 @@ macro_rules! zstack_fixed {
                 let mut elements = Vec::new();
 
                 // Background rect if visible
-                if style.fill_color != Color::TRANSPARENT || style.border_color != Color::TRANSPARENT {
-                    elements.push(SvgElement::Rect {
-                        x: frame.position.x.0,
-                        y: frame.position.y.0,
-                        width: frame.size.width.0.0,
-                        height: frame.size.height.0.0,
-                        rx: (style.corner_radius.0 > 0.0).then_some(style.corner_radius.0),
-                        fill: Some(style.fill_color.to_string()),
-                        stroke: Some(style.border_color.to_string()),
-                        stroke_width: Some(style.border_width.0),
-                        class: None,
-                        id: None,
-                        data_val: None,
-                    });
-                }
+                elements.extend(background_rect(&style, &frame));
 
                 // Render children (overlaid)
                 $(elements.extend(self.$efield.render());)*

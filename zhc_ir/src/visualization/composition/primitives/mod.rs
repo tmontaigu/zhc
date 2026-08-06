@@ -1,5 +1,5 @@
 use super::*;
-use crate::visualization::svg::{Renderable, SvgElement};
+use crate::visualization::svg::{Renderable, SvgElement, background_rect, separator_rect};
 
 mod bag;
 mod box_dyn;

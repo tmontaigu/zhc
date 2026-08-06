@@ -98,7 +98,10 @@ use std::sync::LazyLock;
 
 use zhc_builder::{Builder, Type};
 use zhc_config::{hpu::HpuConfig, multi_hpu::MultiHpuConfig, vm::VmConfig};
-use zhc_ir::{IR, OpMap, Signature, ValId, evaluation::LazyEvaluator, partition::PartitionId};
+use zhc_ir::{
+    IR, OpMap, Signature, ValId, evaluation::LazyEvaluator, partition::PartitionId,
+    visualization::Hierarchy,
+};
 use zhc_langs::{
     doplang::DopLang,
     hpulang::{HpuLang, HpuLocality},
@@ -154,8 +157,6 @@ static PIPELINE: LazyLock<(IR<PipelineLang>, ArtifactsValids)> = LazyLock::new(|
     // Commons
     let (_, rets) = ir.add_op(InputBuilder, svec![]);
     let builder = rets[0];
-    let (_, rets) = ir.add_op(InputHpuConfig, svec![]);
-    let hpu_config = rets[0];
     let (_, rets) = ir.add_op(BuilderToIopLang, svec![builder]);
     let ioplang = rets[0];
     let (_, rets) = ir.add_op(BuilderToPartitions, svec![builder]);
@@ -164,10 +165,12 @@ static PIPELINE: LazyLock<(IR<PipelineLang>, ArtifactsValids)> = LazyLock::new(|
     let prototype = rets[0];
     let (_, rets) = ir.add_op(DrawSlack, svec![ioplang]);
     let slack_drawing = rets[0];
-
-    // Hpu
     let (_, rets) = ir.add_op(ComputePbsMetrics, svec![ioplang]);
     let pbs_metrics = rets[0];
+
+    // Hpu
+    let (_, rets) = ir.add_op(InputHpuConfig, svec![]);
+    let hpu_config = rets[0];
     let (_, rets) = ir.add_op(IopLangToHpuLang, svec![ioplang]);
     let hpulang_translated = rets[0];
     let (_, rets) = ir.add_op(ScheduleHpuLang, svec![hpulang_translated, hpu_config]);
@@ -353,7 +356,22 @@ impl Pipeline {
     /// Pipeline::new().draw_state().open().unwrap();
     /// ```
     pub fn draw_state(&self) -> FileHandle {
-        self.eval.as_view().draw_to_html(None)
+        let h_root = Hierarchy::new();
+        let h_commons = h_root.make_child("Commons");
+        let h_hpu = h_root.make_child("Hpu");
+        let h_mhpu = h_root.make_child("Multi-Hpu");
+        let h_vm = h_root.make_child("Vm");
+        let opmap = self.eval.as_view().totally_mapped_opmap(|op| {
+            use zhc_langs::pipelinelang::Affinity::*;
+            match op.get_instruction().get_affinity() {
+                Commons => h_commons.clone(),
+                Hpu => h_hpu.clone(),
+                MultiHpu => h_mhpu.clone(),
+                Vm => h_vm.clone(),
+            }
+        });
+
+        self.eval.as_view().draw_to_html(Some(opmap))
     }
 
     /// Sets the circuit to compile.

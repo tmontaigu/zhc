@@ -68,6 +68,10 @@ impl Hierarchy {
         Hierarchy(Rc::new(HierarchyInner::Root))
     }
 
+    pub fn make_child(&self, comment: impl Into<String>) -> Self {
+        self.clone().with_comment(comment)
+    }
+
     pub fn push(&mut self, comment: impl Into<String>) {
         self.0 = Rc::new(HierarchyInner::Leaf {
             comment: comment.into(),

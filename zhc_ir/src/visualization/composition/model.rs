@@ -1,4 +1,5 @@
 use super::*;
+use crate::visualization::svg::tag_background;
 
 /// Text element representing an operation input port.
 pub type OpInputPort = TextBox<OpInputPortClass>;
@@ -18,23 +19,155 @@ pub type OpOutputPort = TextBox<OpOutputPortClass>;
 /// Horizontal collection of output ports.
 pub type OpOutputs = HStack<OpOutputPort, OpOutputsClass>;
 
-/// Input operation: body + optional comment + outputs.
-pub type InputOp =
-    V4<OpBody, Optional<OpComment>, Optional<Box<dyn DynamicElement>>, OpOutputs, InputOpClass>;
+/// Input operation: body + optional comment + outputs. Its own type (rather
+/// than a bare `V4` alias) so `render()` can tag its background `"card"`.
+pub struct InputOp(
+    pub V4<OpBody, Optional<OpComment>, Optional<Box<dyn DynamicElement>>, OpOutputs, InputOpClass>,
+);
+
+impl InputOp {
+    pub fn new(
+        modifier: Option<StyleModifier>,
+        body: OpBody,
+        comment: Optional<OpComment>,
+        widget: Optional<Box<dyn DynamicElement>>,
+        outputs: OpOutputs,
+    ) -> Self {
+        Self(V4::new(modifier, body, comment, widget, outputs))
+    }
+}
+
+impl SceneElement for InputOp {
+    fn get_size(&self) -> zhc_utils::graphics::Size {
+        self.0.get_size()
+    }
+
+    fn get_frame(&self) -> zhc_utils::graphics::Frame {
+        self.0.get_frame()
+    }
+
+    fn get_variable_cell(&self) -> VariableCell {
+        self.0.get_variable_cell()
+    }
+}
+
+impl SceneSolver for InputOp {
+    fn solve_size(&mut self) {
+        self.0.solve_size();
+    }
+
+    fn solve_frame(&mut self, available: zhc_utils::graphics::Frame) {
+        self.0.solve_frame(available);
+    }
+}
+
+impl crate::visualization::svg::Renderable for InputOp {
+    fn render(&self) -> Vec<crate::visualization::svg::SvgElement> {
+        tag_background(self.0.render(), "card")
+    }
+}
 
 /// Standard operation: inputs + body + optional comment + outputs.
-pub type Op = V5<
-    OpInputs,
-    OpBody,
-    Optional<OpComment>,
-    Optional<Box<dyn DynamicElement>>,
-    OpOutputs,
-    OpClass,
->;
+pub struct Op(
+    pub  V5<
+        OpInputs,
+        OpBody,
+        Optional<OpComment>,
+        Optional<Box<dyn DynamicElement>>,
+        OpOutputs,
+        OpClass,
+    >,
+);
+
+impl Op {
+    pub fn new(
+        modifier: Option<StyleModifier>,
+        inputs: OpInputs,
+        body: OpBody,
+        comment: Optional<OpComment>,
+        widget: Optional<Box<dyn DynamicElement>>,
+        outputs: OpOutputs,
+    ) -> Self {
+        Self(V5::new(modifier, inputs, body, comment, widget, outputs))
+    }
+}
+
+impl SceneElement for Op {
+    fn get_size(&self) -> zhc_utils::graphics::Size {
+        self.0.get_size()
+    }
+
+    fn get_frame(&self) -> zhc_utils::graphics::Frame {
+        self.0.get_frame()
+    }
+
+    fn get_variable_cell(&self) -> VariableCell {
+        self.0.get_variable_cell()
+    }
+}
+
+impl SceneSolver for Op {
+    fn solve_size(&mut self) {
+        self.0.solve_size();
+    }
+
+    fn solve_frame(&mut self, available: zhc_utils::graphics::Frame) {
+        self.0.solve_frame(available);
+    }
+}
+
+impl crate::visualization::svg::Renderable for Op {
+    fn render(&self) -> Vec<crate::visualization::svg::SvgElement> {
+        tag_background(self.0.render(), "card")
+    }
+}
 
 /// Effect operation: inputs + body + optional comment.
-pub type EffectOp =
-    V4<OpInputs, OpBody, Optional<OpComment>, Optional<Box<dyn DynamicElement>>, EffectOpClass>;
+pub struct EffectOp(
+    pub V4<OpInputs, OpBody, Optional<OpComment>, Optional<Box<dyn DynamicElement>>, EffectOpClass>,
+);
+
+impl EffectOp {
+    pub fn new(
+        modifier: Option<StyleModifier>,
+        inputs: OpInputs,
+        body: OpBody,
+        comment: Optional<OpComment>,
+        widget: Optional<Box<dyn DynamicElement>>,
+    ) -> Self {
+        Self(V4::new(modifier, inputs, body, comment, widget))
+    }
+}
+
+impl SceneElement for EffectOp {
+    fn get_size(&self) -> zhc_utils::graphics::Size {
+        self.0.get_size()
+    }
+
+    fn get_frame(&self) -> zhc_utils::graphics::Frame {
+        self.0.get_frame()
+    }
+
+    fn get_variable_cell(&self) -> VariableCell {
+        self.0.get_variable_cell()
+    }
+}
+
+impl SceneSolver for EffectOp {
+    fn solve_size(&mut self) {
+        self.0.solve_size();
+    }
+
+    fn solve_frame(&mut self, available: zhc_utils::graphics::Frame) {
+        self.0.solve_frame(available);
+    }
+}
+
+impl crate::visualization::svg::Renderable for EffectOp {
+    fn render(&self) -> Vec<crate::visualization::svg::SvgElement> {
+        tag_background(self.0.render(), "card")
+    }
+}
 
 /// Empty placeholder element for missing nodes.
 pub type Dummy = Empty<DummyClass>;
@@ -56,6 +189,18 @@ pub type GroupTitle = TextBox<GroupTitleClass>;
 
 /// Group element containing nested vertices with boundary ports.
 pub struct Group(pub V4<GroupTitle, GroupInputs, GroupContent, GroupOutputs, GroupClass>);
+
+impl Group {
+    pub fn new(
+        modifier: Option<StyleModifier>,
+        title: GroupTitle,
+        inputs: GroupInputs,
+        content: GroupContent,
+        outputs: GroupOutputs,
+    ) -> Self {
+        Self(V4::new(modifier, title, inputs, content, outputs))
+    }
+}
 
 impl SceneElement for Group {
     fn get_size(&self) -> zhc_utils::graphics::Size {
@@ -83,7 +228,7 @@ impl SceneSolver for Group {
 
 impl crate::visualization::svg::Renderable for Group {
     fn render(&self) -> Vec<crate::visualization::svg::SvgElement> {
-        self.0.render()
+        tag_background(self.0.render(), "group-box")
     }
 }
 

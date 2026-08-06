@@ -8,7 +8,8 @@ use zhc_utils::{
 };
 
 use crate::{
-    AnnIR, AnnOpRef, Depth, Dialect, FormatContext, IR, OpId, OpRef, ValId,
+    AnnIR, AnnOpRef, Depth, Dialect, FormatContext, IR, OpId, OpMap, OpRef, ValId,
+    traversal::OpWalkerVerifier,
     visualization::{
         Hierarchy, OpContent,
         layoutlang::{LayoutDialect, LayoutInstructionSet},
@@ -206,6 +207,65 @@ impl StackFrame {
     }
 }
 
+/// Computes an op visitation order that is topologically valid while greedily staying
+/// within the current hierarchy branch for as long as possible.
+///
+/// `Stack::push_op` opens a fresh `Group` every time it re-enters a hierarchy branch it
+/// had already left, so a walk order that interleaves branches (e.g. plain topological
+/// order, which has no notion of hierarchy) causes a single logical group to be split
+/// across several `Group` ops. This is a priority variant of Kahn's algorithm: among the
+/// ops whose predecessors have all been visited, it always picks the one whose hierarchy
+/// is closest to the last visited op's, only crossing into another branch when nothing
+/// remains ready in the current one.
+fn hierarchy_biased_order<D: Dialect>(ir: &AnnIR<'_, D, Hierarchy, ()>) -> SmallVec<OpId> {
+    let mut remaining_preds: OpMap<usize> = ir.empty_opmap();
+    let mut successors: OpMap<SmallVec<OpId>> = ir.filled_opmap(SmallVec::new());
+    let mut ready: SmallVec<OpId> = SmallVec::new();
+
+    for op in ir.walk_ops_linear() {
+        let n_preds = op.get_predecessors_iter().count();
+        remaining_preds.insert(op.get_id(), n_preds);
+        if n_preds == 0 {
+            ready.push(op.get_id());
+        }
+    }
+    for op in ir.walk_ops_linear() {
+        for pred in op.get_predecessors_iter() {
+            successors[pred.get_id()].push(op.get_id());
+        }
+    }
+
+    let mut order = SmallVec::with_capacity(ir.n_ops().sas());
+    let mut current: Option<Hierarchy> = None;
+    while !ready.is_empty() {
+        let (idx, _) = ready
+            .iter()
+            .enumerate()
+            .min_by_key(|(_, opid)| {
+                let hierarchy = ir.get_op(**opid).get_annotation().clone();
+                let dist = match &current {
+                    None => 0,
+                    Some(cur) => cur.distance(&hierarchy).unwrap_or(usize::MAX),
+                };
+                (dist, **opid)
+            })
+            .unwrap();
+        let opid = ready.remove(idx);
+        current = Some(ir.get_op(opid).get_annotation().clone());
+        for succ in successors[opid].iter().copied() {
+            let left = &mut remaining_preds[succ];
+            *left -= 1;
+            if *left == 0 {
+                ready.push(succ);
+            }
+        }
+        order.push(opid);
+    }
+
+    debug_assert!(order.iter().copied().is_topo_sorted(ir));
+    order
+}
+
 struct Stack<'ir, 'ann, D: Dialect> {
     ir: &'ann AnnIR<'ir, D, Hierarchy, ()>,
     frames: Vec<StackFrame>,
@@ -275,7 +335,11 @@ impl<'ir, 'ann, D: Dialect> Stack<'ir, 'ann, D> {
             .unwrap()
             .get_annotation()
             .get_root();
-        let remaining = ir.walk_ops_linear().map(|op| op.get_id()).collect();
+        let order = hierarchy_biased_order(ir);
+        let remaining = ir
+            .walk_ops_with(order.into_iter())
+            .map(|op| op.get_id())
+            .collect();
         let mut output = Stack {
             ir,
             frames: Vec::new(),

@@ -160,6 +160,15 @@ impl Hierarchy {
     pub fn comment(&self) -> String {
         self.0.comment()
     }
+
+    /// Number of pop+push steps needed to move from `self` to `other` through their
+    /// common ancestor. `None` if they belong to different hierarchy trees.
+    pub fn distance(&self, other: &Self) -> Option<usize> {
+        let ancestor = self.common_ancestor(other)?;
+        let up = Self::range(&ancestor, self.clone()).count();
+        let down = Self::range(&ancestor, other.clone()).count();
+        Some(up + down)
+    }
 }
 
 impl Debug for Hierarchy {
@@ -375,5 +384,50 @@ mod tests {
 
         h.pop();
         assert_eq!(h.0.get_depth(), 1);
+    }
+
+    #[test]
+    fn test_distance_same() {
+        let mut h = Hierarchy::new();
+        h.push("level1");
+        assert_eq!(h.distance(&h), Some(0));
+    }
+
+    #[test]
+    fn test_distance_parent_child() {
+        let mut h = Hierarchy::new();
+        h.push("level1");
+        let parent = h.clone();
+        h.push("level2");
+        let child = h.clone();
+
+        assert_eq!(parent.distance(&child), Some(1));
+        assert_eq!(child.distance(&parent), Some(1));
+    }
+
+    #[test]
+    fn test_distance_siblings() {
+        let mut h = Hierarchy::new();
+        h.push("level1");
+
+        h.push("child1");
+        let child1 = h.clone();
+        h.pop();
+
+        h.push("child2");
+        let child2 = h.clone();
+
+        assert_eq!(child1.distance(&child2), Some(2));
+    }
+
+    #[test]
+    fn test_distance_different_roots() {
+        let mut h1 = Hierarchy::new();
+        h1.push("level1");
+
+        let mut h2 = Hierarchy::new();
+        h2.push("level1");
+
+        assert_eq!(h1.distance(&h2), None);
     }
 }

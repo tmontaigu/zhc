@@ -1,8 +1,8 @@
 use super::*;
-use crate::IR;
 use crate::testlang::{TestInstructionSet, TestLang};
 use crate::visualization::Hierarchy;
 use crate::visualization::composition::{NoClass, StyleModifier, TextBox};
+use crate::{AnnIR, IR};
 use zhc_utils::graphics::ColorScale;
 use zhc_utils::svec;
 
@@ -1231,6 +1231,56 @@ fn test_linear_order_not_topological() {
     op_annotations.insert(op1, root.clone());
     op_annotations.insert(op2, root.clone());
     op_annotations.insert(op3, root.clone());
+
+    draw_ir_to_html(&ir, Some(op_annotations));
+}
+
+/// Bug reproducer: a walk order that is topologically valid but hierarchy-oblivious
+/// (e.g. depth-bucketed topological order) can visit `group_a`'s two ops with an
+/// unrelated `group_b` op in between, since `a1` and `b1` share the same depth. Each
+/// time `Stack::push_op` re-enters a hierarchy branch it already left, it opens a
+/// brand new `Group` op instead of resuming the old one, splitting `group_a` into two
+/// distinct `Group` ops. The hierarchy-biased walk order must keep `a1`/`a2` together.
+#[test]
+fn test_hierarchy_not_split_by_walk_order() {
+    let mut ir: IR<TestLang> = IR::empty();
+    let (i0, v0) = ir.add_op(TestInstructionSet::IntInput { pos: 0 }, svec![]);
+    let (a1, va1) = ir.add_op(TestInstructionSet::Inc, svec![v0[0]]);
+    let (a2, va2) = ir.add_op(TestInstructionSet::Inc, va1);
+    let (i1, v1) = ir.add_op(TestInstructionSet::IntInput { pos: 1 }, svec![]);
+    let (b1, vb1) = ir.add_op(TestInstructionSet::Inc, svec![v1[0]]);
+    let (m, vm) = ir.add_op(TestInstructionSet::Add, svec![va2[0], vb1[0]]);
+    let (r, _) = ir.add_op(TestInstructionSet::Return, vm);
+
+    let root = Hierarchy::new();
+    let group_a = root.clone().with_comment("group_a");
+    let group_b = root.clone().with_comment("group_b");
+
+    let mut op_annotations = ir.empty_opmap();
+    op_annotations.insert(i0, root.clone());
+    op_annotations.insert(a1, group_a.clone());
+    op_annotations.insert(a2, group_a.clone());
+    op_annotations.insert(i1, root.clone());
+    op_annotations.insert(b1, group_b.clone());
+    op_annotations.insert(m, root.clone());
+    op_annotations.insert(r, root.clone());
+
+    let ann_ir = AnnIR::new(&ir, op_annotations.clone(), ir.filled_valmap(()));
+    let layout_ir = generate_layout_ir(&ann_ir);
+
+    let group_a_count = layout_ir
+        .walk_ops_linear()
+        .filter(|op| {
+            matches!(
+                op.get_instruction(),
+                LayoutInstructionSet::Group { name, .. } if name == "group_a"
+            )
+        })
+        .count();
+    assert_eq!(
+        group_a_count, 1,
+        "group_a should not be split across multiple Group ops"
+    );
 
     draw_ir_to_html(&ir, Some(op_annotations));
 }

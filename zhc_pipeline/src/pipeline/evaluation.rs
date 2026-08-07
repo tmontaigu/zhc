@@ -3,6 +3,7 @@ use zhc_langs::{
     doplang::emit_assembly,
     pipelinelang::{PipelineInstructionSet, PipelineTypeSystem},
 };
+use zhc_profiling::{interval_begin, interval_end};
 use zhc_utils::{
     Dumpable,
     files::{Extension, FileHandle, PerfettoTrace},
@@ -59,34 +60,53 @@ impl Evaluable<PipelineArtifact> for PipelineInstructionSet {
     ) -> SmallVec<PipelineArtifact> {
         match self {
             PipelineInstructionSet::InputBuilder => {
+                interval_begin(c"InputBuilder", 0);
                 let builder = context.builder.clone().unwrap();
-                svec![PipelineArtifact::Builder(builder)]
+                let result = svec![PipelineArtifact::Builder(builder)];
+                interval_end(c"InputBuilder", 0);
+                result
             }
             PipelineInstructionSet::InputHpuConfig => {
+                interval_begin(c"InputHpuConfig", 0);
                 let config = context.hpu_config.clone().unwrap();
-                svec![PipelineArtifact::HpuConfig(config)]
+                let result = svec![PipelineArtifact::HpuConfig(config)];
+                interval_end(c"InputHpuConfig", 0);
+                result
             }
             PipelineInstructionSet::BuilderToIopLang => {
+                interval_begin(c"BuilderToIopLang", 0);
                 let builder = arguments[0].unwrap_builder_ref();
                 let ioplang = builder.optimize_ir();
-                svec![PipelineArtifact::IopLang(ioplang)]
+                let result = svec![PipelineArtifact::IopLang(ioplang)];
+                interval_end(c"BuilderToIopLang", 0);
+                result
             }
             PipelineInstructionSet::BuilderToPartitions => {
+                interval_begin(c"BuilderToPartitions", 0);
                 let builder = arguments[0].unwrap_builder_ref();
                 let partitions = builder.partitions(zhc_builder::IrKind::Optimized);
-                svec![PipelineArtifact::Partitions(partitions)]
+                let result = svec![PipelineArtifact::Partitions(partitions)];
+                interval_end(c"BuilderToPartitions", 0);
+                result
             }
             PipelineInstructionSet::BuilderToPrototype => {
+                interval_begin(c"BuilderToPrototype", 0);
                 let builder = arguments[0].unwrap_builder_ref();
                 let prototype = builder.signature();
-                svec![PipelineArtifact::Prototype(prototype)]
+                let result = svec![PipelineArtifact::Prototype(prototype)];
+                interval_end(c"BuilderToPrototype", 0);
+                result
             }
             PipelineInstructionSet::IopLangToHpuLang => {
+                interval_begin(c"IopLangToHpuLang", 0);
                 let ioplang = arguments[0].unwrap_iop_lang_ref();
                 let hpulang = hpu::lowering::lower_iop_to_hpu(ioplang);
-                svec![PipelineArtifact::HpuLangTranslated(hpulang.output)]
+                let result = svec![PipelineArtifact::HpuLangTranslated(hpulang.output)];
+                interval_end(c"IopLangToHpuLang", 0);
+                result
             }
             PipelineInstructionSet::ScheduleHpuLang => {
+                interval_begin(c"ScheduleHpuLang", 0);
                 let translated = arguments[0].unwrap_hpu_lang_translated_ref();
                 let config = arguments[1].unwrap_hpu_config_ref();
                 let scheduled = if context.legacy_hpu_scheduler {
@@ -103,64 +123,94 @@ impl Evaluable<PipelineArtifact> for PipelineInstructionSet {
                         SchedPolicy::AsLateAsPossible,
                     )
                 };
-                svec![PipelineArtifact::HpuLangScheduled(scheduled)]
+                let result = svec![PipelineArtifact::HpuLangScheduled(scheduled)];
+                interval_end(c"ScheduleHpuLang", 0);
+                result
             }
             PipelineInstructionSet::AllocateDopLang => {
+                interval_begin(c"AllocateDopLang", 0);
                 let scheduled = arguments[0].unwrap_hpu_lang_scheduled_ref();
                 let config = arguments[1].unwrap_hpu_config_ref();
                 let allocated = hpu::allocator::allocate_registers(scheduled, config);
-                svec![PipelineArtifact::DopLang(allocated)]
+                let result = svec![PipelineArtifact::DopLang(allocated)];
+                interval_end(c"AllocateDopLang", 0);
+                result
             }
             PipelineInstructionSet::GenerateHpuStream => {
+                interval_begin(c"GenerateHpuStream", 0);
                 let allocated = arguments[0].unwrap_dop_lang_ref();
                 let stream = hpu::translation_table::generate_translation_table(allocated);
-                svec![PipelineArtifact::HpuStream(stream)]
+                let result = svec![PipelineArtifact::HpuStream(stream)];
+                interval_end(c"GenerateHpuStream", 0);
+                result
             }
             PipelineInstructionSet::ComputePbsMetrics => {
+                interval_begin(c"ComputePbsMetrics", 0);
                 let ioplang = arguments[0].unwrap_iop_lang_ref();
                 let metrics = misc::compute_pbs_metrics(ioplang);
-                svec![PipelineArtifact::PbsMetrics(metrics)]
+                let result = svec![PipelineArtifact::PbsMetrics(metrics)];
+                interval_end(c"ComputePbsMetrics", 0);
+                result
             }
             PipelineInstructionSet::ComputeHpuMetrics => {
+                interval_begin(c"ComputeHpuMetrics", 0);
                 let doplang = arguments[0].unwrap_dop_lang_ref();
                 let hpulang = arguments[1].unwrap_hpu_lang_scheduled_ref();
                 let metrics = hpu::metrics::compute_hpu_metrics(doplang, hpulang);
-                svec![PipelineArtifact::HpuMetrics(metrics)]
+                let result = svec![PipelineArtifact::HpuMetrics(metrics)];
+                interval_end(c"ComputeHpuMetrics", 0);
+                result
             }
             PipelineInstructionSet::TraceHpuExecution => {
+                interval_begin(c"TraceHpuExecution", 0);
                 let doplang = arguments[0].unwrap_dop_lang_ref();
                 let config = arguments[1].unwrap_hpu_config_ref();
                 let file = PerfettoTrace::random();
                 hpu::tracing::trace_execution(doplang, config, context.hpu_trace_events, &file);
-                svec![PipelineArtifact::HpuTrace(file)]
+                let result = svec![PipelineArtifact::HpuTrace(file)];
+                interval_end(c"TraceHpuExecution", 0);
+                result
             }
             PipelineInstructionSet::DrawSlack => {
+                interval_begin(c"DrawSlack", 0);
                 let ioplang = arguments[0].unwrap_iop_lang_ref();
                 let file = misc::draw_slack(ioplang);
-                svec![PipelineArtifact::SlackDrawing(file)]
+                let result = svec![PipelineArtifact::SlackDrawing(file)];
+                interval_end(c"DrawSlack", 0);
+                result
             }
             PipelineInstructionSet::GenerateHpuAssembly => {
+                interval_begin(c"GenerateHpuAssembly", 0);
                 let doplang = arguments[0].unwrap_dop_lang_ref();
                 let file = FileHandle::random(Extension::Asm);
                 let asm = emit_assembly(doplang);
                 asm.dump_to_file(&file);
-                svec![PipelineArtifact::HpuAssembly(file)]
+                let result = svec![PipelineArtifact::HpuAssembly(file)];
+                interval_end(c"GenerateHpuAssembly", 0);
+                result
             }
             PipelineInstructionSet::InputMultiHpuConfig => {
+                interval_begin(c"InputMultiHpuConfig", 0);
                 let config = context.multi_hpu_config.clone().unwrap();
-                svec![PipelineArtifact::MultiHpuConfig(config)]
+                let result = svec![PipelineArtifact::MultiHpuConfig(config)];
+                interval_end(c"InputMultiHpuConfig", 0);
+                result
             }
             PipelineInstructionSet::IopLangToMultiHpu => {
+                interval_begin(c"IopLangToMultiHpu", 0);
                 let ioplang = arguments[0].unwrap_iop_lang_ref();
                 let partitions = arguments[1].unwrap_partitions_ref();
                 let (hpulang, localities) =
                     multi_hpu::translation::lower_iop_to_multi_hpu(ioplang, partitions);
-                svec![
+                let result = svec![
                     PipelineArtifact::MultiHpuLangTranslated(hpulang),
                     PipelineArtifact::MultiHpuLocalities(localities)
-                ]
+                ];
+                interval_end(c"IopLangToMultiHpu", 0);
+                result
             }
             PipelineInstructionSet::ScheduleMultiHpuLang => {
+                interval_begin(c"ScheduleMultiHpuLang", 0);
                 let hpulang = arguments[0].unwrap_multi_hpu_lang_translated_ref();
                 let localities = arguments[1].unwrap_multi_hpu_localities_ref();
                 let config = arguments[2].unwrap_multi_hpu_config_ref();
@@ -170,26 +220,35 @@ impl Evaluable<PipelineArtifact> for PipelineInstructionSet {
                     config,
                     SchedPolicy::AsLateAsPossible,
                 );
-                svec![PipelineArtifact::MultiHpuLangScheduled(scheduled)]
+                let result = svec![PipelineArtifact::MultiHpuLangScheduled(scheduled)];
+                interval_end(c"ScheduleMultiHpuLang", 0);
+                result
             }
             PipelineInstructionSet::AllocateMultiDopLang => {
+                interval_begin(c"AllocateMultiDopLang", 0);
                 let scheduled = arguments[0].unwrap_multi_hpu_lang_scheduled_ref();
                 let config = arguments[1].unwrap_multi_hpu_config_ref();
                 let allocated = scheduled
                     .iter()
                     .map(|ir| hpu::allocator::allocate_registers(ir, &config.hpu_config))
                     .collect();
-                svec![PipelineArtifact::MultiDopLang(allocated)]
+                let result = svec![PipelineArtifact::MultiDopLang(allocated)];
+                interval_end(c"AllocateMultiDopLang", 0);
+                result
             }
             PipelineInstructionSet::GenerateMultiHpuStream => {
+                interval_begin(c"GenerateMultiHpuStream", 0);
                 let allocated = arguments[0].unwrap_multi_dop_lang_ref();
                 let streams = allocated
                     .iter()
                     .map(|ir| hpu::translation_table::generate_translation_table(ir))
                     .collect();
-                svec![PipelineArtifact::MultiHpuStream(streams)]
+                let result = svec![PipelineArtifact::MultiHpuStream(streams)];
+                interval_end(c"GenerateMultiHpuStream", 0);
+                result
             }
             PipelineInstructionSet::TraceMultiHpuExecution => {
+                interval_begin(c"TraceMultiHpuExecution", 0);
                 let allocated = arguments[0].unwrap_multi_dop_lang_ref();
                 let config = arguments[1].unwrap_multi_hpu_config_ref();
                 let file = PerfettoTrace::random();
@@ -199,9 +258,12 @@ impl Evaluable<PipelineArtifact> for PipelineInstructionSet {
                     context.hpu_trace_events,
                     &file,
                 );
-                svec![PipelineArtifact::MultiHpuTrace(file)]
+                let result = svec![PipelineArtifact::MultiHpuTrace(file)];
+                interval_end(c"TraceMultiHpuExecution", 0);
+                result
             }
             PipelineInstructionSet::GenerateMultiHpuAssembly => {
+                interval_begin(c"GenerateMultiHpuAssembly", 0);
                 let allocated = arguments[0].unwrap_multi_dop_lang_ref();
                 let files = allocated
                     .iter()
@@ -212,22 +274,34 @@ impl Evaluable<PipelineArtifact> for PipelineInstructionSet {
                         file
                     })
                     .collect();
-                svec![PipelineArtifact::MultiHpuAssembly(files)]
+                let result = svec![PipelineArtifact::MultiHpuAssembly(files)];
+                interval_end(c"GenerateMultiHpuAssembly", 0);
+                result
             }
             PipelineInstructionSet::InputVmConfig => {
+                interval_begin(c"InputVmConfig", 0);
                 let config = context.vm_config.clone().unwrap();
-                svec![PipelineArtifact::VmConfig(config)]
+                let result = svec![PipelineArtifact::VmConfig(config)];
+                interval_end(c"InputVmConfig", 0);
+                result
             }
             PipelineInstructionSet::InputTopology => {
+                interval_begin(c"InputTopology", 0);
                 let topology = context.topology.clone();
-                svec![PipelineArtifact::Topology(topology)]
+                let result = svec![PipelineArtifact::Topology(topology)];
+                interval_end(c"InputTopology", 0);
+                result
             }
             PipelineInstructionSet::IopLangToVmLang => {
+                interval_begin(c"IopLangToVmLang", 0);
                 let ioplang = arguments[0].unwrap_iop_lang_ref();
                 let vmlang = vm::lowering::lower_iop_to_vm(ioplang);
-                svec![PipelineArtifact::VmLang(vmlang)]
+                let result = svec![PipelineArtifact::VmLang(vmlang)];
+                interval_end(c"IopLangToVmLang", 0);
+                result
             }
             PipelineInstructionSet::GenerateVmExecutionPlan => {
+                interval_begin(c"GenerateVmExecutionPlan", 0);
                 let vmlang = arguments[0].unwrap_vm_lang_ref();
                 let config = arguments[1].unwrap_vm_config_ref();
                 let topology = arguments[2].unwrap_topology_ref();
@@ -237,7 +311,9 @@ impl Evaluable<PipelineArtifact> for PipelineInstructionSet {
                     topology,
                     SchedPolicy::AsSoonAsPossible,
                 );
-                svec![PipelineArtifact::VmExecutionPlan(exec)]
+                let result = svec![PipelineArtifact::VmExecutionPlan(exec)];
+                interval_end(c"GenerateVmExecutionPlan", 0);
+                result
             }
         }
     }

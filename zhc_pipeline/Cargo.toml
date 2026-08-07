@@ -15,6 +15,7 @@ zhc_langs.workspace = true
 zhc_builder.workspace = true
 zhc_crypto.workspace = true
 zhc_config.workspace = true
+zhc_profiling.workspace = true
 serde.workspace = true
 bitfield-struct.workspace = true
 rand.workspace = true

@@ -16,3 +16,7 @@ zhc_langs.workspace = true
 zhc_builder.workspace = true
 zhc_pipeline.workspace = true
 zhc_config.workspace = true
+
+[[example]]
+name = "profile_pipeline"
+path = "examples/profile_pipeline.rs"

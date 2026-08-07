@@ -1,4 +1,4 @@
-.PHONY: test update-expects fmt fmt-check check bench bench-export bench-diff analyze bench-vm vm-bench vm-throughput vm-throughput-verify vm-microbench vm-model vm-bootstrap vm-profile-model vm-profile vm-profile-remote mem-topo
+.PHONY: test update-expects fmt fmt-check check bench bench-export bench-diff analyze bench-vm vm-bench vm-throughput vm-throughput-verify vm-microbench vm-model vm-bootstrap vm-profile-model vm-profile vm-profile-remote mem-topo zhc-profile
 
 # Wall-clock seconds the profiled bench_vm run loops for (override: make vm-profile SECS=30).
 SECS ?= 20
@@ -28,6 +28,7 @@ check:
 
 bench:
 	cargo run --release -p zhc_bench
+
 bench-export:
 	cargo run --release -p zhc_bench -- export
 
@@ -75,3 +76,14 @@ vm-profile:
 		--output bench_vm.trace \
 		--launch -- $$BENCH_BIN --bench --profile-time $(SECS)
 	open bench_vm.trace
+
+zhc-profile:
+	rm -rf zhc_profile_pipeline.trace
+	EXAMPLE_BIN=$$(RUSTFLAGS="-C target-cpu=native -A warnings" CARGO_PROFILE_RELEASE_LTO=fat \
+		cargo build -p zhc --example profile_pipeline --profile profiling \
+		--message-format=json 2>/dev/null \
+		| grep -o '"executable":"[^"]*/profile_pipeline[^"]*"' | tail -1 | sed 's/.*:"//;s/"$$//'); \
+	xcrun xctrace record --template "Time Profiler (High Freq)" \
+		--output zhc_profile_pipeline.trace \
+		--launch -- $$EXAMPLE_BIN
+	open zhc_profile_pipeline.trace

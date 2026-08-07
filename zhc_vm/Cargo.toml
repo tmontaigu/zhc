@@ -14,16 +14,13 @@ zhc_ir.workspace = true
 zhc_langs.workspace = true
 zhc_utils.workspace = true
 zhc_config.workspace = true
+zhc_profiling.workspace = true
 libc.workspace = true
 tfhe = { git = "https://github.com/zama-ai/tfhe-rs.git", features =["integer"]}
-tracy-client = {version = "0.18.4", optional = true}
 
 [dev-dependencies]
 criterion = "0.8"
 rand.workspace = true
-
-[features]
-profiling = ["dep:tracy-client"]
 
 [[bench]]
 name = "vm"

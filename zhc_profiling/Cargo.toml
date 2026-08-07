@@ -1,0 +1,16 @@
+[package]
+name = "zhc_profiling"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+
+[dependencies]
+tracy-client = {version = "0.18.4", optional = true}
+
+[features]
+default = ["backend_skip"]
+backend_skip = []
+backend_tracy = ["dep:tracy-client"]
+backend_xctrace = []

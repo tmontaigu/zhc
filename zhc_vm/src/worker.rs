@@ -10,6 +10,7 @@ use tfhe::{
 };
 use zhc_config::vm::VmConfig;
 use zhc_langs::vmlang::VmByteCode;
+use zhc_profiling::{interval_begin, interval_end};
 use zhc_utils::{
     SafeAs,
     topology::{MemoryData, ProcessingData},
@@ -42,11 +43,11 @@ impl Worker {
             for instr in bytecode.iter() {
                 let id = instr.get_id();
                 if run.locks[id as usize].load(Ordering::Acquire) > 0 {
-                    interval_begin("Spin", self.wid.0 as u64);
+                    interval_begin(c"Spin", self.wid.0 as u64);
                     while run.locks[id as usize].load(Ordering::Acquire) > 0 {
                         std::hint::spin_loop();
                     }
-                    interval_end("Spin", self.wid.0 as u64);
+                    interval_end(c"Spin", self.wid.0 as u64);
                 }
                 self.spin_time += t.elapsed();
                 t = Instant::now();
@@ -342,15 +343,15 @@ impl Worker {
                     .clone_from_slice(src.as_view().into_container());
             }
             KS { dst, src, .. } => {
-                interval_begin("KS", self.wid.0 as u64);
+                interval_begin(c"KS", self.wid.0 as u64);
                 let mut out = self.get_small_dst_reg(*dst as usize);
                 let src = self.get_big_src_reg(*src as usize);
                 let ksk = self.get_ksk();
                 keyswitch_lwe_ciphertext_with_scalar_change(&ksk, &src, &mut out);
-                interval_end("KS", self.wid.0 as u64);
+                interval_end(c"KS", self.wid.0 as u64);
             }
             PBS { dst, src, lut, .. } => {
-                interval_begin("PBS", self.wid.0 as u64);
+                interval_begin(c"PBS", self.wid.0 as u64);
                 let out = self.get_big_dst_reg(*dst as usize);
                 let src = self.get_small_src_reg(*src as usize);
                 let bsk = self.get_bsk();
@@ -362,7 +363,7 @@ impl Worker {
                     self.state.storages[self.sid].fft.as_view(),
                     self.pbs_buffers.stack(),
                 );
-                interval_end("PBS", self.wid.0 as u64);
+                interval_end(c"PBS", self.wid.0 as u64);
             }
             PBS_ML2 {
                 dst1,
@@ -371,7 +372,7 @@ impl Worker {
                 lut,
                 ..
             } => {
-                interval_begin("PBS", self.wid.0 as u64);
+                interval_begin(c"PBS", self.wid.0 as u64);
                 let out1 = self.get_big_dst_reg(*dst1 as usize);
                 let out2 = self.get_big_dst_reg(*dst2 as usize);
                 let src = self.get_small_src_reg(*src as usize);
@@ -384,7 +385,7 @@ impl Worker {
                     self.state.storages[self.sid].fft.as_view(),
                     self.pbs_buffers.stack(),
                 );
-                interval_end("PBS", self.wid.0 as u64);
+                interval_end(c"PBS", self.wid.0 as u64);
             }
             DEF { dst, cst, .. } => {
                 let mut out = self.get_big_dst_reg(*dst as usize);

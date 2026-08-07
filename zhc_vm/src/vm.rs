@@ -9,6 +9,7 @@ use tfhe::{
 };
 use zhc::prelude::VmExecutionPlan;
 use zhc_config::vm::VmConfig;
+use zhc_profiling::{interval_begin, interval_end};
 use zhc_utils::{BiMap, SafeAs, topology::Topology};
 
 use super::*;
@@ -182,7 +183,7 @@ impl Vm {
     /// );
     /// ```
     pub fn execute(&mut self, plan: &VmExecutionPlan, inputs: &[Value], outputs: &mut [ValueMut]) {
-        profiling::interval_begin("Execution", 0);
+        interval_begin(c"Execution", 0);
         assert!(
             plan.nregs <= self.config.regf_size,
             "plan needs {} registers but the register file holds only {}",
@@ -200,7 +201,7 @@ impl Vm {
         self.state
             .wall_nanos
             .fetch_add(t.elapsed().as_nanos() as u64, Ordering::Relaxed);
-        profiling::interval_end("Execution", 0);
+        interval_end(c"Execution", 0);
     }
 
     /// Resets all accumulated execution statistics to zero.

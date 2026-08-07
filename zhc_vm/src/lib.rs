@@ -62,17 +62,11 @@
 //! let decrypted: u64 = ck.decrypt_radix(&result);
 //! assert_eq!(decrypted, 100);
 //! ```
-//!
-//! # Feature Flags
-//!
-//! - **`profiling`** — Enables Tracy-based profiling instrumentation for PBS, KS, spin, and
-//!   execution intervals. Disabled by default; has no effect on the public API.
 
 mod crypto;
 mod ids;
 mod lut;
 mod params;
-mod profiling;
 mod run;
 mod state;
 mod statistics;
@@ -84,7 +78,6 @@ mod worker;
 use crypto::*;
 use ids::*;
 use lut::*;
-use profiling::*;
 use run::*;
 use state::*;
 use storage::*;

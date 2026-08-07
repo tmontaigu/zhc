@@ -1,6 +1,6 @@
 use std::ops::Index;
 
-use zhc_ir::{AsValId, IR, OpIdRaw, ValId, ValMap};
+use zhc_ir::{AsValId, IR, OpId, OpIdRaw, OpMap, ValId, ValMap};
 use zhc_langs::hpulang::HpuLang;
 use zhc_utils::{SafeAs, small::SmallVec, svec};
 
@@ -44,7 +44,10 @@ impl LiveRange {
 
 /// A map from values to their live ranges.
 #[derive(Debug)]
-pub struct LiveRangeMap(ValMap<LiveRange>);
+pub struct LiveRangeMap {
+    map: ValMap<LiveRange>,
+    retire: OpMap<SmallVec<ValId>>,
+}
 
 impl LiveRangeMap {
     /// Extracts the map from a scheduled IR.
@@ -65,15 +68,19 @@ impl LiveRangeMap {
                 live_ranges.insert(&val, LiveRange(svec![point.sas()]));
             }
         }
-        LiveRangeMap(live_ranges)
+        let mut retire = ir.filled_opmap(svec![]);
+        for (val, lr) in live_ranges.iter() {
+            retire.get_mut(OpId(lr.to())).unwrap().push(val);
+        }
+        LiveRangeMap {
+            map: live_ranges,
+            retire,
+        }
     }
 
     /// Returns an iterator over the values retiring at this time point.
     pub fn retiring_iter(&self, point: TimePoint) -> impl Iterator<Item = ValId> {
-        self.0
-            .iter()
-            .filter(move |(_, live_range)| live_range.to() == point)
-            .map(|(valid, _)| valid)
+        self.retire[OpId(point)].iter().copied()
     }
 }
 
@@ -81,7 +88,7 @@ impl<I: AsValId> Index<I> for LiveRangeMap {
     type Output = LiveRange;
 
     fn index(&self, index: I) -> &LiveRange {
-        &self.0[index]
+        &self.map[index]
     }
 }
 

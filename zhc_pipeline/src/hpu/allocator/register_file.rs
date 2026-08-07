@@ -52,13 +52,11 @@ impl RegFile {
     pub fn iter_register_ranges(
         &self,
         range_size: u16,
-    ) -> impl Iterator<Item = (RegRangeId, SmallVec<&RegState>)> {
+    ) -> impl Iterator<Item = (RegRangeId, &[RegState])> {
         self.0
-            .iter()
-            .chunk(range_size.sas())
+            .chunks_exact(range_size as usize)
             .enumerate()
             .map(move |(i, a)| {
-                let a = a.unwrap_complete();
                 (
                     RegRangeId(RegId(i.sas::<u16>() * range_size), range_size),
                     a,

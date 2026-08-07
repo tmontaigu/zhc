@@ -234,7 +234,7 @@ pub fn translate_ann<'a, 'b, ID: Dialect, OpAnn: Annotation, ValAnn: Annotation,
     order: Order,
     driver: impl Fn(AnnOpRef<'a, 'b, ID, OpAnn, ValAnn>, &mut Translator<ID, OD>),
 ) -> Translation<OD> {
-    let output = IR::empty();
+    let output = IR::with_capacity(ir.n_vals(), ir.n_ops());
     let valmap = ir.empty_valmap();
     let provenance_map = ProvenanceMap(Vec::new());
     let current = None;

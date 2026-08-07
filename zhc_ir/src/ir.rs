@@ -304,6 +304,24 @@ impl<D: Dialect> IR<D> {
         }
     }
 
+    pub fn with_capacity(vals: ValIdRaw, ops: OpIdRaw) -> Self {
+        IR {
+            op_operations: Store::with_capacity(ops as usize),
+            op_signatures: Store::with_capacity(ops as usize),
+            op_arguments: Store::with_capacity(ops as usize),
+            op_returns: Store::with_capacity(ops as usize),
+            op_states: Store::with_capacity(ops as usize),
+            op_depth: Store::with_capacity(ops as usize),
+            op_comments: Store::with_capacity(ops as usize),
+            op_count: 0,
+            val_users: Store::with_capacity(vals as usize),
+            val_origins: Store::with_capacity(vals as usize),
+            val_types: Store::with_capacity(vals as usize),
+            val_states: Store::with_capacity(vals as usize),
+            val_count: 0,
+        }
+    }
+
     /// Returns the total number of active operations in the IR.
     pub fn n_ops(&self) -> OpIdRaw {
         self.op_count

@@ -216,9 +216,10 @@ impl<'a, 'b> LightHpu<'a, 'b> {
     }
 
     fn is_hpu_stalled(&self) -> bool {
-        self.op_states
-            .iter()
-            .all(|(_, st)| !matches!(st, OpState::Running))
+        self.pe_alu_state.is_idle()
+            && self.pe_mem_state.is_idle()
+            && self.pe_ctl_state.is_idle()
+            && self.pe_pbs_state.is_idle()
     }
 
     fn pop_pbs(&mut self) -> Vec<AnnOpRef<'a, 'b, HpuLang, Stats, ()>> {

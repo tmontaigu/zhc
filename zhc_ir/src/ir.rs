@@ -539,14 +539,28 @@ impl<D: Dialect> IR<D> {
 
         // Check that the signature matches the arguments types.
         let sig = op.get_signature();
-        let actual: SmallVec<_> = args
-            .iter()
-            .map(|a| self.get_val(*a).get_type().clone())
-            .collect();
-        if sig.get_args() != actual.as_slice() {
+        if sig.get_args_arity() != args.len() {
             return Err(Failure::SignatureMismatch {
                 expected: sig.get_args().iter().cloned().collect(),
-                actual,
+                actual: args
+                    .iter()
+                    .map(|a| self.get_val(*a).get_type().clone())
+                    .collect(),
+            });
+        }
+
+        if sig
+            .get_args()
+            .iter()
+            .zip(args.iter().map(|a| self.get_val(*a).get_type()))
+            .any(|(s, a)| *s != a)
+        {
+            return Err(Failure::SignatureMismatch {
+                expected: sig.get_args().iter().cloned().collect(),
+                actual: args
+                    .iter()
+                    .map(|a| self.get_val(*a).get_type().clone())
+                    .collect(),
             });
         }
 

@@ -15,7 +15,6 @@ zhc_langs.workspace = true
 zhc_utils.workspace = true
 zhc_config.workspace = true
 libc.workspace = true
-core_affinity = "0.8"
 tfhe = { git = "https://github.com/zama-ai/tfhe-rs.git", features =["integer"]}
 tracy-client = {version = "0.18.4", optional = true}
 

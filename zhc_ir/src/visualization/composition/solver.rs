@@ -105,7 +105,7 @@ fn gen_layers<'ir, 'ann>(
 fn gen_layer<'ir, 'ann>(
     ops: impl Iterator<Item = AnnOpRef<'ir, 'ann, LayoutDialect, PlacementSolution, ()>>,
 ) -> (Layer, FastMap<OpId, CompositionVariable>) {
-    let mut assocs = FastMap::new();
+    let mut assocs = FastMap::default();
     let mut variables = Vec::new();
     for op in ops {
         let (node, ann) = gen_node(op.clone());

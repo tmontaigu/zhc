@@ -61,7 +61,7 @@ impl Interpreter {
         let mut context = IopInterepreterContext {
             spec: self.spec,
             inputs: self.inputs.iter().cloned().enumerate().collect(),
-            outputs: FastMap::new(),
+            outputs: FastMap::default(),
         };
         if let Err(interp_ir) = self.inner.borrow().ir.evaluate(&mut context) {
             panic!(
@@ -110,7 +110,7 @@ impl Interpreter {
         let mut context = IopInterepreterContext {
             spec: self.spec,
             inputs: self.inputs.iter().cloned().enumerate().collect(),
-            outputs: FastMap::new(),
+            outputs: FastMap::default(),
         };
         match self.inner.borrow().ir.evaluate(&mut context) {
             Ok(value_ir) => {
@@ -157,7 +157,7 @@ impl Dumpable for Interpreter {
         let mut context = IopInterepreterContext {
             spec: self.spec,
             inputs: self.inputs.iter().cloned().enumerate().collect(),
-            outputs: FastMap::new(),
+            outputs: FastMap::default(),
         };
         let ir = &self.inner.borrow().ir;
 

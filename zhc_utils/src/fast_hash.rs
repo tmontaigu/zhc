@@ -1,15 +1,9 @@
 use std::collections::{HashMap, HashSet};
 
-// Todo -> Implement Fx hasher and use it in the fast map and fast set
+use rustc_hash::FxBuildHasher;
 
-/// A hash map optimized for fast hashing performance.
-///
-/// Currently an alias for `HashMap`, but will be replaced with a faster
-/// hash implementation in the future.
-pub type FastMap<K, V> = HashMap<K, V>;
+/// A hash map optimized for fast hashing performance, using `FxHasher`.
+pub type FastMap<K, V> = HashMap<K, V, FxBuildHasher>;
 
-/// A hash set optimized for fast hashing performance.
-///
-/// Currently an alias for `HashSet`, but will be replaced with a faster
-/// hash implementation in the future.
-pub type FastSet<K> = HashSet<K>;
+/// A hash set optimized for fast hashing performance, using `FxHasher`.
+pub type FastSet<K> = HashSet<K, FxBuildHasher>;

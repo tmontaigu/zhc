@@ -5,7 +5,7 @@
 //! hardware language. The translation maps high-level operations to
 //! low-level hardware primitives while preserving semantic correctness.
 
-use std::{collections::HashMap, sync::LazyLock};
+use std::sync::LazyLock;
 
 use zhc_builder::CiphertextBlockSpec;
 use zhc_crypto::integer_semantics::lut::{Lut1, Lut2};
@@ -20,7 +20,7 @@ use zhc_langs::{
 use zhc_utils::{FastMap, SafeAs, small::SmallMap, svec};
 
 pub(crate) static GIDS1: LazyLock<FastMap<Lut1, LutId>> = LazyLock::new(|| {
-    HashMap::from([
+    FastMap::from_iter([
         (Lut1Def::None.into_lut(CiphertextBlockSpec(2, 2)), LutId(0)),
         (
             Lut1Def::MsgOnly.into_lut(CiphertextBlockSpec(2, 2)),
@@ -257,7 +257,7 @@ pub(crate) static GIDS1: LazyLock<FastMap<Lut1, LutId>> = LazyLock::new(|| {
 });
 
 pub(crate) static GIDS2: LazyLock<FastMap<Lut2, LutId>> = LazyLock::new(|| {
-    HashMap::from([
+    FastMap::from_iter([
         (
             Lut2Def::ManyGenProp.into_lut(CiphertextBlockSpec(2, 2)),
             LutId(18),

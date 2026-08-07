@@ -14,3 +14,4 @@ serde_json.workspace = true
 paste.workspace = true
 rand.workspace = true
 libc.workspace = true
+rustc-hash.workspace = true

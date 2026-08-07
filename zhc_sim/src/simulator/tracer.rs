@@ -104,10 +104,10 @@ impl Tracer {
         trace.set_process_name(DEFAULT_EVENTS_PID, "Events");
         trace.set_process_name(DEFAULT_STATES_PID, "States");
         trace.set_process_name(DEFAULT_COUNTERS_PID, "Counters");
-        let state_trackers = FastMap::new();
-        let event_trackers = FastMap::new();
-        let counter_trackers = FastMap::new();
-        let groups_tids = FastMap::new();
+        let state_trackers = FastMap::default();
+        let event_trackers = FastMap::default();
+        let counter_trackers = FastMap::default();
+        let groups_tids = FastMap::default();
         Tracer {
             trace,
             state_trackers,

@@ -61,7 +61,7 @@ impl UCore {
     pub fn new(mhdma_latency: ConstantLatency) -> Self {
         UCore {
             dops: VecDeque::new(),
-            transfers: FastMap::new(),
+            transfers: FastMap::default(),
             condition: UCoreCondition::Starved,
             mhdma_latency,
         }

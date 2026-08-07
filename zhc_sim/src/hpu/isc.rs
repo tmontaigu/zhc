@@ -10,7 +10,7 @@ pub struct PredLock(FastSet<DOpId>);
 
 impl PredLock {
     pub fn empty() -> Self {
-        PredLock(FastSet::new())
+        PredLock(FastSet::default())
     }
 
     pub fn unlock(&mut self, id: &DOpId) {

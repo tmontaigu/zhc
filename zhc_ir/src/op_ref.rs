@@ -200,7 +200,7 @@ impl<'ir, D: Dialect> OpRef<'ir, D> {
     /// operations that directly or indirectly produce values used by this operation.
     /// Operations are deduplicated in the result set.
     pub fn get_reaching_iter(&self) -> impl Iterator<Item = OpRef<'ir, D>> + use<'ir, D> {
-        let mut output = FastSet::new();
+        let mut output = FastSet::default();
         let mut worklist = vec![self.clone()];
         while let Some(val) = worklist.pop() {
             for op in val.get_args_iter().map(|a| a.get_origin().opref) {
@@ -225,7 +225,7 @@ impl<'ir, D: Dialect> OpRef<'ir, D> {
     /// operations that directly or indirectly use values produced by this operation.
     /// Operations are deduplicated in the result set.
     pub fn get_reached_iter(&self) -> impl Iterator<Item = OpRef<'ir, D>> + use<'ir, D> {
-        let mut output = FastSet::new();
+        let mut output = FastSet::default();
         let mut worklist = vec![self.clone()];
         while let Some(val) = worklist.pop() {
             for op in val.get_returns_iter().flat_map(|a| a.get_users_iter()) {

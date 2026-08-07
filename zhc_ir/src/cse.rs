@@ -94,8 +94,8 @@ impl CommonSubexpressionAnalysis {
         // We follow the classic Local Value Numbering approach to perform this analysis.
         let mut replacements = SmallVec::new();
         let mut vn_to_valid: Store<ValueNumber, ValId> = Store::empty();
-        let mut valid_to_vn: FastMap<ValId, ValueNumber> = FastMap::new();
-        let mut expr_to_vn: FastMap<Expr<D>, ValueNumber> = FastMap::new();
+        let mut valid_to_vn: FastMap<ValId, ValueNumber> = FastMap::default();
+        let mut expr_to_vn: FastMap<Expr<D>, ValueNumber> = FastMap::default();
 
         // We iterate following the topological order.
         for op in ir.walk_ops_topological() {

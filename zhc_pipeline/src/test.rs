@@ -56,7 +56,7 @@ pub fn check_iop_hpu_equivalence(
         let mut iop_ctx = IopInterepreterContext {
             spec,
             inputs: iop_inputs.iter().cloned().enumerate().collect(),
-            outputs: FastMap::new(),
+            outputs: FastMap::default(),
         };
         iop_ir
             .evaluate::<IopValue>(&mut iop_ctx)
@@ -175,7 +175,7 @@ pub fn check_iop_dop_equivalence(
         let mut iop_ctx = IopInterepreterContext {
             spec,
             inputs: iop_inputs.iter().cloned().enumerate().collect(),
-            outputs: FastMap::new(),
+            outputs: FastMap::default(),
         };
         iop_ir
             .evaluate::<IopValue>(&mut iop_ctx)

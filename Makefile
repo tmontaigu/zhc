@@ -7,6 +7,9 @@ SECS ?= 20
 test:
 	cargo test --release
 
+brrr:
+	cargo test --release -- brrr
+
 update-expects:
 	cargo run --bin update-expects
 

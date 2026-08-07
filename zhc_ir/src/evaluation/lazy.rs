@@ -10,6 +10,8 @@ use zhc_utils::iter::{CollectInSmallVec, MultiZip};
 use super::*;
 use crate::{AnnIR, AnnIRView, AsOpId, AsValId, Dialect, IR, OpId, OpMap, ValMap};
 
+const PROFILE: bool = true;
+
 /// Pull-based driver evaluating only the operations a request depends on.
 ///
 /// Holds the evaluation state of every active operation and value of the borrowed [`IR`], but
@@ -145,7 +147,7 @@ where
         // First we match the steady states.
         if matches!(
             self.opmap.get(opid).unwrap(),
-            OpState::Panicked(_) | OpState::Evaluated | OpState::PoisonedBy(_)
+            OpState::Panicked(_) | OpState::Evaluated(_) | OpState::PoisonedBy(_)
         ) {
             return;
         }
@@ -199,9 +201,18 @@ where
         }
 
         // Eval with panic catching
-        let evaluation = catch_unwind(AssertUnwindSafe(|| {
-            ir.get_op(opid).get_instruction().eval(context, arg_evals)
-        }));
+        let (evaluation, duration) = if PROFILE {
+            let tic = std::time::Instant::now();
+            let evaluation = catch_unwind(AssertUnwindSafe(|| {
+                ir.get_op(opid).get_instruction().eval(context, arg_evals)
+            }));
+            (evaluation, Some(tic.elapsed()))
+        } else {
+            let evaluation = catch_unwind(AssertUnwindSafe(|| {
+                ir.get_op(opid).get_instruction().eval(context, arg_evals)
+            }));
+            (evaluation, None)
+        };
 
         match evaluation {
             Err(payload) => {
@@ -226,7 +237,7 @@ where
                         )
                     }
                 }
-                *(self.opmap.get_mut(opid).unwrap()) = OpState::Evaluated;
+                *(self.opmap.get_mut(opid).unwrap()) = OpState::Evaluated(duration);
                 for (ret_valid, ret_eval) in (return_valids.iter(), ret_evals.into_iter()).mzip() {
                     *(self.valmap.get_mut(ret_valid).unwrap()) = ValState::Evaluated(ret_eval)
                 }

@@ -45,7 +45,9 @@ where
     pub fn into_value_ir(self) -> AnnIR<'ir, D, (), V> {
         let annotated = self.into_eval_ir();
         annotated
-            .map_opann(|opref| opref.get_annotation().unwrap_evaluated())
+            .map_opann(|opref| {
+                opref.get_annotation().clone().unwrap_evaluated();
+            })
             .map_valann(|valref| valref.get_annotation().clone().unwrap_evaluated())
     }
 
@@ -231,7 +233,7 @@ where
                         )
                     }
                 }
-                *(self.opmap.get_mut(opid).unwrap()) = OpState::Evaluated;
+                *(self.opmap.get_mut(opid).unwrap()) = OpState::Evaluated(None);
                 for (ret_valid, ret_eval) in (return_valids.iter(), ret_evals.into_iter()).mzip() {
                     *(self.valmap.get_mut(ret_valid).unwrap()) = ValState::Evaluated(ret_eval)
                 }

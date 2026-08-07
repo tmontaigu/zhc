@@ -16,3 +16,13 @@ pub mod prelude {
     pub use zhc_pipeline::*;
     pub use zhc_utils::{Dumpable, topology::Topology};
 }
+
+#[cfg(test)]
+mod test {
+    use zhc_builder::CiphertextSpec;
+    use zhc_pipeline::{Pipeline, compat::Iop};
+    use zhc_utils::Dumpable;
+
+    #[test]
+    fn brrrrrr() {}
+}

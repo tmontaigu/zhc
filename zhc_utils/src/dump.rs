@@ -30,6 +30,7 @@ use std::{
     collections::VecDeque,
     io::Write,
     path::{Path, PathBuf},
+    time::Duration,
 };
 
 use crate::units::Microseconds;
@@ -244,7 +245,7 @@ macro_rules! impl_dumpable_via_debug {
     };
 }
 
-impl_dumpable_via_debug!((), PathBuf);
+impl_dumpable_via_debug!((), PathBuf, Duration);
 
 impl_dumpable_via_display!(
     u8,

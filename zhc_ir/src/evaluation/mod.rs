@@ -30,7 +30,7 @@ use crate::{
     Annotation, DialectInstructionSet, DialectTypeSystem, OpId,
     visualization::{StyleModifier, VisualAnnotation},
 };
-use std::fmt::Debug;
+use std::{fmt::Debug, time::Duration};
 
 mod eager;
 mod lazy;
@@ -165,7 +165,7 @@ impl<V: Evaluation> ValState<V> {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum OpState {
     Pending,
-    Evaluated,
+    Evaluated(Option<Duration>),
     Panicked(String),
     PoisonedBy(OpId),
 }
@@ -191,8 +191,11 @@ impl OpState {
     /// # Panics
     ///
     /// Panics if the state is not [`Evaluated`](OpState::Evaluated).
-    pub fn unwrap_evaluated(&self) {
-        assert!(matches!(self, OpState::Evaluated));
+    pub fn unwrap_evaluated(self) -> Option<Duration> {
+        match self {
+            Self::Evaluated(v) => v,
+            _ => panic!(),
+        }
     }
 }
 
@@ -203,7 +206,7 @@ impl VisualAnnotation for OpState {
                 fill_color: Some(Color::WHITE),
                 ..Default::default()
             }),
-            OpState::Evaluated => Some(StyleModifier {
+            OpState::Evaluated(_) => Some(StyleModifier {
                 fill_color: Some(Color::GREEN),
                 ..Default::default()
             }),

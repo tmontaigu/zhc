@@ -41,7 +41,10 @@ pub fn lower_iop_to_multi_hpu<'a>(
     let localities = ir.totally_mapped_opmap(|opref| {
         use HpuInstructionSet::*;
         match opref.get_instruction() {
-            Transfer { from, to } => HpuLocality::Transfer { from, to },
+            Transfer { from, to } => HpuLocality::Transfer {
+                from: *from,
+                to: *to,
+            },
             CstCt { .. } | ImmLd { .. } | SrcLd { .. } => HpuLocality::Shared(
                 opref
                     .get_users_iter()

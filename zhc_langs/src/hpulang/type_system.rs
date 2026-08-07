@@ -6,7 +6,7 @@ use zhc_utils::DisplayVariant;
 /// Models the three storage classes visible at the HPU register level:
 /// ciphertext registers, plaintext immediates, and heap-spilled
 /// ciphertexts.
-#[derive(DisplayVariant, Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(DisplayVariant, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum HpuTypeSystem {
     /// Ciphertext block held in a virtual register.
     CtRegister,

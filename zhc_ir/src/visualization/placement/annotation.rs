@@ -132,7 +132,7 @@ pub fn annotate_for_solving(
                     let LayoutInstructionSet::GroupInput { pos, .. } = op.get_instruction() else {
                         unreachable!()
                     };
-                    pos
+                    *pos
                 });
                 let inputs = inputs
                     .into_iter()
@@ -151,7 +151,7 @@ pub fn annotate_for_solving(
                     let LayoutInstructionSet::GroupOutput { pos, .. } = op.get_instruction() else {
                         unreachable!()
                     };
-                    pos
+                    *pos
                 });
                 let outputs = outputs
                     .into_iter()

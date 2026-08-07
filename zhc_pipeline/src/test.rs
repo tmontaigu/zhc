@@ -25,10 +25,10 @@ pub fn check_iop_hpu_equivalence(
     for op in iop_ir.walk_ops_linear() {
         match op.get_instruction() {
             IopInstructionSet::InputCiphertext { pos, int_size } => {
-                input_slots.push((pos, true, int_size));
+                input_slots.push((*pos, true, *int_size));
             }
             IopInstructionSet::InputPlaintext { pos, int_size } => {
-                input_slots.push((pos, false, int_size));
+                input_slots.push((*pos, false, *int_size));
             }
             _ => {}
         }
@@ -144,10 +144,10 @@ pub fn check_iop_dop_equivalence(
     for op in iop_ir.walk_ops_linear() {
         match op.get_instruction() {
             IopInstructionSet::InputCiphertext { pos, int_size } => {
-                input_slots.push((pos, true, int_size));
+                input_slots.push((*pos, true, *int_size));
             }
             IopInstructionSet::InputPlaintext { pos, int_size } => {
-                input_slots.push((pos, false, int_size));
+                input_slots.push((*pos, false, *int_size));
             }
             _ => {}
         }

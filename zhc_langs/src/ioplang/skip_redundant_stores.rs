@@ -52,7 +52,7 @@ pub fn skip_redundant_stores(ir: &mut IR<IopLang>) {
                         svec![(); op.get_return_arity()],
                     )
                 } else {
-                    set.insert(index);
+                    set.insert(*index);
                     (OpAnn::ShouldKeep(set), svec![(); op.get_return_arity()])
                 }
             }

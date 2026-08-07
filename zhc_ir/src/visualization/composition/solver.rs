@@ -430,7 +430,7 @@ fn gen_curves_recursive<'ir, 'ann>(
                 CompositionVariable::GroupInput { sol },
             ) => {
                 for ret_val in op.get_returns_iter() {
-                    trace_curve(valid, vec![sol.watch()], ret_val, curves);
+                    trace_curve(*valid, vec![sol.watch()], ret_val, curves);
                 }
             }
             // Group outputs (from outside) -> trace forward
@@ -451,7 +451,7 @@ fn gen_curves_recursive<'ir, 'ann>(
                     let orig_val_id = ir
                         .walk_ops_linear()
                         .filter_map(|inner_op| match inner_op.get_instruction() {
-                            LayoutInstructionSet::GroupOutput { valid, .. } => Some(valid),
+                            LayoutInstructionSet::GroupOutput { valid, .. } => Some(*valid),
                             _ => None,
                         })
                         .nth(ret_val.get_origin().position as usize);

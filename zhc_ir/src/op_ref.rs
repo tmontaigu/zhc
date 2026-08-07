@@ -115,8 +115,8 @@ impl<'ir, D: Dialect> OpRef<'ir, D> {
     }
 
     /// Returns a copy of the instruction's dialect-specific data.
-    pub fn get_instruction(&self) -> D::InstructionSet {
-        self.operation.clone()
+    pub fn get_instruction(&self) -> &D::InstructionSet {
+        self.operation
     }
 
     /// Returns the depth of the operation relative to the IR inputs.

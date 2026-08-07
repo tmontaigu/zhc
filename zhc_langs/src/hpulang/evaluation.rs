@@ -296,7 +296,7 @@ impl Evaluable<HpuValue> for super::HpuInstructionSet {
                 let mut arg_positions: SmallVec<u8> = block
                     .walk_ops_linear()
                     .filter_map(|op| match op.get_instruction() {
-                        BatchArg { pos, .. } => Some(pos),
+                        BatchArg { pos, .. } => Some(*pos),
                         _ => None,
                     })
                     .cosvec();
@@ -312,7 +312,7 @@ impl Evaluable<HpuValue> for super::HpuInstructionSet {
                 let mut ret_positions: SmallVec<u8> = block
                     .walk_ops_linear()
                     .filter_map(|op| match op.get_instruction() {
-                        BatchRet { pos, .. } => Some(pos),
+                        BatchRet { pos, .. } => Some(*pos),
                         _ => None,
                     })
                     .cosvec();

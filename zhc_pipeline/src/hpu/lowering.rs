@@ -334,11 +334,11 @@ pub(crate) fn lower_iop_to_hpu(ir: &IR<IopLang>) -> Translation<HpuLang> {
         .scan((0, 0), |(ct_id, pt_id), op| match op.get_instruction() {
             InputCiphertext { pos, .. } => {
                 *ct_id += 1;
-                Some((pos, *ct_id - 1))
+                Some((*pos, *ct_id - 1))
             }
             InputPlaintext { pos, .. } => {
                 *pt_id += 1;
-                Some((pos, *pt_id - 1))
+                Some((*pos, *pt_id - 1))
             }
             _ => unreachable!(),
         })
@@ -365,7 +365,7 @@ pub(crate) fn lower_iop_to_hpu(ir: &IR<IopLang>) -> Translation<HpuLang> {
         })
         .backward_dataflow_analysis(|a, prev| {
             let opann = match a.get_instruction() {
-                OutputCiphertext { pos, .. } => Some(pos),
+                OutputCiphertext { pos, .. } => Some(*pos),
                 StoreCtBlock { .. } => {
                     let ret = a.get_returns_iter().next().unwrap();
                     assert_eq!(ret.get_users_iter().count(), 1);
@@ -415,7 +415,7 @@ pub(crate) fn lower_iop_to_hpu(ir: &IR<IopLang>) -> Translation<HpuLang> {
                 translator.direct_translation(
                     &op,
                     HpuInstructionSet::CstCt {
-                        cst: Immediate(value),
+                        cst: Immediate(*value),
                     },
                 );
             }
@@ -431,7 +431,7 @@ pub(crate) fn lower_iop_to_hpu(ir: &IR<IopLang>) -> Translation<HpuLang> {
                 translator.direct_translation(
                     &op,
                     HpuInstructionSet::Mac {
-                        cst: Immediate(mul.sas()),
+                        cst: Immediate((*mul).sas()),
                     },
                 );
             }
@@ -447,7 +447,7 @@ pub(crate) fn lower_iop_to_hpu(ir: &IR<IopLang>) -> Translation<HpuLang> {
                     IopInstructionSet::LetPlaintextBlock { value } => {
                         let new_rets = translator.add_op(
                             HpuInstructionSet::AddCst {
-                                cst: Immediate(value.sas()),
+                                cst: Immediate((*value).sas()),
                             },
                             svec![translator.translate_val(op.get_arg_valids()[0])],
                         );
@@ -470,7 +470,7 @@ pub(crate) fn lower_iop_to_hpu(ir: &IR<IopLang>) -> Translation<HpuLang> {
                     IopInstructionSet::LetPlaintextBlock { value } => {
                         let new_rets = translator.add_op(
                             HpuInstructionSet::SubCst {
-                                cst: Immediate(value.sas()),
+                                cst: Immediate((*value).sas()),
                             },
                             svec![translator.translate_val(op.get_arg_valids()[0])],
                         );
@@ -493,7 +493,7 @@ pub(crate) fn lower_iop_to_hpu(ir: &IR<IopLang>) -> Translation<HpuLang> {
                     IopInstructionSet::LetPlaintextBlock { value } => {
                         let new_rets = translator.add_op(
                             HpuInstructionSet::CstSub {
-                                cst: Immediate(value.sas()),
+                                cst: Immediate((*value).sas()),
                             },
                             svec![translator.translate_val(op.get_arg_valids()[1])],
                         );
@@ -516,7 +516,7 @@ pub(crate) fn lower_iop_to_hpu(ir: &IR<IopLang>) -> Translation<HpuLang> {
                     IopInstructionSet::LetPlaintextBlock { value } => {
                         let new_rets = translator.add_op(
                             HpuInstructionSet::MulCst {
-                                cst: Immediate(value.sas()),
+                                cst: Immediate((*value).sas()),
                             },
                             svec![translator.translate_val(op.get_arg_valids()[0])],
                         );
@@ -532,7 +532,7 @@ pub(crate) fn lower_iop_to_hpu(ir: &IR<IopLang>) -> Translation<HpuLang> {
                     HpuInstructionSet::SrcLd {
                         from: TSrcId {
                             src_pos: op.get_annotation().unwrap().try_into().unwrap(),
-                            block_pos: index.try_into().unwrap(),
+                            block_pos: (*index).sas(),
                         },
                     },
                     svec![],
@@ -544,7 +544,7 @@ pub(crate) fn lower_iop_to_hpu(ir: &IR<IopLang>) -> Translation<HpuLang> {
                     HpuInstructionSet::ImmLd {
                         from: TImmId {
                             imm_pos: op.get_annotation().unwrap().try_into().unwrap(),
-                            block_pos: index.try_into().unwrap(),
+                            block_pos: (*index).sas(),
                         },
                     },
                     svec![],
@@ -557,7 +557,7 @@ pub(crate) fn lower_iop_to_hpu(ir: &IR<IopLang>) -> Translation<HpuLang> {
                     HpuInstructionSet::DstSt {
                         to: TDstId {
                             dst_pos: op.get_annotation().unwrap().try_into().unwrap(),
-                            block_pos: index.try_into().unwrap(),
+                            block_pos: (*index).sas(),
                         },
                     },
                     svec![new_arg],

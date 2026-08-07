@@ -21,7 +21,7 @@ impl Dialect for IopLang {
 
 impl AllowCse for IopLang {
     fn op_to_exprs(
-        op: Self::InstructionSet,
+        op: &Self::InstructionSet,
         args: impl Iterator<Item = zhc_ir::ValueNumber>,
     ) -> impl Iterator<Item = Expr<Self>> {
         use super::IopInstructionSet::*;

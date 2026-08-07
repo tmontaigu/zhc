@@ -253,7 +253,7 @@ impl<'a, 'b> LightVm<'a, 'b> {
                     dst: dst.0,
                     src1: src1.0,
                     src2: src2.0,
-                    cst: cst,
+                    cst: *cst,
                 }
             }
             VmInstructionSet::AddPt => {
@@ -285,6 +285,7 @@ impl<'a, 'b> LightVm<'a, 'b> {
                     .get_origin()
                     .opref
                     .get_instruction()
+                    .clone()
                 else {
                     unreachable!()
                 };
@@ -325,6 +326,7 @@ impl<'a, 'b> LightVm<'a, 'b> {
                     .get_origin()
                     .opref
                     .get_instruction()
+                    .clone()
                 else {
                     unreachable!()
                 };
@@ -365,6 +367,7 @@ impl<'a, 'b> LightVm<'a, 'b> {
                     .get_origin()
                     .opref
                     .get_instruction()
+                    .clone()
                 else {
                     unreachable!()
                 };
@@ -405,6 +408,7 @@ impl<'a, 'b> LightVm<'a, 'b> {
                     .get_origin()
                     .opref
                     .get_instruction()
+                    .clone()
                 else {
                     unreachable!()
                 };
@@ -439,7 +443,7 @@ impl<'a, 'b> LightVm<'a, 'b> {
                     id: op.get_id().as_raw(),
                     dst: dst.0,
                     src: src.0,
-                    cst: cst,
+                    cst: *cst,
                 }
             }
             VmInstructionSet::SubCst { cst } => {
@@ -465,7 +469,7 @@ impl<'a, 'b> LightVm<'a, 'b> {
                     id: op.get_id().as_raw(),
                     dst: dst.0,
                     src: src.0,
-                    cst: cst,
+                    cst: *cst,
                 }
             }
             VmInstructionSet::CstSub { cst } => {
@@ -491,7 +495,7 @@ impl<'a, 'b> LightVm<'a, 'b> {
                     id: op.get_id().as_raw(),
                     dst: dst.0,
                     src: src.0,
-                    cst: cst,
+                    cst: *cst,
                 }
             }
             VmInstructionSet::MulCst { cst } => {
@@ -517,7 +521,7 @@ impl<'a, 'b> LightVm<'a, 'b> {
                     id: op.get_id().as_raw(),
                     dst: dst.0,
                     src: src.0,
-                    cst: cst,
+                    cst: *cst,
                 }
             }
             VmInstructionSet::CstCt { cst } => {
@@ -535,7 +539,7 @@ impl<'a, 'b> LightVm<'a, 'b> {
                 VmByteCode::DEF {
                     id: op.get_id().as_raw(),
                     dst: dst.0,
-                    cst: cst,
+                    cst: *cst,
                 }
             }
             VmInstructionSet::ImmLd { .. } => {
@@ -555,8 +559,8 @@ impl<'a, 'b> LightVm<'a, 'b> {
                 };
                 VmByteCode::ST {
                     id: op.get_id().as_raw(),
-                    dst_id: to_pos.sas(),
-                    dst_blk: to_block.sas(),
+                    dst_id: (*to_pos).sas(),
+                    dst_blk: (*to_block).sas(),
                     src: src.0,
                 }
             }
@@ -578,8 +582,8 @@ impl<'a, 'b> LightVm<'a, 'b> {
                 VmByteCode::LD {
                     id: op.get_id().as_raw(),
                     dst: dst.0,
-                    src_id: from_pos.sas(),
-                    src_blk: from_block.sas(),
+                    src_id: (*from_pos).sas(),
+                    src_blk: (*from_block).sas(),
                 }
             }
             VmInstructionSet::Ks => {
@@ -630,7 +634,7 @@ impl<'a, 'b> LightVm<'a, 'b> {
                     id: op.get_id().as_raw(),
                     dst: dst.0,
                     src: src.0,
-                    lut: lut.sas(),
+                    lut: (*lut).sas(),
                 }
             }
             VmInstructionSet::Pbs2 { lut } => {
@@ -668,7 +672,7 @@ impl<'a, 'b> LightVm<'a, 'b> {
                     dst1: dst1.0,
                     dst2: dst2.0,
                     src: src.0,
-                    lut: lut.sas(),
+                    lut: (*lut).sas(),
                 }
             }
         };

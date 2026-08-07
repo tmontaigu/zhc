@@ -38,7 +38,7 @@ pub trait AllowCse: Dialect {
     /// recognized as equivalent. Override this method to implement custom argument normalization
     /// for commutative operations.
     fn op_to_exprs(
-        op: Self::InstructionSet,
+        op: &Self::InstructionSet,
         args: impl Iterator<Item = ValueNumber>,
     ) -> impl Iterator<Item = Expr<Self>> {
         let args = args.collect::<SmallVec<_>>();
@@ -168,7 +168,7 @@ mod test {
     // For the commutative Add test we normalize Add arguments by sorting the value numbers.
     impl AllowCse for TestLang {
         fn op_to_exprs(
-            op: Self::InstructionSet,
+            op: &Self::InstructionSet,
             args: impl Iterator<Item = ValueNumber>,
         ) -> impl Iterator<Item = Expr<Self>> {
             let args = args.collect::<SmallVec<_>>();

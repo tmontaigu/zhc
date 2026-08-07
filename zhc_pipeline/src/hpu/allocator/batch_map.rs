@@ -27,7 +27,7 @@ impl BatchMap {
             let HpuInstructionSet::BatchArg { pos, .. } = op.get_instruction() else {
                 unreachable!()
             };
-            pos
+            *pos
         });
         let mut ordered_batch_ret = block
             .walk_ops_linear()
@@ -37,7 +37,7 @@ impl BatchMap {
             let HpuInstructionSet::BatchRet { pos, .. } = op.get_instruction() else {
                 unreachable!()
             };
-            pos
+            *pos
         });
         for (outer_valid, inner_valid) in (
             args.iter(),

@@ -23,11 +23,11 @@ pub fn lower_iop_to_vm(ir: &IR<IopLang>) -> IR<VmLang> {
         .scan((0, 0), |(ct_id, pt_id), op| match op.get_instruction() {
             InputCiphertext { pos, .. } => {
                 *ct_id += 1;
-                Some((pos, *ct_id - 1))
+                Some((*pos, *ct_id - 1))
             }
             InputPlaintext { pos, .. } => {
                 *pt_id += 1;
-                Some((pos, *pt_id - 1))
+                Some((*pos, *pt_id - 1))
             }
             _ => unreachable!(),
         })
@@ -54,7 +54,7 @@ pub fn lower_iop_to_vm(ir: &IR<IopLang>) -> IR<VmLang> {
         })
         .backward_dataflow_analysis(|a, prev| {
             let opann = match a.get_instruction() {
-                OutputCiphertext { pos, .. } => Some(pos),
+                OutputCiphertext { pos, .. } => Some(*pos),
                 StoreCtBlock { .. } => {
                     let ret = a.get_returns_iter().next().unwrap();
                     assert_eq!(ret.get_users_iter().count(), 1);
@@ -101,7 +101,7 @@ pub fn lower_iop_to_vm(ir: &IR<IopLang>) -> IR<VmLang> {
                 panic!("Unexpected Alias op encountered.");
             }
             IopInstructionSet::LetCiphertextBlock { value } => {
-                translator.direct_translation(&op, VmInstructionSet::CstCt { cst: value });
+                translator.direct_translation(&op, VmInstructionSet::CstCt { cst: *value });
             }
             IopInstructionSet::AddCt
             | IopInstructionSet::WrappingAddCt
@@ -112,7 +112,7 @@ pub fn lower_iop_to_vm(ir: &IR<IopLang>) -> IR<VmLang> {
                 translator.direct_translation(&op, VmInstructionSet::SubCt);
             }
             IopInstructionSet::PackCt { mul } => {
-                translator.direct_translation(&op, VmInstructionSet::Mac { cst: mul.sas() });
+                translator.direct_translation(&op, VmInstructionSet::Mac { cst: (*mul).sas() });
             }
             IopInstructionSet::AddPt | IopInstructionSet::WrappingAddPt => {
                 match op
@@ -125,7 +125,9 @@ pub fn lower_iop_to_vm(ir: &IR<IopLang>) -> IR<VmLang> {
                 {
                     IopInstructionSet::LetPlaintextBlock { value } => {
                         let new_rets = translator.add_op(
-                            VmInstructionSet::AddCst { cst: value.sas() },
+                            VmInstructionSet::AddCst {
+                                cst: (*value).sas(),
+                            },
                             svec![translator.translate_val(op.get_arg_valids()[0])],
                         );
                         translator.register_translation(op.get_return_valids()[0], new_rets[0]);
@@ -146,7 +148,9 @@ pub fn lower_iop_to_vm(ir: &IR<IopLang>) -> IR<VmLang> {
                 {
                     IopInstructionSet::LetPlaintextBlock { value } => {
                         let new_rets = translator.add_op(
-                            VmInstructionSet::SubCst { cst: value.sas() },
+                            VmInstructionSet::SubCst {
+                                cst: (*value).sas(),
+                            },
                             svec![translator.translate_val(op.get_arg_valids()[0])],
                         );
                         translator.register_translation(op.get_return_valids()[0], new_rets[0]);
@@ -167,7 +171,9 @@ pub fn lower_iop_to_vm(ir: &IR<IopLang>) -> IR<VmLang> {
                 {
                     IopInstructionSet::LetPlaintextBlock { value } => {
                         let new_rets = translator.add_op(
-                            VmInstructionSet::CstSub { cst: value.sas() },
+                            VmInstructionSet::CstSub {
+                                cst: (*value).sas(),
+                            },
                             svec![translator.translate_val(op.get_arg_valids()[1])],
                         );
                         translator.register_translation(op.get_return_valids()[0], new_rets[0]);
@@ -188,7 +194,9 @@ pub fn lower_iop_to_vm(ir: &IR<IopLang>) -> IR<VmLang> {
                 {
                     IopInstructionSet::LetPlaintextBlock { value } => {
                         let new_rets = translator.add_op(
-                            VmInstructionSet::MulCst { cst: value.sas() },
+                            VmInstructionSet::MulCst {
+                                cst: (*value).sas(),
+                            },
                             svec![translator.translate_val(op.get_arg_valids()[0])],
                         );
                         translator.register_translation(op.get_return_valids()[0], new_rets[0]);
@@ -202,7 +210,7 @@ pub fn lower_iop_to_vm(ir: &IR<IopLang>) -> IR<VmLang> {
                 let new_rets = translator.add_op(
                     VmInstructionSet::SrcLd {
                         from_pos: op.get_annotation().unwrap().try_into().unwrap(),
-                        from_block: index.try_into().unwrap(),
+                        from_block: (*index).sas(),
                     },
                     svec![],
                 );
@@ -212,7 +220,7 @@ pub fn lower_iop_to_vm(ir: &IR<IopLang>) -> IR<VmLang> {
                 let new_rets = translator.add_op(
                     VmInstructionSet::ImmLd {
                         from_pos: op.get_annotation().unwrap().try_into().unwrap(),
-                        from_block: index.try_into().unwrap(),
+                        from_block: (*index).sas(),
                     },
                     svec![],
                 );
@@ -223,7 +231,7 @@ pub fn lower_iop_to_vm(ir: &IR<IopLang>) -> IR<VmLang> {
                 translator.add_op(
                     VmInstructionSet::DstSt {
                         to_pos: op.get_annotation().unwrap().try_into().unwrap(),
-                        to_block: index.try_into().unwrap(),
+                        to_block: (*index).sas(),
                     },
                     svec![new_arg],
                 );

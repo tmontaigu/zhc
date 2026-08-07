@@ -43,10 +43,10 @@ pub fn skip_store_load(ir: &mut IR<IopLang>) {
                     .unwrap_analyzed()
                 {
                     ValAnn::ShouldBeReplaced(val_id) => {
-                        map.insert(index, val_id);
+                        map.insert(*index, val_id);
                     }
                     ValAnn::NotConcerned => {
-                        map.insert(index, op.get_arg_valids()[0]);
+                        map.insert(*index, op.get_arg_valids()[0]);
                     }
                     _ => unreachable!(),
                 };

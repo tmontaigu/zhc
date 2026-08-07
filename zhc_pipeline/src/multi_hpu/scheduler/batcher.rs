@@ -49,15 +49,29 @@ pub fn batch(
         match opref.get_instruction() {
             Transfer { from, to } => {
                 let id = transfer_map.get(&opref.get_id()).unwrap().clone();
-                if hid == from {
+                if hid == *from {
                     let new_args = opref
                         .get_arg_valids()
                         .iter()
                         .map(|valid| engine.translate_val(*valid))
                         .cosvec();
-                    engine.add_op(TransferOut { from, to, id }, new_args);
-                } else if hid == to {
-                    let new_rets = engine.add_op(TransferIn { from, to, id }, svec![]);
+                    engine.add_op(
+                        TransferOut {
+                            from: *from,
+                            to: *to,
+                            id,
+                        },
+                        new_args,
+                    );
+                } else if hid == *to {
+                    let new_rets = engine.add_op(
+                        TransferIn {
+                            from: *from,
+                            to: *to,
+                            id,
+                        },
+                        svec![],
+                    );
                     (opref.get_return_valids().iter(), new_rets.into_iter())
                         .mzip()
                         .for_each(|(old, new)| engine.register_translation(*old, new));
@@ -80,7 +94,7 @@ pub fn batch(
             | ImmLd { .. }
             | DstSt { .. }
             | SrcLd { .. } => {
-                engine.direct_translation(&opref, opref.get_instruction());
+                engine.direct_translation(&opref, opref.get_instruction().clone());
             }
             Pbs { .. }
             | Pbs2 { .. }

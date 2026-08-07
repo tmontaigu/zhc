@@ -144,9 +144,9 @@ impl<'a, 'b> LightHpu<'a, 'b> {
                     OpState::NotConcerned
                 } else {
                     if let HpuInstructionSet::Transfer { from, to, .. } = op.get_instruction() {
-                        if id == from {
+                        if id == *from {
                             OpState::Waiting(1)
-                        } else if id == to {
+                        } else if id == *to {
                             OpState::Awaiting
                         } else {
                             unreachable!()
@@ -168,9 +168,9 @@ impl<'a, 'b> LightHpu<'a, 'b> {
                     OpState::NotConcerned
                 } else {
                     if let HpuInstructionSet::Transfer { from, to } = op.get_instruction() {
-                        if id == to {
+                        if id == *to {
                             OpState::Waiting(op.get_users_iter().count())
-                        } else if id == from {
+                        } else if id == *from {
                             OpState::Awaiting
                         } else {
                             unreachable!()
@@ -484,10 +484,10 @@ impl<'a, 'b> zhc_sim::Simulatable for LightHpu<'a, 'b> {
                 SchedPolicy::AsSoonAsPossible => to,
                 SchedPolicy::AsLateAsPossible => from,
             };
-            if target_hid != self.id {
+            if *target_hid != self.id {
                 dispatcher.dispatch_after(
                     self.pe_transfer_cost.compute_latency(),
-                    HpuEvents::TransferOut(target_hid, op.get_id()),
+                    HpuEvents::TransferOut(*target_hid, op.get_id()),
                 );
             }
             dispatcher.dispatch_after(

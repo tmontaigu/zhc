@@ -9,19 +9,19 @@ use zhc_utils::{
     svec,
 };
 
-fn flush_pbs(instruction: HpuInstructionSet) -> HpuInstructionSet {
+fn flush_pbs(instruction: &HpuInstructionSet) -> HpuInstructionSet {
     match instruction {
         HpuInstructionSet::Pbs { lut } | HpuInstructionSet::PbsF { lut } => {
-            HpuInstructionSet::PbsF { lut }
+            HpuInstructionSet::PbsF { lut: *lut }
         }
         HpuInstructionSet::Pbs2 { lut } | HpuInstructionSet::Pbs2F { lut } => {
-            HpuInstructionSet::Pbs2F { lut }
+            HpuInstructionSet::Pbs2F { lut: *lut }
         }
         HpuInstructionSet::Pbs4 { lut } | HpuInstructionSet::Pbs4F { lut } => {
-            HpuInstructionSet::Pbs4F { lut }
+            HpuInstructionSet::Pbs4F { lut: *lut }
         }
         HpuInstructionSet::Pbs8 { lut } | HpuInstructionSet::Pbs8F { lut } => {
-            HpuInstructionSet::Pbs8F { lut }
+            HpuInstructionSet::Pbs8F { lut: *lut }
         }
         _ => unreachable!(),
     }
@@ -118,7 +118,7 @@ impl<T: AsOpRef<Dialect = HpuLang>> Batch<T> {
                 // Ensures the last is a flush...
                 flush_pbs(op.get_instruction())
             } else {
-                op.get_instruction()
+                op.get_instruction().clone()
             };
             let (_, batch_op_rets) = batch.add_op(
                 instr,

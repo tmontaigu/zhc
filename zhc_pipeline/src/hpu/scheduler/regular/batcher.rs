@@ -59,7 +59,7 @@ pub fn batch(ir: &IR<HpuLang>, sched: Vec<SchedElm>) -> IR<HpuLang> {
                     .iter()
                     .map(|valid| engine.translate_val(*valid))
                     .cosvec();
-                let new_rets = engine.add_op(opref.get_instruction(), new_args);
+                let new_rets = engine.add_op(opref.get_instruction().clone(), new_args);
                 (opref.get_return_valids().iter(), new_rets.into_iter())
                     .mzip()
                     .for_each(|(old, new)| engine.register_translation(*old, new));

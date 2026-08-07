@@ -138,7 +138,7 @@ fn simulate(ir: &IR<DopLang>, config: &HpuConfig) -> (Cycle, Statistics) {
     let dops = ir
         .walk_ops_linear()
         .map(|a| DOp {
-            raw: a.get_instruction(),
+            raw: a.get_instruction().clone(),
             id: DOpId(a.get_id().into()),
         })
         .collect();

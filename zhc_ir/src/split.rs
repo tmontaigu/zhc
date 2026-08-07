@@ -86,7 +86,7 @@ pub fn split<D: Dialect>(ir: &IR<D>) -> Vec<IR<D>> {
             if !op.get_annotation() {
                 return;
             }
-            translator.direct_translation(&*op, op.get_instruction());
+            translator.direct_translation(&*op, op.get_instruction().clone());
         })
         .output;
         eliminate_dead_code(&mut output_ir);

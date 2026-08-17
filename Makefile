@@ -1,4 +1,4 @@
-.PHONY: test update-expects fmt fmt-check check bench bench-export bench-diff analyze bench-vm vm-bench vm-throughput vm-throughput-verify vm-microbench vm-model vm-bootstrap vm-profile-model vm-profile vm-profile-remote mem-topo zhc-profile
+.PHONY: test update-expects fmt fmt-check check bench bench-export bench-diff bench-compile bench-compile-diff analyze bench-vm vm-bench vm-throughput vm-throughput-verify vm-microbench vm-model vm-bootstrap vm-profile-model vm-profile vm-profile-remote mem-topo zhc-profile
 
 # Wall-clock seconds the profiled bench_vm run loops for (override: make vm-profile SECS=30).
 SECS ?= 20
@@ -34,6 +34,12 @@ bench-export:
 
 bench-diff:
 	RUSTFLAGS="-A warnings" cargo run --release -p zhc_bench -- diff
+
+bench-compile:
+	cargo run --release -p zhc_bench -- compile
+
+bench-compile-diff:
+	RUSTFLAGS="-A warnings" cargo run --release -p zhc_bench -- compile-diff
 
 analyze:
 	cargo run --release -p zhc_bench -- analyze

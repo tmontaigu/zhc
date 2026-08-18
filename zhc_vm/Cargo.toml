@@ -1,5 +1,6 @@
 [package]
 name = "zhc_vm"
+description = "ZHC: Fast CPU Virtual Machine for TFHE programs"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

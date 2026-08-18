@@ -1,6 +1,6 @@
 [package]
 name = "zhc_utils"
-description = "Shared utilities for the ZHC compiler"
+description = "ZHC: Shared utilities"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

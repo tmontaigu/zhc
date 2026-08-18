@@ -1,6 +1,6 @@
 [package]
 name = "zhc_sim"
-description = "HPU hardware simulation and configuration"
+description = "ZHC: Discrete event simulation framework and HPU hardware simulator"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

@@ -1,6 +1,6 @@
 [package]
 name = "zhc_utils_macro"
-description = "Procedural macros for the ZHC compiler"
+description = "ZHC: Shared utilities macros"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

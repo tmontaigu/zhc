@@ -1,6 +1,6 @@
 [package]
 name = "zhc_langs"
-description = "Language dialects for the ZHC compiler (IOP, HPU, DOP, VM, Pipeline)"
+description = "ZHC: Dialects registry"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

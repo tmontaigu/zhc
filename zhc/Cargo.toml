@@ -1,6 +1,6 @@
 [package]
 name = "zhc"
-description = "Hpu code compilation"
+description = "ZHC: Top-level"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

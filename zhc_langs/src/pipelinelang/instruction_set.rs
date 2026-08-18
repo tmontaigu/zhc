@@ -5,6 +5,33 @@ use crate::pipelinelang::Affinity;
 
 use super::PipelineTypeSystem;
 
+/// Instruction set for the pipeline meta-dialect.
+///
+/// Each instruction is one compilation step, consuming and producing
+/// [`PipelineTypeSystem`] artifacts according to the fixed signature exposed by the
+/// [`DialectInstructionSet`] impl. Instructions fall into the four [`Affinity`] branches:
+///
+/// **Commons.** `InputBuilder` introduces the source circuit; from it, `BuilderToIopLang`,
+/// `BuilderToPartitions`, and `BuilderToPrototype` derive the block-level IR, the multi-HPU
+/// partitioning, and the call prototype. `ComputePbsMetrics` and `DrawSlack` each analyze the
+/// IOP IR, producing PBS metrics and a slack drawing respectively.
+///
+/// **Hpu.** `InputHpuConfig` introduces the target configuration. `IopLangToHpuLang` translates
+/// the IOP IR, then `ScheduleHpuLang` schedules the translated form and `AllocateDopLang`
+/// register-allocates the scheduled form, each also consuming the configuration. From the DOP
+/// IR, `GenerateHpuStream` and `GenerateHpuAssembly` emit the executable outputs,
+/// `ComputeHpuMetrics` derives metrics (also reading the scheduled IR), and `TraceHpuExecution`
+/// produces an execution trace (also reading the configuration).
+///
+/// **MultiHpu.** Mirrors the HPU branch across several boards, with three deviations:
+/// `IopLangToMultiHpu` additionally consumes the `Partitions` artifact and produces placement
+/// information (`MultiHpuLocalities`) alongside the translated IR, `ScheduleMultiHpuLang`
+/// consumes those localities together with the translated IR and the configuration, and there is
+/// no multi-HPU metrics step.
+///
+/// **Vm.** `InputVmConfig` and `InputTopology` introduce the VM configuration and machine
+/// topology, `IopLangToVmLang` translates the IOP IR, and `GenerateVmExecutionPlan` combines all
+/// three into the final execution plan.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum PipelineInstructionSet {
     // Commons
@@ -39,6 +66,11 @@ pub enum PipelineInstructionSet {
 }
 
 impl PipelineInstructionSet {
+    /// Returns the pipeline branch this instruction belongs to.
+    ///
+    /// The mapping follows the four groups described on [`PipelineInstructionSet`]: frontend
+    /// steps map to [`Affinity::Commons`], and backend steps map to the affinity of their
+    /// branch.
     pub fn get_affinity(&self) -> Affinity {
         use PipelineInstructionSet::*;
         match self {

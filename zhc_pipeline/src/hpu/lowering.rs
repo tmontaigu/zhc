@@ -571,7 +571,10 @@ pub(crate) fn lower_iop_to_hpu(ir: &IR<IopLang>) -> Translation<HpuLang> {
                 let lut = match GIDS1.get(&lut) {
                     Some(v) => *v,
                     None => {
-                        panic!("Failed to lookup the gid for key: {lut:?}")
+                        eprintln!(
+                            "Warning: Failed to lookup the gid for key: {lut:?}. Custom LUT loading is not yet implemented. This can run on simulator but would fail on board."
+                        );
+                        LutId(76)
                     }
                 };
                 translator.direct_translation(&op, HpuInstructionSet::Pbs { lut });
@@ -580,7 +583,10 @@ pub(crate) fn lower_iop_to_hpu(ir: &IR<IopLang>) -> Translation<HpuLang> {
                 let lut = match GIDS2.get(&lut) {
                     Some(v) => *v,
                     None => {
-                        panic!("Failed to lookup the gid for key: {lut:?}")
+                        eprintln!(
+                            "Warning: Failed to lookup the gid for key: {lut:?}. Custom LUT loading is not yet implemented. This can run on simulator but would fail on board."
+                        );
+                        LutId(76)
                     }
                 };
                 translator.direct_translation(&op, HpuInstructionSet::Pbs2 { lut });

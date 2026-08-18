@@ -240,7 +240,7 @@ pub fn lower_iop_to_vm(ir: &IR<IopLang>) -> IR<VmLang> {
                 let lut = match GIDS1.get(&lut) {
                     Some(v) => *v,
                     None => {
-                        panic!("Failed to lookup the gid for key: {lut:?}")
+                        panic!("Warning: Failed to lookup the gid for key: {lut:?}. Custom LUT loading is not yet implemented.");
                     }
                 };
                 let new_arg = translator.translate_val(op.get_arg_valids()[0]);
@@ -252,7 +252,7 @@ pub fn lower_iop_to_vm(ir: &IR<IopLang>) -> IR<VmLang> {
                 let lut = match GIDS2.get(&lut) {
                     Some(v) => *v,
                     None => {
-                        panic!("Failed to lookup the gid for key: {lut:?}")
+                        panic!("Warning: Failed to lookup the gid for key: {lut:?}. Custom LUT loading is not yet implemented.");
                     }
                 };
                 let new_arg = translator.translate_val(op.get_arg_valids()[0]);

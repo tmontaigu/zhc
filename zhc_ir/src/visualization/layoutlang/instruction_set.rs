@@ -10,12 +10,22 @@ use crate::{
     },
 };
 
+/// Renderable content of an [`Operation`](LayoutInstructionSet::Operation) node.
+///
+/// Holds the pre-formatted strings to display for one original operation, plus optional
+/// decorations. Equality and hashing compare the textual fields only; `annotation` is
+/// intentionally excluded, so two contents differing only in their annotation compare equal.
 #[derive(Debug)]
 pub struct OpContent {
+    /// Formatted argument values, one string per input edge.
     pub args: SmallVec<String>,
+    /// Formatted return values, one string per output edge.
     pub returns: SmallVec<String>,
+    /// Formatted operation call, without types or comments.
     pub call: String,
+    /// Optional comment line displayed alongside the node.
     pub comment: Option<String>,
+    /// Optional visual annotation, attached by [`annotate_layout`](super::annotate_layout).
     pub annotation: Option<Rc<dyn VisualAnnotation>>,
 }
 
@@ -54,6 +64,11 @@ impl Hash for OpContent {
 }
 
 impl OpContent {
+    /// Builds the display content of an operation of any dialect.
+    ///
+    /// The arguments and returns of the operation behind `opref` are formatted with `ctx`, while
+    /// the call itself is formatted with types and comments disabled. `comment` and `annotation`
+    /// start out as `None`.
     pub fn from_op<'ir, D: Dialect>(opref: &OpRef<'ir, D>, ctx: &FormatContext) -> Self {
         OpContent {
             args: opref
@@ -71,6 +86,27 @@ impl OpContent {
     }
 }
 
+/// Instruction set for the layout dialect.
+///
+/// Each instruction is a node to draw, and its signature (exposed by the
+/// [`DialectInstructionSet`] impl) gives its edge arity in
+/// [`Value`](LayoutTypeSystem::Value)s:
+///
+/// **`Operation`** is a plain display node standing for one operation of the original IR. It
+/// carries the original [`OpId`], the pre-formatted [`OpContent`] to render, and the original
+/// argument and return [`ValId`]s; its arity follows the argument and return counts of its
+/// content.
+///
+/// **`Group`** holds a whole nested `IR<LayoutDialect>` to draw as a named box. Its arity is
+/// derived from that nested IR: one input per `GroupInput` op and one output per `GroupOutput`
+/// op it contains. **`GroupInput`** (no input, one output) and **`GroupOutput`** (one input, no
+/// output) mark, inside the nested IR, where the group's `pos`-th argument enters and where its
+/// `pos`-th result leaves.
+///
+/// **`Dummy`** forwards a value unchanged (one input, one output), padding an edge so that it
+/// spans one rendering layer at a time.
+///
+/// `Dummy`, `GroupInput`, and `GroupOutput` record in `valid` the original IR value they carry.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum LayoutInstructionSet {
     Operation {

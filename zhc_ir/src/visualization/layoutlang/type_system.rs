@@ -2,6 +2,10 @@ use std::fmt::Display;
 
 use crate::DialectTypeSystem;
 
+/// Type system for the layout dialect.
+///
+/// Single-typed: every edge carries the sole `Value` variant. Layout IRs only encode the shape
+/// of the dataflow to draw, so no further type distinction is needed.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum LayoutTypeSystem {
     Value,

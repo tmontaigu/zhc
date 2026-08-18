@@ -3,6 +3,10 @@ use crate::{
     visualization::layoutlang::{LayoutInstructionSet, LayoutTypeSystem},
 };
 
+/// Dialect tag for the layout language.
+///
+/// Unit struct binding [`LayoutTypeSystem`] and [`LayoutInstructionSet`] into a concrete
+/// [`Dialect`] implementation.
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct LayoutDialect;
 

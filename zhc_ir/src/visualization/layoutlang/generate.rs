@@ -472,6 +472,25 @@ impl<'ir, 'ann, D: Dialect> Stack<'ir, 'ann, D> {
     }
 }
 
+/// Restructures a hierarchy-annotated IR into a layout IR grouped by hierarchy.
+///
+/// Every operation of `input` becomes an [`Operation`](LayoutInstructionSet::Operation) node
+/// carrying its formatted [`OpContent`](super::OpContent), nested inside
+/// [`Group`](LayoutInstructionSet::Group) nodes that mirror the operations'
+/// [`Hierarchy`](crate::visualization::Hierarchy) annotations: each group is named after its
+/// branch's comment,
+/// and groups nest following the hierarchy tree. Consecutive operations of the same branch share
+/// a group, but a branch can yield several groups when data dependencies force interleaving with
+/// another branch. Values crossing a group boundary materialize as
+/// [`GroupInput`](LayoutInstructionSet::GroupInput) and
+/// [`GroupOutput`](LayoutInstructionSet::GroupOutput) nodes, and
+/// [`Dummy`](LayoutInstructionSet::Dummy) nodes pad edges so that every argument of a node
+/// originates at the same depth. The output preserves the dataflow of the input.
+///
+/// # Panics
+///
+/// Panics if `input` contains no operations, or if two operations carry hierarchy annotations
+/// belonging to different hierarchy trees.
 pub fn generate_layout_ir<'ir, 'ann, D: Dialect>(
     input: &'ann AnnIR<'ir, D, Hierarchy, ()>,
 ) -> IR<LayoutDialect> {

@@ -238,6 +238,30 @@ fn gen_node_content<'ir, 'ann>(
     }
 }
 
+fn gen_port<C: Class>(
+    text: String,
+    ann: Option<std::rc::Rc<dyn crate::visualization::VisualAnnotation>>,
+) -> V2<TextBox<OpPortTextClass>, Optional<Box<dyn DynamicElement>>, C> {
+    V2::new(
+        ann.as_ref().and_then(|a| a.style_modifier()),
+        TextBox::new(None, text),
+        Optional::new(ann.and_then(|a| a.widget())),
+    )
+}
+
+fn gen_ports<C: Class>(
+    texts: &zhc_utils::small::SmallVec<String>,
+    annotations: &zhc_utils::small::SmallVec<
+        Option<std::rc::Rc<dyn crate::visualization::VisualAnnotation>>,
+    >,
+) -> Vec<V2<TextBox<OpPortTextClass>, Optional<Box<dyn DynamicElement>>, C>> {
+    texts
+        .iter()
+        .enumerate()
+        .map(|(i, text)| gen_port(text.clone(), annotations.get(i).cloned().flatten()))
+        .collect()
+}
+
 fn gen_input_op_node(orig_op: &OpContent) -> InputOp {
     let body = OpBody::new(None, orig_op.call.clone());
     let comment = orig_op
@@ -247,12 +271,7 @@ fn gen_input_op_node(orig_op: &OpContent) -> InputOp {
         .map(|a| OpComment::new(None, a));
     let outputs = OpOutputs::new(
         None,
-        orig_op
-            .returns
-            .iter()
-            .cloned()
-            .map(|a| TextBox::new(None, a))
-            .collect(),
+        gen_ports(&orig_op.returns, &orig_op.return_annotations),
     );
     InputOp::new(
         orig_op.annotation.clone().and_then(|a| a.style_modifier()),
@@ -270,15 +289,7 @@ fn gen_effect_op_node(orig_op: &OpContent) -> EffectOp {
         .as_ref()
         .cloned()
         .map(|a| OpComment::new(None, a));
-    let inputs = OpInputs::new(
-        None,
-        orig_op
-            .args
-            .iter()
-            .cloned()
-            .map(|a| TextBox::new(None, a))
-            .collect(),
-    );
+    let inputs = OpInputs::new(None, gen_ports(&orig_op.args, &orig_op.arg_annotations));
     EffectOp::new(
         orig_op.annotation.clone().and_then(|a| a.style_modifier()),
         inputs,
@@ -295,23 +306,10 @@ fn gen_op_node(orig_op: &OpContent) -> Op {
         .as_ref()
         .cloned()
         .map(|a| OpComment::new(None, a));
-    let inputs = OpInputs::new(
-        None,
-        orig_op
-            .args
-            .iter()
-            .cloned()
-            .map(|a| TextBox::new(None, a))
-            .collect(),
-    );
+    let inputs = OpInputs::new(None, gen_ports(&orig_op.args, &orig_op.arg_annotations));
     let outputs = OpOutputs::new(
         None,
-        orig_op
-            .returns
-            .iter()
-            .cloned()
-            .map(|a| TextBox::new(None, a))
-            .collect(),
+        gen_ports(&orig_op.returns, &orig_op.return_annotations),
     );
     Op::new(
         orig_op.annotation.clone().and_then(|a| a.style_modifier()),

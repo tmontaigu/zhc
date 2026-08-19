@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use crate::{
-    IR, OpMap,
+    IR, OpMap, ValMap,
     visualization::{LayoutDialect, LayoutInstructionSet, visual_annotation::VisualAnnotation},
 };
 
@@ -25,6 +25,37 @@ pub fn annotate_layout<OpAnn: VisualAnnotation + Clone>(
         }
         LayoutInstructionSet::Group { ir, .. } => {
             annotate_layout(ir, annotations);
+        }
+        _ => {}
+    });
+}
+
+/// Attaches visual annotations to every port of every operation node of a layout IR.
+///
+/// Recursively walks `ir`, including nested groups, and fills each
+/// [`Operation`](LayoutInstructionSet::Operation) node's per-port annotations with copies of the
+/// `annotations` entries keyed by the ports' original [`ValId`](crate::ValId)s. Other node kinds
+/// are left untouched.
+///
+/// # Panics
+///
+/// Panics if `annotations` has no entry for the original value id of some port.
+pub fn annotate_layout_vals<ValAnn: VisualAnnotation + Clone>(
+    ir: &mut IR<LayoutDialect>,
+    annotations: &ValMap<ValAnn>,
+) {
+    ir.mutate_ops_linear(|op| match op {
+        LayoutInstructionSet::Operation {
+            op, args, returns, ..
+        } => {
+            let annotate = |valid: &crate::ValId| -> Option<Rc<dyn VisualAnnotation>> {
+                Some(Rc::new(annotations.get(*valid).unwrap().clone()))
+            };
+            op.arg_annotations = args.iter().map(annotate).collect();
+            op.return_annotations = returns.iter().map(annotate).collect();
+        }
+        LayoutInstructionSet::Group { ir, .. } => {
+            annotate_layout_vals(ir, annotations);
         }
         _ => {}
     });

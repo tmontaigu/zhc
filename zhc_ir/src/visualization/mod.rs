@@ -28,7 +28,11 @@ fn draw_ir<D: Dialect>(ir: &IR<D>, hierarchy_ann: Option<OpMap<Hierarchy>>) -> S
     svg::draw(&scene)
 }
 
-fn draw_ann_ir<D: Dialect, OpAnn: Annotation + VisualAnnotation, ValAnn: Annotation>(
+fn draw_ann_ir<
+    D: Dialect,
+    OpAnn: Annotation + VisualAnnotation,
+    ValAnn: Annotation + VisualAnnotation,
+>(
     ir: &AnnIRView<D, OpAnn, ValAnn>,
     hierarchy_ann: Option<OpMap<Hierarchy>>,
 ) -> Svg {
@@ -36,6 +40,7 @@ fn draw_ann_ir<D: Dialect, OpAnn: Annotation + VisualAnnotation, ValAnn: Annotat
     let ann_ir = AnnIR::new(ir, hierarchy_ann, ir.filled_valmap(()));
     let mut layout_ir = generate_layout_ir(&ann_ir);
     annotate_layout(&mut layout_ir, ir.op_annotations());
+    annotate_layout_vals(&mut layout_ir, ir.val_annotations());
     let placed_ir = placement::place(&layout_ir);
     let scene = composition::compose(&placed_ir);
     svg::draw(&scene)
@@ -69,10 +74,12 @@ pub fn draw_ir_to_svg<D: Dialect>(
 
 /// Renders an annotated IR graph as a static SVG file.
 ///
-/// Like [`draw_ir_to_svg`], but accepts an [`AnnIRView`] whose operation annotations implement
-/// [`VisualAnnotation`]. Each operation's annotation can provide a custom widget (displayed
-/// inside the node) and a style modifier (affecting the node's appearance). This is useful
-/// for visualizing interpreter results, optimization metadata, or any per-operation data.
+/// Like [`draw_ir_to_svg`], but accepts an [`AnnIRView`] whose operation and value annotations
+/// implement [`VisualAnnotation`]. Each operation's annotation can provide a custom widget
+/// (displayed inside the node) and a style modifier (affecting the node's appearance), and each
+/// value's annotation can likewise restyle the value's ports and add a widget below their text.
+/// This is useful for visualizing interpreter results, optimization metadata, or any
+/// per-operation or per-value data.
 ///
 /// For an interactive version with zoom and pan, use [`draw_ann_ir_to_html`].
 ///
@@ -81,7 +88,11 @@ pub fn draw_ir_to_svg<D: Dialect>(
 /// # Panics
 ///
 /// Panics if the file cannot be written.
-pub fn draw_ann_ir_to_svg<D: Dialect, OpAnn: Annotation + VisualAnnotation, ValAnn: Annotation>(
+pub fn draw_ann_ir_to_svg<
+    D: Dialect,
+    OpAnn: Annotation + VisualAnnotation,
+    ValAnn: Annotation + VisualAnnotation,
+>(
     ir: &AnnIRView<D, OpAnn, ValAnn>,
     hierarchy_ann: Option<OpMap<Hierarchy>>,
 ) -> FileHandle {
@@ -122,11 +133,13 @@ pub fn draw_ir_to_html<D: Dialect>(
 
 /// Renders an annotated IR graph as an interactive HTML file.
 ///
-/// Like [`draw_ir_to_html`], but accepts an [`AnnIRView`] whose operation annotations implement
-/// [`VisualAnnotation`]. Each operation's annotation can provide a custom widget (displayed
-/// inside the node) and a style modifier (affecting the node's appearance). This is useful
-/// for visualizing interpreter results, optimization metadata, or any per-operation data.
-/// The resulting HTML file supports interactive features such as zooming and panning.
+/// Like [`draw_ir_to_html`], but accepts an [`AnnIRView`] whose operation and value annotations
+/// implement [`VisualAnnotation`]. Each operation's annotation can provide a custom widget
+/// (displayed inside the node) and a style modifier (affecting the node's appearance), and each
+/// value's annotation can likewise restyle the value's ports and add a widget below their text.
+/// This is useful for visualizing interpreter results, optimization metadata, or any
+/// per-operation or per-value data. The resulting HTML file supports interactive features such
+/// as zooming and panning.
 ///
 /// For a static SVG without interactivity, use [`draw_ann_ir_to_svg`].
 ///
@@ -135,7 +148,11 @@ pub fn draw_ir_to_html<D: Dialect>(
 /// # Panics
 ///
 /// Panics if the file cannot be written.
-pub fn draw_ann_ir_to_html<D: Dialect, OpAnn: Annotation + VisualAnnotation, ValAnn: Annotation>(
+pub fn draw_ann_ir_to_html<
+    D: Dialect,
+    OpAnn: Annotation + VisualAnnotation,
+    ValAnn: Annotation + VisualAnnotation,
+>(
     ir: &AnnIRView<D, OpAnn, ValAnn>,
     hierarchy_ann: Option<OpMap<Hierarchy>>,
 ) -> FileHandle {

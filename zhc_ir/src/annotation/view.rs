@@ -185,7 +185,7 @@ impl<'ir, 'ann, D: Dialect, OpAnn: Annotation, ValAnn: Annotation>
 
     /// Renders this annotated view as an interactive HTML file.
     ///
-    /// Equivalent to [`draw_ann_ir_to_html`], requiring `OpAnn` to implement
+    /// Equivalent to [`draw_ann_ir_to_html`], requiring `OpAnn` and `ValAnn` to implement
     /// [`VisualAnnotation`]. The returned handle points at a freshly created temporary file.
     ///
     /// # Panics
@@ -194,6 +194,7 @@ impl<'ir, 'ann, D: Dialect, OpAnn: Annotation, ValAnn: Annotation>
     pub fn draw_to_html(&self, hierarchy_ann: Option<OpMap<Hierarchy>>) -> FileHandle
     where
         OpAnn: VisualAnnotation,
+        ValAnn: VisualAnnotation,
     {
         draw_ann_ir_to_html(self, hierarchy_ann)
     }

@@ -13,8 +13,8 @@ use crate::{
 /// Renderable content of an [`Operation`](LayoutInstructionSet::Operation) node.
 ///
 /// Holds the pre-formatted strings to display for one original operation, plus optional
-/// decorations. Equality and hashing compare the textual fields only; `annotation` is
-/// intentionally excluded, so two contents differing only in their annotation compare equal.
+/// decorations. Equality and hashing compare the textual fields only; the annotation fields are
+/// intentionally excluded, so two contents differing only in their annotations compare equal.
 #[derive(Debug)]
 pub struct OpContent {
     /// Formatted argument values, one string per input edge.
@@ -27,6 +27,12 @@ pub struct OpContent {
     pub comment: Option<String>,
     /// Optional visual annotation, attached by [`annotate_layout`](super::annotate_layout).
     pub annotation: Option<Rc<dyn VisualAnnotation>>,
+    /// Optional per-input visual annotations, attached by
+    /// [`annotate_layout_vals`](super::annotate_layout_vals).
+    pub arg_annotations: SmallVec<Option<Rc<dyn VisualAnnotation>>>,
+    /// Optional per-output visual annotations, attached by
+    /// [`annotate_layout_vals`](super::annotate_layout_vals).
+    pub return_annotations: SmallVec<Option<Rc<dyn VisualAnnotation>>>,
 }
 
 impl Clone for OpContent {
@@ -37,6 +43,8 @@ impl Clone for OpContent {
             call: self.call.clone(),
             comment: self.comment.clone(),
             annotation: self.annotation.clone(),
+            arg_annotations: self.arg_annotations.clone(),
+            return_annotations: self.return_annotations.clone(),
         }
     }
 }
@@ -67,8 +75,8 @@ impl OpContent {
     /// Builds the display content of an operation of any dialect.
     ///
     /// The arguments and returns of the operation behind `opref` are formatted with `ctx`, while
-    /// the call itself is formatted with types and comments disabled. `comment` and `annotation`
-    /// start out as `None`.
+    /// the call itself is formatted with types and comments disabled. `comment` and all the
+    /// annotation fields start out as `None`/empty.
     pub fn from_op<'ir, D: Dialect>(opref: &OpRef<'ir, D>, ctx: &FormatContext) -> Self {
         OpContent {
             args: opref
@@ -82,6 +90,8 @@ impl OpContent {
             call: opref.fmt_to_string(&ctx.clone().show_comments(false).show_types(false)),
             comment: None,
             annotation: None,
+            arg_annotations: svec![],
+            return_annotations: svec![],
         }
     }
 }

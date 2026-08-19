@@ -1,8 +1,11 @@
 use std::fmt::Debug;
 
-use crate::visualization::{
-    NoClass, TextBox,
-    composition::{DynamicElement, StyleModifier},
+use crate::{
+    evaluation::{Evaluation, ValState},
+    visualization::{
+        NoClass, TextBox,
+        composition::{DynamicElement, StyleModifier},
+    },
 };
 
 pub trait VisualAnnotation: Debug + 'static {
@@ -18,4 +21,24 @@ pub trait VisualAnnotation: Debug + 'static {
     }
 }
 
-impl VisualAnnotation for () {}
+impl VisualAnnotation for () {
+    fn widget(&self) -> Option<Box<dyn DynamicElement>> {
+        None
+    }
+}
+
+impl<V: Evaluation + VisualAnnotation> VisualAnnotation for ValState<V> {
+    fn style_modifier(&self) -> Option<StyleModifier> {
+        match self {
+            ValState::Evaluated(v) => v.style_modifier(),
+            _ => None,
+        }
+    }
+
+    fn widget(&self) -> Option<Box<dyn DynamicElement>> {
+        match self {
+            ValState::Evaluated(v) => v.widget(),
+            _ => None,
+        }
+    }
+}

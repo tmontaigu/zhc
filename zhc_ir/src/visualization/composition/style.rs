@@ -193,6 +193,17 @@ impl Class for OpInputPortClass {
         padding: Thickness::new(2.),
         corner_radius: Thickness::new(5.),
         font_size: FontSize::new(10.),
+        draw_separators: true,
+        ..Style::DEFAULT
+    };
+}
+
+pub struct OpPortTextClass;
+impl Class for OpPortTextClass {
+    const STYLE: Style = Style {
+        font_color: Color::rgb(43, 49, 58),
+        font_size: FontSize::new(10.),
+        padding: Thickness::ZERO,
         ..Style::DEFAULT
     };
 }
@@ -236,6 +247,7 @@ impl Class for OpOutputPortClass {
         padding: Thickness::new(2.),
         corner_radius: Thickness::new(5.),
         font_size: FontSize::new(10.),
+        draw_separators: true,
         ..Style::DEFAULT
     };
 }

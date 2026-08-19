@@ -2,7 +2,10 @@ use super::*;
 use crate::visualization::svg::tag_background;
 
 /// Text element representing an operation input port.
-pub type OpInputPort = TextBox<OpInputPortClass>;
+pub type OpInputPortText = TextBox<OpPortTextClass>;
+
+/// Input port: value text stacked above an optional per-value annotation widget, boxed together.
+pub type OpInputPort = V2<OpInputPortText, Optional<Box<dyn DynamicElement>>, OpInputPortClass>;
 
 /// Horizontal collection of input ports.
 pub type OpInputs = HStack<OpInputPort, OpInputsClass>;
@@ -14,7 +17,10 @@ pub type OpBody = TextBox<OpBodyClass>;
 pub type OpComment = TextBox<OpCommentClass>;
 
 /// Text element representing an operation output port.
-pub type OpOutputPort = TextBox<OpOutputPortClass>;
+pub type OpOutputPortText = TextBox<OpPortTextClass>;
+
+/// Output port: value text stacked above an optional per-value annotation widget, boxed together.
+pub type OpOutputPort = V2<OpOutputPortText, Optional<Box<dyn DynamicElement>>, OpOutputPortClass>;
 
 /// Horizontal collection of output ports.
 pub type OpOutputs = HStack<OpOutputPort, OpOutputsClass>;

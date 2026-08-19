@@ -5,7 +5,12 @@ use crate::{
 };
 use zhc_builder::{Builder, Type};
 use zhc_config::{hpu::HpuConfig, multi_hpu::MultiHpuConfig, vm::VmConfig};
-use zhc_ir::{IR, OpMap, Signature, evaluation::Evaluation, partition::PartitionId};
+use zhc_ir::{
+    IR, OpMap, Signature,
+    evaluation::Evaluation,
+    partition::PartitionId,
+    visualization::{DynamicElement, VisualAnnotation},
+};
 use zhc_langs::{
     doplang::DopLang,
     hpulang::{HpuLang, HpuLocality},
@@ -51,3 +56,9 @@ pub enum PipelineArtifact {
 }
 
 impl Evaluation for PipelineArtifact {}
+
+impl VisualAnnotation for PipelineArtifact {
+    fn widget(&self) -> Option<Box<dyn DynamicElement>> {
+        None
+    }
+}

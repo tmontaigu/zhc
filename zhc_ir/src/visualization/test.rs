@@ -1216,6 +1216,55 @@ fn test_ann_style_modifier() {
 }
 
 #[test]
+fn test_val_ann_style_modifier() {
+    // inp (root) -> inc1 (a/b) -> inc2 (a) -> ret (root), each value annotated with its depth
+    let mut ir: IR<TestLang> = IR::empty();
+    let (op0, inp) = ir.add_op(TestInstructionSet::IntInput { pos: 0 }, svec![]);
+    let (op1, inc1) = ir.add_op(TestInstructionSet::Inc, svec![inp[0]]);
+    let (op2, inc2) = ir.add_op(TestInstructionSet::Inc, svec![inc1[0]]);
+    let (op3, _) = ir.add_op(TestInstructionSet::Return, svec![inc2[0]]);
+
+    let root = Hierarchy::new();
+    let mut group_a = root.clone();
+    group_a.push("a");
+    let mut group_ab = group_a.clone();
+    group_ab.push("b");
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    struct ValAnn(usize);
+
+    impl VisualAnnotation for ValAnn {
+        fn style_modifier(&self) -> Option<composition::StyleModifier> {
+            Some(StyleModifier {
+                fill_color: Some(ColorScale::RAINBOW.interpolate(self.0 as f64 / 2.)),
+                ..Default::default()
+            })
+        }
+
+        fn widget(&self) -> Option<Box<dyn composition::DynamicElement>> {
+            Some(Box::new(TextBox::<NoClass>::new(
+                None,
+                format!("{:?}", self),
+            )))
+        }
+    }
+
+    let mut op_annotations = ir.empty_opmap();
+    op_annotations.insert(op0, root.clone());
+    op_annotations.insert(op1, group_ab.clone());
+    op_annotations.insert(op2, group_a.clone());
+    op_annotations.insert(op3, root.clone());
+
+    let mut val_annotations = ir.empty_valmap();
+    val_annotations.insert(inp[0], ValAnn(0));
+    val_annotations.insert(inc1[0], ValAnn(1));
+    val_annotations.insert(inc2[0], ValAnn(2));
+
+    let ann_ir = AnnIR::new(&ir, ir.filled_opmap(()), val_annotations);
+    draw_ann_ir_to_html(&ann_ir.view(), Some(op_annotations));
+}
+
+#[test]
 fn test_linear_order_not_topological() {
     let mut ir: IR<TestLang> = IR::empty();
     let (op0, v0) = ir.add_op(TestInstructionSet::IntInput { pos: 0 }, svec![]);

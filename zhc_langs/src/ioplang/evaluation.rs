@@ -4,6 +4,7 @@ use zhc_crypto::integer_semantics::{
     EmulatedCiphertextBlockStorage, EmulatedPlaintext, EmulatedPlaintextBlock,
 };
 use zhc_ir::evaluation::{Evaluable, EvaluatesTo, Evaluation};
+use zhc_ir::visualization::{DynamicElement, VisualAnnotation};
 use zhc_utils::iter::CollectInSmallVec;
 use zhc_utils::small::SmallVec;
 use zhc_utils::{Dumpable, FastMap, SafeAs, svec};
@@ -90,6 +91,12 @@ impl Dumpable for IopValue {
 }
 
 impl Evaluation for IopValue {}
+
+impl VisualAnnotation for IopValue {
+    fn widget(&self) -> Option<Box<dyn DynamicElement>> {
+        None
+    }
+}
 
 impl EvaluatesTo<IopValue> for super::IopTypeSystem {
     fn type_of(val: &IopValue) -> Self {

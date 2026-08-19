@@ -1265,6 +1265,40 @@ fn test_val_ann_style_modifier() {
 }
 
 #[test]
+fn test_val_ann_gauge_widget() {
+    // inp -> inc1 -> inc2 -> inc3 -> ret, each value carrying a gauge at a different fill level
+    let mut ir: IR<TestLang> = IR::empty();
+    let (_, inp) = ir.add_op(TestInstructionSet::IntInput { pos: 0 }, svec![]);
+    let (_, inc1) = ir.add_op(TestInstructionSet::Inc, svec![inp[0]]);
+    let (_, inc2) = ir.add_op(TestInstructionSet::Inc, svec![inc1[0]]);
+    let (_, inc3) = ir.add_op(TestInstructionSet::Inc, svec![inc2[0]]);
+    let (_, _) = ir.add_op(TestInstructionSet::Return, svec![inc3[0]]);
+
+    #[derive(Debug, Clone, PartialEq)]
+    struct ValAnn(f32);
+    impl Eq for ValAnn {}
+
+    impl VisualAnnotation for ValAnn {
+        fn widget(&self) -> Option<Box<dyn composition::DynamicElement>> {
+            Some(Box::new(composition::H2::<_, _, NoClass>::new(
+                None,
+                composition::TextBox::<NoClass>::new(None, "NB:".into()),
+                composition::Gauge::<NoClass>::new(None, self.0),
+            )))
+        }
+    }
+
+    let mut val_annotations = ir.empty_valmap();
+    val_annotations.insert(inp[0], ValAnn(5.));
+    val_annotations.insert(inc1[0], ValAnn(50.));
+    val_annotations.insert(inc2[0], ValAnn(100.));
+    val_annotations.insert(inc3[0], ValAnn(130.));
+
+    let ann_ir = AnnIR::new(&ir, ir.filled_opmap(()), val_annotations);
+    draw_ann_ir_to_html(&ann_ir.view(), None).open();
+}
+
+#[test]
 fn test_linear_order_not_topological() {
     let mut ir: IR<TestLang> = IR::empty();
     let (op0, v0) = ir.add_op(TestInstructionSet::IntInput { pos: 0 }, svec![]);

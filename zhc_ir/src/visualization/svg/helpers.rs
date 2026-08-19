@@ -45,6 +45,26 @@ pub(crate) fn separator_rect(style: &Style, x: f64, y_mid: f64, width: f64) -> S
     }
 }
 
+/// A hairline separator between horizontally stacked children, in the
+/// container's own border color. Inset by the border width on each side, so it
+/// stops at the border stroke's inner edge instead of painting over it.
+pub(crate) fn vseparator_rect(style: &Style, x_mid: f64, y: f64, height: f64) -> SvgElement {
+    let inset = style.border_width.as_f64();
+    SvgElement::Rect {
+        x: x_mid - inset / 2.0,
+        y: y + inset,
+        width: inset,
+        height: (height - 2.0 * inset).max(0.0),
+        rx: None,
+        fill: Some(style.border_color.to_string()),
+        stroke: None,
+        stroke_width: None,
+        class: None,
+        id: None,
+        data_val: None,
+    }
+}
+
 /// Card background: a plain rounded rect, or a ticket-stub zigzag on the
 /// free edge for `CardShape::SawtoothTop/Bottom` — purely decorative, the
 /// solver still treats the card as its ordinary rectangular frame.

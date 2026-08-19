@@ -5,7 +5,7 @@ mod composition;
 mod hierarchy;
 mod html;
 mod layer_map;
-mod layoutlang;
+pub mod layoutlang;
 mod placement;
 mod svg;
 mod visual_annotation;

@@ -19,10 +19,6 @@ pub mod prelude {
 
 #[cfg(test)]
 mod test {
-    use zhc_builder::CiphertextSpec;
-    use zhc_pipeline::{Pipeline, compat::Iop};
-    use zhc_utils::Dumpable;
-
     #[test]
     fn brrrrrr() {}
 }

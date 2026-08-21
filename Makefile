@@ -5,13 +5,13 @@ SECS ?= 20
 
 
 test:
-	cargo test --release
+	cargo test --locked --release
 
 brrr:
-	cargo test --release -- brrr
+	cargo test --locked --release -- brrr
 
 update-expects:
-	cargo run --bin update-expects
+	cargo run --locked --bin update-expects
 
 fmt:
 	cargo +nightly fmt
@@ -20,62 +20,62 @@ fmt-check:
 	cargo +nightly fmt --check
 
 mem-topo:
-	cargo run -p zhc_utils --example mem_topo
+	cargo run --locked -p zhc_utils --example mem_topo
 
 check:
-	RUSTFLAGS="-D warnings" cargo check
-	RUSTDOCFLAGS="-D warnings" cargo doc --no-deps
+	RUSTFLAGS="-D warnings" cargo check --locked
+	RUSTDOCFLAGS="-D warnings" cargo doc --locked --no-deps
 
 bench:
-	cargo run --release -p zhc_bench
+	cargo run --locked --release -p zhc_bench
 
 bench-export:
-	cargo run --release -p zhc_bench -- export
+	cargo run --locked --release -p zhc_bench -- export
 
 bench-diff:
-	RUSTFLAGS="-A warnings" cargo run --release -p zhc_bench -- diff
+	RUSTFLAGS="-A warnings" cargo run --locked --release -p zhc_bench -- diff
 
 bench-compile:
-	cargo run --release -p zhc_bench -- compile
+	cargo run --locked --release -p zhc_bench -- compile
 
 bench-compile-diff:
-	RUSTFLAGS="-A warnings" cargo run --release -p zhc_bench -- compile-diff
+	RUSTFLAGS="-A warnings" cargo run --locked --release -p zhc_bench -- compile-diff
 
 analyze:
-	cargo run --release -p zhc_bench -- analyze
+	cargo run --locked --release -p zhc_bench -- analyze
 
 vm-test:
-	cargo test -p zhc_vm --release
+	cargo test --locked -p zhc_vm --release
 
 vm-check:
-	RUSTFLAGS="-D warnings" cargo check -p zhc_vm
-	RUSTDOCFLAGS="-D warnings" cargo doc --no-deps -p zhc_vm
+	RUSTFLAGS="-D warnings" cargo check --locked -p zhc_vm
+	RUSTDOCFLAGS="-D warnings" cargo doc --locked --no-deps -p zhc_vm
 
 vm-bench:
 	RUSTFLAGS="-C target-cpu=native -A warnings" CARGO_PROFILE_RELEASE_LTO=fat \
-		cargo +nightly-2026-04-22 bench -p zhc_vm --bench vm --profile profiling
+		cargo +nightly-2026-04-22 bench --locked -p zhc_vm --bench vm --profile profiling
 
 vm-throughput:
 	RUSTFLAGS="-C target-cpu=native -A warnings" CARGO_PROFILE_RELEASE_LTO=fat \
-		cargo +nightly-2026-04-22 bench -p zhc_vm --bench throughput --profile profiling
+		cargo +nightly-2026-04-22 bench --locked -p zhc_vm --bench throughput --profile profiling
 
 vm-throughput-verify:
 	VM_VERIFY=1 $(if $(CORES),VM_CORES=$(CORES)) \
 	RUSTFLAGS="-C target-cpu=native -A warnings" CARGO_PROFILE_RELEASE_LTO=fat \
-		cargo +nightly-2026-04-22 bench -p zhc_vm --bench throughput --profile profiling
+		cargo +nightly-2026-04-22 bench --locked -p zhc_vm --bench throughput --profile profiling
 
 vm-microbench:
 	RUSTFLAGS="-C target-cpu=native -A warnings" CARGO_PROFILE_RELEASE_LTO=fat \
-		cargo +nightly-2026-04-22 run --profile profiling -p zhc_vm --example microbench
+		cargo +nightly-2026-04-22 run --locked --profile profiling -p zhc_vm --example microbench
 
 vm-profile-throughput:
 	RUSTFLAGS="-C target-cpu=native -A warnings" CARGO_PROFILE_RELEASE_LTO=fat \
-	cargo +nightly-2026-04-22 bench -p zhc_vm --bench throughput --profile profiling --features profiling
+	cargo +nightly-2026-04-22 bench --locked -p zhc_vm --bench throughput --profile profiling --features profiling
 
 vm-profile:
 	rm -rf bench_vm.trace
 	BENCH_BIN=$$(RUSTFLAGS="-C target-cpu=native -A warnings" CARGO_PROFILE_RELEASE_LTO=fat \
-		cargo +nightly-2026-04-22 bench -p zhc_vm --bench vm --profile profiling --no-run \
+		cargo +nightly-2026-04-22 bench --locked -p zhc_vm --bench vm --profile profiling --no-run \
 		--message-format=json 2>/dev/null \
 		| grep -o '"executable":"[^"]*/vm-[^"]*"' | tail -1 | sed 's/.*:"//;s/"$$//'); \
 	xcrun xctrace record --template "CPU Counters" \
@@ -86,7 +86,7 @@ vm-profile:
 zhc-profile:
 	rm -rf zhc_profile_pipeline.trace
 	EXAMPLE_BIN=$$(RUSTFLAGS="-C target-cpu=native -A warnings" CARGO_PROFILE_RELEASE_LTO=fat \
-		cargo build -p zhc --example profile_pipeline --profile profiling \
+		cargo build --locked -p zhc --example profile_pipeline --profile profiling \
 		--message-format=json 2>/dev/null \
 		| grep -o '"executable":"[^"]*/profile_pipeline[^"]*"' | tail -1 | sed 's/.*:"//;s/"$$//'); \
 	xcrun xctrace record --template "Time Profiler (High Freq)" \

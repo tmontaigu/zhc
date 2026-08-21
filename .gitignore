@@ -1,5 +1,4 @@
 .cargo
-Cargo.lock
 target
 .zed
 **.DS_Store

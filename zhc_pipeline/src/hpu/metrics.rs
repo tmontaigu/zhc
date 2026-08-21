@@ -12,7 +12,7 @@ use zhc_langs::{
 };
 use zhc_sim::{
     Simulator,
-    hpu::{DOp, DOpId, Events, FlatLinLatency, Hpu, Statistics},
+    hpu::{DOp, DOpId, Events, Hpu, Statistics},
 };
 use zhc_utils::{
     Dumpable,
@@ -115,18 +115,15 @@ fn compute_lower_bound(ir: &IR<DopLang>, config: &HpuConfig) -> Cycle {
         .walk_ops_linear()
         .filter(|op| op.get_instruction().is_pbs())
         .count();
-    let n_full = pbses_count.div_euclid(config.pbs_max_batch_size);
-    let last_batch_length = pbses_count.rem_euclid(config.pbs_max_batch_size);
-    let model = FlatLinLatency::new(
-        config.pbs_processing_latency_a,
-        config.pbs_processing_latency_b,
-        config.pbs_processing_latency_m,
-    );
-    let mut cycles = model.compute_latency(config.pbs_max_batch_size) * n_full;
-    if last_batch_length > 0 {
-        cycles = cycles + model.compute_latency(last_batch_length);
+    if pbses_count == 0 {
+        return Cycle(0);
     }
-    cycles
+    let n_batches = pbses_count.div_ceil(config.pbs_max_batch_size);
+    let padded_slots = pbses_count.max(n_batches * config.pbs_processing_latency_m);
+    Cycle(
+        config.pbs_processing_latency_a * padded_slots
+            + config.pbs_processing_latency_b * n_batches,
+    )
 }
 
 fn simulate(ir: &IR<DopLang>, config: &HpuConfig) -> (Cycle, Statistics) {

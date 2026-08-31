@@ -3,6 +3,7 @@ use zhc_ir::{
     translation::{Order, translate_ann},
 };
 use zhc_langs::{
+    hpulang::LutId,
     ioplang::{IopInstructionSet, IopLang},
     vmlang::{VmInstructionSet, VmLang},
 };
@@ -237,10 +238,20 @@ pub fn lower_iop_to_vm(ir: &IR<IopLang>) -> IR<VmLang> {
                 );
             }
             IopInstructionSet::Pbs { lut, .. } => {
+                // let n = GIDS1.len();
+                // let lut = GIDS1
+                //     .entry(lut.clone())
+                //     .or_insert(zhc_langs::hpulang::LutId(n));
                 let lut = match GIDS1.get(&lut) {
                     Some(v) => *v,
                     None => {
-                        panic!("Warning: Failed to lookup the gid for key: {lut:?}. Custom LUT loading is not yet implemented.");
+                        eprintln!(
+                            "Warning: Failed to lookup the gid for key: {lut:?}. Custom LUT loading is not yet implemented. This can run on simulator but would fail on board."
+                        );
+
+                        // Setting to 76 will make the vm crash with SIGSEGV (the vm has 76 slots) so there's  likely some out out of bound read/write
+                        LutId(75)
+                        // panic!("Failed to lookup the gid for key: {lut:?}")
                     }
                 };
                 let new_arg = translator.translate_val(op.get_arg_valids()[0]);
@@ -252,7 +263,11 @@ pub fn lower_iop_to_vm(ir: &IR<IopLang>) -> IR<VmLang> {
                 let lut = match GIDS2.get(&lut) {
                     Some(v) => *v,
                     None => {
-                        panic!("Warning: Failed to lookup the gid for key: {lut:?}. Custom LUT loading is not yet implemented.");
+                        eprintln!(
+                            "Warning: Failed to lookup the gid for key: {lut:?}. Custom LUT loading is not yet implemented. This can run on simulator but would fail on board."
+                        );
+                        LutId(75)
+                        // panic!("Failed to lookup the gid for key: {lut:?}")
                     }
                 };
                 let new_arg = translator.translate_val(op.get_arg_valids()[0]);

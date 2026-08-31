@@ -47,11 +47,18 @@ pub fn eliminate_aliases(ir: &mut IR<IopLang>) {
     });
     let (opactions, valactions) = ann_ir.into_maps();
 
-    for (old_valid, action) in valactions.into_iter() {
+    // for (old_valid, action) in valactions.into_iter() {
+    //     if let ValAction::ReplaceWith(new_valid) = action {
+    //         ir.replace_val_use(old_valid, new_valid);
+    //     }
+    // }
+    ir.replace_val_use_batch(valactions.into_iter().filter_map(|(old_id, action)| {
         if let ValAction::ReplaceWith(new_valid) = action {
-            ir.replace_val_use(old_valid, new_valid);
+            Some((old_id, new_valid))
+        } else {
+            None
         }
-    }
+    }));
 
     for (opid, action) in opactions.into_iter() {
         if let OpAction::Delete = action {

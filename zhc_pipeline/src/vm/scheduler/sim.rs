@@ -677,7 +677,13 @@ impl<'a, 'b> LightVm<'a, 'b> {
             }
         };
         let op_id = op.get_id().as_raw();
-        self.locks_table[op_id as usize] = op.get_predecessors_iter().count().sas();
+        // ImmLd predecessors emit no bytecode, so they can never decrement
+        // this op's lock at run time — counting them would deadlock workers.
+        self.locks_table[op_id as usize] = op
+            .get_predecessors_iter()
+            .filter(|p| !matches!(p.get_instruction(), VmInstructionSet::ImmLd { .. }))
+            .count()
+            .sas();
         self.successors_table[op_id as usize].extend(op.get_users_iter().map(|u| u.get_id().0));
         // Encode the anti-dependencies gathered from recycled registers: each such predecessor
         // must decrement this op's lock, so it also gains this op as a successor. Deduplicated to
@@ -757,6 +763,15 @@ impl<'a, 'b> LightVm<'a, 'b> {
             .get_args_iter()
             .dedup_by_key(|a| a.get_id())
             .chain(op.get_returns_iter())
+            // ImmLd values are never register-allocated: consumers inline
+            // them into their bytecode as (s_id, s_blk), so they have no
+            // register lifecycle to track here.
+            .filter(|v| {
+                !matches!(
+                    v.get_origin().opref.get_instruction(),
+                    VmInstructionSet::ImmLd { .. }
+                )
+            })
         {
             self.val_states
                 .get_mut(&val)
@@ -776,7 +791,11 @@ impl<'a, 'b> LightVm<'a, 'b> {
                     }
                     ValState::InFlight(r, n) => ValState::InFlight(r, n - 1),
                     state => {
-                        unreachable!("Found unexpected state {state:?} for val: {}", val.format())
+                        unreachable!(
+                            "Found unexpected state {state:?} for val: {} (produced by {})",
+                            val.format(),
+                            val.get_origin().opref.format()
+                        )
                     }
                 })
         }

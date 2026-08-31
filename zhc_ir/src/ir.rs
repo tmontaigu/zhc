@@ -8,7 +8,7 @@ use crate::{
 use std::{cmp::max, fmt::Debug};
 use zhc_utils::files::FileHandle;
 use zhc_utils::iter::MultiZip;
-use zhc_utils::{Dumpable, SafeAs, svec};
+use zhc_utils::{Dumpable, FastSet, SafeAs, svec};
 use zhc_utils::{Store, small::SmallVec};
 
 use super::{
@@ -694,6 +694,100 @@ impl<D: Dialect> IR<D> {
         // Drain the old users into the new users.
         let [old_mut, new_mut] = self.val_users.get_disjoint_mut([old, new]);
         new_mut.append(old_mut);
+    }
+
+    pub fn replace_val_use_batch(
+        &mut self,
+        batch: impl Iterator<Item = (impl AsValId, impl AsValId)>,
+    ) {
+        let batch = batch
+            .filter_map(|(old, new)| {
+                let old = old.val_id();
+                let new = new.val_id();
+                (old != new).then_some((old, new))
+            })
+            .collect::<Vec<_>>();
+
+        if batch.is_empty() {
+            return;
+        }
+
+        let unique_olds = batch
+            .iter()
+            .map(|(old, _)| *old)
+            .collect::<FastSet<ValId>>();
+
+        assert_eq!(
+            unique_olds.len(),
+            batch.len(),
+            "duplicate old value in batch"
+        );
+
+        for (old, new) in batch.iter().copied() {
+            assert!(self.has_valid(old), "Unknown valid.");
+            assert!(self.has_valid(new), "Unknown valid.");
+
+            // The the new also appears as an old, then there is some kind of chain
+            if unique_olds.contains(&new) {
+                panic!("chained pairs are invalid")
+            }
+
+            let old = self.raw_get_val(old);
+            let new = self.raw_get_val(new);
+
+            // We check that the two values have compatible types.
+            assert_eq!(
+                old.get_type(),
+                new.get_type(),
+                "Tried to replace a value with one of different type."
+            );
+
+            // Now we are going to check that the new value is not reachable by any user. That would
+            // This ensures users of old cannot reach new
+            // however, it make this function only accept rewrites where the `new`
+            // is val is produced at the same of ealier depth.
+            // (The non batched version would accept it)
+            let dold = old.get_origin().opref.depth;
+            let dnew = new.get_origin().opref.depth;
+            assert!(
+                dold >= dnew,
+                "batch replacement must not retarget forward: {} ({dold}) -> {} {dnew})",
+                old.id,
+                new.id
+            );
+        }
+
+        for (old, new) in batch.iter().copied() {
+            // Update the arguments of the users of old, with new instead.
+            for user in self.val_users[old].iter() {
+                self.op_arguments[user.opid].iter_mut().for_each(|a| {
+                    if *a == old {
+                        *a = new
+                    }
+                });
+            }
+
+            // Drain the old users into the new users.
+            let [old_mut, new_mut] = self.val_users.get_disjoint_mut([old, new]);
+            new_mut.append(old_mut);
+        }
+
+        self.recompute_all_depths();
+    }
+
+    pub fn recompute_all_depths(&mut self) {
+        for opid in OpId::range(0, self.raw_n_ops()) {
+            if !self.op_states[opid].is_active() {
+                continue;
+            }
+            let mut depth = 1;
+            for arg in self.op_arguments[opid].iter() {
+                let origin = self.val_origins[arg].opid;
+                debug_assert!(origin < opid, "op ids are not in topological order");
+                depth = max(depth, self.op_depth[origin] + 1);
+            }
+            self.op_depth[opid] = depth;
+        }
     }
 
     /// Replaces a single use of a value with another value.

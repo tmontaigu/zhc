@@ -172,14 +172,18 @@ impl Worker {
     }
 
     fn get_pt_src(&self, id: usize, blk: usize) -> u64 {
-        let Value::Uint(val) = self.get_run().inputs[id] else {
+        // `id` is plaintext-local (see `Run::pt_index`).
+        let run = self.get_run();
+        let Value::Uint(val) = run.inputs[run.pt_index[id]] else {
             unreachable!()
         };
         val.get_block(blk.sas()).raw_message_bits() as u64
     }
 
     fn get_ct_src(&self, id: usize, blk: usize) -> LweCiphertext<&[u64]> {
-        let Value::FheUint(val) = self.get_run().inputs[id] else {
+        // `id` is ciphertext-local (see `Run::ct_index`).
+        let run = self.get_run();
+        let Value::FheUint(val) = run.inputs[run.ct_index[id]] else {
             unreachable!()
         };
         let radix_ct = unsafe { &*val };

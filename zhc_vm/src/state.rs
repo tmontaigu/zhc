@@ -23,7 +23,11 @@ pub struct State {
 
 impl State {
     pub fn new(config: &VmConfig, topo: &Topology) -> Arc<Self> {
-        assert!(config.regf_size.is_multiple_of(topo.n_memories()));
+        assert!(
+            config.regf_size.is_multiple_of(topo.n_memories()),
+            "config.regf_size must be a multiple of topo.n_memories() ({})",
+            topo.n_memories()
+        );
         let storage_regs = (config.regf_size / topo.n_memories()).sas();
         let run = AtomicPtr::new(null_mut());
         let barrier = Barrier::new(topo.n_processors() + 1);

@@ -75,11 +75,28 @@ pub fn skip_store_load(ir: &mut IR<IopLang>) {
 
     let valanns = ann_ir.into_valmap();
 
-    for (old_valid, ann) in valanns.into_iter() {
+    let mut n_repl = 0usize;
+    let t = std::time::Instant::now();
+    // for (old_valid, ann) in valanns.into_iter() {
+    //     if let ValAnn::ShouldBeReplaced(new_valid) = ann {
+    //         ir.replace_val_use(old_valid, new_valid);
+    //         n_repl += 1;
+    //     }
+    // }
+    ir.replace_val_use_batch(valanns.into_iter().filter_map(|(old_valid, ann)| {
         if let ValAnn::ShouldBeReplaced(new_valid) = ann {
-            ir.replace_val_use(old_valid, new_valid);
+            n_repl += 1;
+            Some((old_valid, new_valid))
+        } else {
+            None
         }
-    }
+    }));
+    eprintln!(
+        "skip_store_load: {n_repl} replacements in {:?} (n_ops={}, n_vals={})",
+        t.elapsed(),
+        ir.n_ops(),
+        ir.n_vals()
+    );
 }
 
 #[cfg(test)]

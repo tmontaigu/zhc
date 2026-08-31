@@ -41,11 +41,13 @@ use crate::ioplang::IopTypeSystem;
 /// All signatures are available via the [`DialectInstructionSet`] impl.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum IopInstructionSet {
-    /// Ciphertext program input at positional slot `pos`, with
-    /// `int_size` radix blocks. `() → (Ciphertext)`
+    /// Ciphertext program input at positional slot `pos`. `int_size` is the
+    /// integer's width in *bits* (`int_size / message_size` radix blocks).
+    /// `() → (Ciphertext)`
     InputCiphertext { pos: usize, int_size: u16 },
-    /// Plaintext program input at positional slot `pos`, with
-    /// `int_size` radix blocks. `() → (Plaintext)`
+    /// Plaintext program input at positional slot `pos`. `int_size` is the
+    /// integer's width in *bits* (`int_size / message_size` radix blocks).
+    /// `() → (Plaintext)`
     InputPlaintext { pos: usize, int_size: u16 },
     /// Ciphertext program output at positional slot `pos`.
     /// `(Ciphertext) → ()`
@@ -56,7 +58,8 @@ pub enum IopInstructionSet {
     /// Eliminated by [`eliminate_aliases`](super::eliminate_aliases)
     /// before downstream passes.
     Inspect { typ: IopTypeSystem },
-    /// Zero-initialized composite ciphertext. `() → (Ciphertext)`
+    /// Zero-initialized composite ciphertext of `int_size` *bits*
+    /// (`int_size / message_size` radix blocks). `() → (Ciphertext)`
     DeclareCiphertext { int_size: u16 },
     /// Plaintext block constant. `() → (PlaintextBlock)`
     LetPlaintextBlock { value: u8 },

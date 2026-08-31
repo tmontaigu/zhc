@@ -242,12 +242,25 @@ impl Builder {
 
     pub fn optimize_ir(&self) -> IR<IopLang> {
         let mut ir = self.ir().clone();
+        let t = std::time::Instant::now();
+        println!("1 (n_ops={})", ir.n_ops());
         eliminate_aliases(&mut ir);
+        println!("2 eliminate_aliases {:?}", t.elapsed());
+        let t = std::time::Instant::now();
         skip_store_load(&mut ir);
+        println!("3 skip_store_load {:?}", t.elapsed());
+        let t = std::time::Instant::now();
         eliminate_dead_code(&mut ir);
+        println!("4 dce {:?} (n_ops={})", t.elapsed(), ir.n_ops());
+        let t = std::time::Instant::now();
         skip_redundant_stores(&mut ir);
+        println!("5 skip_redundant_stores {:?}", t.elapsed());
+        let t = std::time::Instant::now();
         eliminate_dead_code(&mut ir);
+        println!("6 dce {:?}", t.elapsed());
+        let t = std::time::Instant::now();
         eliminate_common_subexpressions(&mut ir);
+        println!("7 cse {:?} (n_ops={})", t.elapsed(), ir.n_ops());
         ir
     }
 

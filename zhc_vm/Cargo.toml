@@ -17,7 +17,8 @@ zhc_utils.workspace = true
 zhc_config.workspace = true
 zhc_profiling.workspace = true
 libc.workspace = true
-tfhe = { git = "https://github.com/zama-ai/tfhe-rs.git", features =["integer"]}
+# tfhe = { git = "ssh://git@github.com/zama-ai/tfhe-rs-internal.git", features =["integer"], branch = "tm/dag-poc-integer-lowering"}
+tfhe = { path = "../../tfhe-rs-internal/tfhe", features =["integer"] }
 
 [dev-dependencies]
 criterion = "0.8"
